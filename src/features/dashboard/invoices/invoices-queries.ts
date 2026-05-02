@@ -1,5 +1,11 @@
 import { and, eq, ilike, inArray, isNotNull, sql } from "drizzle-orm";
-import { cards, invoices, payers, transactions } from "@/db/schema";
+import {
+	cards,
+	financialAccounts,
+	invoices,
+	payers,
+	transactions,
+} from "@/db/schema";
 import { ACCOUNT_AUTO_INVOICE_NOTE_PREFIX } from "@/shared/lib/accounts/constants";
 import { db } from "@/shared/lib/db";
 import {
@@ -31,6 +37,13 @@ type RawDashboardInvoice = {
 	totalAmount: string | number | null;
 	transactionCount: string | number | null;
 	invoiceCreatedAt: Date | null;
+	cardAccountId: string | null;
+};
+
+export type InvoicePaymentAccountOption = {
+	value: string;
+	label: string;
+	logo: string | null;
 };
 
 type RawInvoiceBreakdownRow = {
@@ -63,11 +76,13 @@ export type DashboardInvoice = {
 	totalAmount: number;
 	paidAt: string | null;
 	pagadorBreakdown: InvoicePagadorBreakdown[];
+	defaultPaymentAccountId: string | null;
 };
 
 type DashboardInvoicesSnapshot = {
 	invoices: DashboardInvoice[];
 	totalPending: number;
+	paymentAccountOptions: InvoicePaymentAccountOption[];
 };
 
 const isInvoiceStatus = (value: unknown): value is InvoicePaymentStatus =>
@@ -148,7 +163,7 @@ export async function fetchDashboardInvoices(
 		}
 	}
 
-	const [rows, breakdownRows] = (await Promise.all([
+	const [rows, breakdownRows, accountRows] = (await Promise.all([
 		db
 			.select({
 				invoiceId: invoices.id,
@@ -159,6 +174,7 @@ export async function fetchDashboardInvoices(
 				period: invoices.period,
 				paymentStatus: invoices.paymentStatus,
 				invoiceCreatedAt: invoices.createdAt,
+				cardAccountId: cards.accountId,
 				totalAmount: sql<number | null>`
         COALESCE(SUM(${transactions.amount}), 0)
       `,
@@ -190,6 +206,7 @@ export async function fetchDashboardInvoices(
 				cards.status,
 				cards.logo,
 				cards.dueDay,
+				cards.accountId,
 				invoices.period,
 				invoices.paymentStatus,
 			),
@@ -218,7 +235,29 @@ export async function fetchDashboardInvoices(
 				payers.name,
 				payers.avatarUrl,
 			),
-	])) as [RawDashboardInvoice[], RawInvoiceBreakdownRow[]];
+		db
+			.select({
+				id: financialAccounts.id,
+				name: financialAccounts.name,
+				logo: financialAccounts.logo,
+			})
+			.from(financialAccounts)
+			.where(eq(financialAccounts.userId, userId)),
+	])) as [
+		RawDashboardInvoice[],
+		RawInvoiceBreakdownRow[],
+		{ id: string; name: string; logo: string | null }[],
+	];
+
+	const paymentAccountOptions: InvoicePaymentAccountOption[] = accountRows
+		.map((account) => ({
+			value: account.id,
+			label: account.name,
+			logo: account.logo,
+		}))
+		.sort((a, b) =>
+			a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" }),
+		);
 
 	const groupedBreakdown = new Map<
 		string,
@@ -336,6 +375,7 @@ export async function fetchDashboardInvoices(
 			pagadorBreakdown: (
 				breakdownMap.get(`${row.cardId}:${resolvedPeriod}`) ?? []
 			).sort((a, b) => b.amount - a.amount),
+			defaultPaymentAccountId: row.cardAccountId ?? null,
 		});
 	}
 
@@ -399,5 +439,6 @@ export async function fetchDashboardInvoices(
 	return {
 		invoices: invoiceList,
 		totalPending,
+		paymentAccountOptions,
 	};
 }

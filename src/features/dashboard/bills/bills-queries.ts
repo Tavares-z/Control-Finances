@@ -5,6 +5,13 @@ export type DashboardBill = {
 	dueDate: string | null;
 	boletoPaymentDate: string | null;
 	isSettled: boolean;
+	accountId: string | null;
+};
+
+export type BillPaymentAccountOption = {
+	value: string;
+	label: string;
+	logo: string | null;
 };
 
 export type DashboardBillsSnapshot = {
