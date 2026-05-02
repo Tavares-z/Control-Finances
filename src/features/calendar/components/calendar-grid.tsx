@@ -16,7 +16,7 @@ export function CalendarGrid({
 	onCreateDay,
 }: CalendarGridProps) {
 	return (
-		<div className="overflow-hidden rounded-lg border p-2">
+		<div className="overflow-hidden">
 			<div className="grid grid-cols-7 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
 				{WEEK_DAYS_SHORT.map((dayName) => (
 					<span key={dayName} className="text-center">

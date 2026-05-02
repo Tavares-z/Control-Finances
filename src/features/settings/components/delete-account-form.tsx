@@ -98,7 +98,7 @@ export function DeleteAccountForm() {
 							<li>
 								Preferências do app, insights salvos e tokens do Companion
 							</li>
-							<li className="font-medium text-foreground">
+							<li>
 								Categorias padrão e pessoa admin serão recriadas automaticamente
 							</li>
 						</ul>
@@ -128,6 +128,7 @@ export function DeleteAccountForm() {
 
 						<ul className="list-disc list-inside text-sm text-destructive space-y-1">
 							<li>Lançamentos, orçamentos e anotações</li>
+							<li>Faturas, antecipações e pré-lançamentos</li>
 							<li>Contas, cartões e categorias</li>
 							<li>Pessoas, credenciais e configurações</li>
 							<li className="font-medium">

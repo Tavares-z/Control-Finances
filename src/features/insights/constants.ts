@@ -34,14 +34,16 @@ export const PROVIDERS = {
  */
 export const AVAILABLE_MODELS = [
 	// OpenAI
+	{ id: "gpt-5.5-pro", name: "GPT-5.5 Pro", provider: "openai" as const },
+	{ id: "gpt-5.5", name: "GPT-5.5", provider: "openai" as const },
 	{ id: "gpt-5.4", name: "GPT-5.4", provider: "openai" as const },
 	{ id: "gpt-5.4-mini", name: "GPT-5.4 Mini", provider: "openai" as const },
 	{ id: "gpt-5.4-nano", name: "GPT-5.4 Nano", provider: "openai" as const },
 
 	// Anthropic
 	{
-		id: "claude-opus-4-6",
-		name: "Claude Opus 4.6",
+		id: "claude-opus-4-7",
+		name: "Claude Opus 4.7",
 		provider: "anthropic" as const,
 	},
 	{
@@ -73,7 +75,7 @@ export const AVAILABLE_MODELS = [
 	},
 ] as const;
 
-export const DEFAULT_MODEL = "gpt-5.4";
+export const DEFAULT_MODEL = "gpt-5.5";
 export const DEFAULT_PROVIDER = "openai";
 
 /**

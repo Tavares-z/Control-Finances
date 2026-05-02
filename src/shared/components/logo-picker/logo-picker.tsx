@@ -49,14 +49,14 @@ export function LogoPickerTrigger({
 				className,
 			)}
 		>
-			<span className="relative flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border/40 bg-background shadow-xs">
+			<span className="relative flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border/40 bg-background shadow-xs">
 				{selectedLogoPath ? (
 					<Image
 						src={selectedLogoPath}
 						alt={selectedLogoLabel || "Logo selecionado"}
 						fill
 						sizes="32px"
-						className="object-contain p-0.5"
+						className="object-contain"
 					/>
 				) : (
 					<span className="text-xs text-muted-foreground">Logo</span>

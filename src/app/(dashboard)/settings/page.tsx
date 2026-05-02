@@ -51,7 +51,7 @@ export default async function Page() {
 							<TabsTrigger value="passkeys">Passkeys</TabsTrigger>
 							<TabsTrigger value="email">Alterar e-mail</TabsTrigger>
 							<TabsTrigger value="deletar" className="text-destructive">
-								Deletar conta
+								Ações perigosas
 							</TabsTrigger>
 						</TabsList>
 					</div>
@@ -190,7 +190,6 @@ export default async function Page() {
 									ou excluir sua conta inteira de forma irreversível.
 								</p>
 							</div>
-							<Separator />
 							<DeleteAccountForm />
 						</div>
 					</Card>

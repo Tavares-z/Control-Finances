@@ -5,7 +5,44 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
-## [Unreleased]
+## [2.5.0] - 2026-05-01
+
+Esta versão melhora o fechamento de faturas, a correção de lançamentos já registrados e a conferência de saldos contra o extrato do banco. O novo **ajuste de fatura** fecha a conta entre o total calculado pelo sistema e o valor real cobrado pelo banco, sem exigir que o usuário reabra lançamentos individuais. A mesma ideia foi estendida para **contas correntes**: na página do extrato, ao lado de "Saldo ao final do período", o usuário informa o saldo real e o sistema cria (ou atualiza) um lançamento de ajuste no período visualizado. Também entra o fluxo de **reembolso** para despesas à vista: pelo menu de ações do lançamento, o usuário informa a data do reembolso e o sistema cria uma receita espelhada no extrato ou na fatura correta. O widget de boletos do dashboard ganhou paridade com o widget de faturas — confirmação de pagamento agora pede conta de origem e data antes de quitar o boleto. Por fim, o **limite do cartão** passou a ser obrigatório e o sistema bloqueia despesas em cartão que ultrapassem o limite disponível, retornando uma mensagem com o valor exato disponível. As operações mantêm rastro no lançamento gerado e respeitam a proteção de faturas já pagas.
+
+### Adicionado
+- Nome do boleto no widget de Boletos agora é um link para `/transactions?q=<nome>`, incluindo `?periodo=<mes-ano>` automaticamente quando o período selecionado não é o atual. Ícone `RiExternalLinkLine` ao lado do nome, igual ao padrão do widget de Faturas.
+- Botão "Ajustar fatura" ao lado do valor na página da fatura.
+- Dialog `AdjustInvoiceDialog` com input de valor correto e preview da diferença.
+- Action `adjustInvoiceAction` que faz upsert/delete idempotente do lançamento de ajuste.
+- Botão "Ajustar saldo" ao lado do valor na página do extrato da conta.
+- Dialog `AdjustBalanceDialog` com input do saldo correto e preview da diferença que será lançada (receita ou despesa).
+- Action `adjustAccountBalanceAction` que faz upsert/delete idempotente do lançamento de ajuste por `(accountId, period)`.
+- Opção "Reembolso" no dropdown de ações de despesas à vista, posicionada após "Copiar" e antes de "Remover".
+- Dialog `RefundTransactionDialog` com seleção da data do reembolso e indicação do período de destino.
+- Action `refundTransactionAction` que cria uma receita de reembolso vinculada ao lançamento original.
+- Constantes compartilhadas `INVOICE_ADJUSTMENT_NAME`, `ACCOUNT_BALANCE_ADJUSTMENT_NAME`, `REFUND_NOTE_PREFIX` e `buildRefundNote()` em `shared/lib/accounts/constants.ts`.
+- Validação de limite de cartão: `validateCardLimit()` em `transactions/actions/core.ts` calcula o uso atual do cartão (somando lançamentos não quitados, com a mesma regra usada em `cards/queries.ts` para recorrentes) e bloqueia criação ou edição de despesa em cartão que ultrapasse o disponível, retornando "Lançamento de R$ X excede o limite disponível do cartão (R$ Y)."
+- Schema reutilizável `requiredDecimalSchema(fieldName)` em `shared/lib/schemas/common.ts` — número/string positiva (`> 0`) com mensagens parametrizáveis.
+
+### Alterado
+- **Limite do cartão é obrigatório**: campo `limite` em `cartoes` ganhou `NOT NULL DEFAULT 0` no schema, validação Zod com `requiredDecimalSchema("limite")`, atributo `required` no input do formulário e checagem client-side antes do submit. Tipos `Card.limit` e `Card.limitAvailable` deixam de ser nullable; branch "Ainda não há limite registrado" foi removido de `card-item.tsx` e a derivação defensiva em `cards/[cardId]/invoice` foi simplificada.
+- Migration `0029_friendly_spitfire`: preenche com `0` registros legados antes do `SET NOT NULL` para não quebrar bancos com cartões sem limite.
+- Métricas principais passam a tratar reembolsos como abatimento de despesa, não como receita comum.
+- Cards de receitas/despesas, série histórica do dashboard e resumo do extrato agora preservam o efeito líquido do reembolso no balanço sem inflar entradas e saídas.
+- Pagamento de fatura agora abre confirmação com conta de origem selecionável; por padrão vem a conta vinculada ao cartão, mas o usuário pode escolher outra conta antes de confirmar.
+- Widget de faturas no dashboard ganhou a mesma confirmação: o modal "Confirmar pagamento" agora pede conta de origem e data antes de marcar a fatura como paga, alinhando o comportamento ao da página de fatura.
+- Widget de boletos no dashboard ganhou a mesma paridade: o modal "Confirmar pagamento" passou a oferecer seleção de **conta de pagamento** e **data do pagamento**, com mesma estrutura de cards de detalhes, métricas, separator e formulário condicional do widget de faturas.
+- `toggleTransactionSettlementAction` agora aceita `paymentAccountId` e `paymentDate` opcionais para boletos — quando informados, atualiza a `accountId` do lançamento e usa a data escolhida em `boletoPaymentDate` (em vez da data atual).
+- `DashboardBill` passa a expor `accountId` para que o dialog inicialize a conta com o valor já vinculado ao boleto.
+- Widget "Lançamentos por Categorias" agora ignora a categoria "Transferência interna" — transferências entre contas próprias deixam de poluir o ranking de categorias.
+
+### Corrigido
+- Erro de hidratação no widget de Anotações: `Intl.DateTimeFormat` sem `timeZone` usava o fuso do servidor (UTC) no SSR e o fuso do browser (BRT) no cliente, resultando em datas divergentes. Ambos os formatters passam a usar `timeZone: "America/Sao_Paulo"` explicitamente.
+- Extrato da conta agora contabiliza transferências internas nos cards de **Entradas** e **Saídas**: transferência recebida soma em Entradas, transferência enviada soma em Saídas. Antes o saldo final refletia o movimento mas os cards permaneciam zerados, gerando inconsistência visível na tela (issue #47).
+
+### Removido
+- Seção "Veja o que você pode fazer" (galeria de screenshots com abas) da landing page, junto com o componente `ScreenshotTabs`, as 14 imagens `preview-*.webp`, o bloco `screenshots` em `images.ts`, o link `#telas` do nav e o export `pwaCompatList` sem uso.
+- Exports mortos `dateFormatter` e `monthFormatter` de `features/transactions/formatting-helpers.ts`.
 
 ## [2.4.4] - 2026-04-27
 
@@ -97,7 +134,7 @@ Esta versão é quase toda sobre organização e polimento. O código interno do
 - UI: budget-card, card-item e componentes do calendário (day-cell, event-modal) com layout revisado
 - UI: auth-card-shell simplificado (removido glassmorphism e blob animado)
 - Landing: imagens de preview atualizadas; `mainFeatures` + `extraFeatures` unificados em grid único; dark mode nos botões de CTA
-- Navbar: dark mode corrigido no navbar-shell (`dark:bg-card`, `dark:border-b-border/60`)
+- Navbar: dark mode corrigido no navbar-shell (`dark:bg-card`, `dark:border-b-border`)
 - Logo.dev: `NEXT_PUBLIC_LOGO_DEV_TOKEN` renomeado para `LOGO_DEV_TOKEN` (agora lido em runtime server-side apenas)
 - UI: conceito "Pagador/Pagadores" renomeado para **"Pessoa/Pessoas"** em toda a interface — labels, títulos, toasts, mensagens de erro, cabeçalhos de tabela e exportações. Código, rotas (`/payers`) e schema do banco (`pagadores`) permanecem inalterados; a divergência entre UI e código é intencional
 - Deps: next 16.2.3 → 16.2.4, better-auth 1.6.2 → 1.6.5, ai 6.0.159 → 6.0.168 e outros patches menores

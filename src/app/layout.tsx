@@ -9,7 +9,7 @@ import { inter } from "@/public/fonts/font_index";
 export const metadata: Metadata = {
 	title: {
 		default: "OpenMonetis | Suas finanças, do seu jeito",
-		template: "%s | OpenMonetis",
+		template: "OpenMonetis | %s",
 	},
 	description:
 		"Controle suas finanças pessoais de forma simples e transparente.",
@@ -40,7 +40,7 @@ export default function RootLayout({
 					/>
 				)}
 			</head>
-			<body className="subpixel-antialiased" suppressHydrationWarning>
+			<body className="antialiased" suppressHydrationWarning>
 				<ThemeProvider attribute="class" defaultTheme="light">
 					<QueryProvider>
 						<Suspense>{children}</Suspense>

@@ -243,8 +243,8 @@ export function useCalculatorState() {
 	const buttons: CalculatorButtonConfig[][] = [
 		[
 			{ label: "C", onClick: reset, variant: "destructive" },
-			{ label: "⌫", onClick: deleteLastDigit, variant: "secondary" },
-			{ label: "%", onClick: applyPercent, variant: "secondary" },
+			{ label: "⌫", onClick: deleteLastDigit },
+			{ label: "%", onClick: applyPercent },
 			{
 				label: "÷",
 				onClick: makeOperatorHandler("divide"),
@@ -278,7 +278,7 @@ export function useCalculatorState() {
 			{ label: "+", onClick: makeOperatorHandler("add"), variant: "outline" },
 		],
 		[
-			{ label: "±", onClick: toggleSign, variant: "secondary" },
+			{ label: "±", onClick: toggleSign },
 			{ label: "0", onClick: () => inputDigit("0") },
 			{ label: ",", onClick: inputDecimal },
 			{ label: "=", onClick: evaluate, variant: "default" },

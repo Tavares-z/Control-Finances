@@ -20,6 +20,7 @@ import {
 	buildDashboardAdminFilters,
 	excludeAutoInvoiceEntries,
 	excludeInitialBalanceWhenConfigured,
+	excludeRefundEntries,
 	excludeTransactionsFromExcludedAccounts,
 } from "@/features/dashboard/transaction-filters";
 import { db } from "@/shared/lib/db";
@@ -168,6 +169,7 @@ export async function fetchDashboardCategoryOverview(
 							eq(transactions.transactionType, "Receita"),
 							eq(categories.type, "receita"),
 							excludeAutoInvoiceEntries(),
+							excludeRefundEntries(),
 							excludeInitialBalanceWhenConfigured(),
 						),
 					),

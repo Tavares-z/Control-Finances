@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, lte, sum } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { financialAccounts, transactions } from "@/db/schema";
 import type { DashboardCardMetrics } from "@/features/dashboard/overview/dashboard-metrics-queries";
 import type {
@@ -11,6 +11,7 @@ import {
 	excludeInitialBalanceWhenConfigured,
 	excludeTransactionsFromExcludedAccounts,
 } from "@/features/dashboard/transaction-filters";
+import { REFUND_NOTE_PREFIX } from "@/shared/lib/accounts/constants";
 import { db } from "@/shared/lib/db";
 import { getAdminPayerId } from "@/shared/lib/payers/get-admin-id";
 import { safeToNumber } from "@/shared/utils/number";
@@ -31,6 +32,7 @@ const TRANSACTION_TYPE_TRANSFER = "Transferência";
 type PeriodTotals = {
 	receitas: number;
 	despesas: number;
+	reembolsos: number;
 	transferAdjustment: number;
 	balanco: number;
 };
@@ -39,6 +41,7 @@ type PeriodSummaryRow = {
 	period: string | null;
 	transactionType: string;
 	totalAmount: string | number | null;
+	refundAmount: string | number | null;
 	accountExcludeFromBalance: boolean | null;
 };
 
@@ -50,6 +53,7 @@ type DashboardPeriodOverview = {
 const createEmptyTotals = (): PeriodTotals => ({
 	receitas: 0,
 	despesas: 0,
+	reembolsos: 0,
 	transferAdjustment: 0,
 	balanco: 0,
 });
@@ -105,11 +109,17 @@ export async function fetchDashboardPeriodOverview(
 	const chartPeriods = generateLast6Months(period);
 	const startPeriod = addMonthsToPeriod(period, -24);
 
+	const refundPattern = `${REFUND_NOTE_PREFIX}%`;
 	const rows = (await db
 		.select({
 			period: transactions.period,
 			transactionType: transactions.transactionType,
-			totalAmount: sum(transactions.amount).as("total"),
+			totalAmount: sql<number>`coalesce(sum(case when ${transactions.note} ilike ${refundPattern} then 0 else ${transactions.amount} end), 0)`.as(
+				"total",
+			),
+			refundAmount: sql<number>`coalesce(sum(case when ${transactions.note} ilike ${refundPattern} then ${transactions.amount} else 0 end), 0)`.as(
+				"refund",
+			),
 			accountExcludeFromBalance: financialAccounts.excludeFromBalance,
 		})
 		.from(transactions)
@@ -151,6 +161,9 @@ export async function fetchDashboardPeriodOverview(
 
 		const totals = ensurePeriodTotals(periodTotals, row.period);
 		const total = safeToNumber(row.totalAmount);
+		const refund = safeToNumber(row.refundAmount);
+
+		totals.reembolsos += Math.abs(refund);
 
 		if (row.transactionType === TRANSACTION_TYPE_INCOME) {
 			totals.receitas += total;
@@ -179,9 +192,14 @@ export async function fetchDashboardPeriodOverview(
 
 	for (const key of periodRange) {
 		const totals = ensurePeriodTotals(periodTotals, key);
+		const netExpenses = Math.max(0, totals.despesas - totals.reembolsos);
 		totals.balanco =
-			totals.receitas - totals.despesas + totals.transferAdjustment;
+			totals.receitas -
+			totals.despesas +
+			totals.reembolsos +
+			totals.transferAdjustment;
 		runningForecast += totals.balanco;
+		totals.despesas = netExpenses;
 		forecastByPeriod.set(key, runningForecast);
 	}
 

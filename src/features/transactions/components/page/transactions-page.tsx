@@ -33,6 +33,7 @@ import {
 	MassAddDialog,
 	type MassAddFormData,
 } from "../dialogs/mass-add-dialog";
+import { RefundTransactionDialog } from "../dialogs/refund-transaction-dialog";
 import {
 	SplitPairDialog,
 	type SplitPairScope,
@@ -183,6 +184,9 @@ export function TransactionsPage({
 	const [transactionsToImport, setTransactionsToImport] = useState<
 		TransactionItem[]
 	>([]);
+	const [refundOpen, setRefundOpen] = useState(false);
+	const [transactionToRefund, setTransactionToRefund] =
+		useState<TransactionItem | null>(null);
 
 	const handleToggleSettlement = async (item: TransactionItem) => {
 		if (item.paymentMethod === "Cartão de crédito") {
@@ -539,6 +543,11 @@ export function TransactionsPage({
 		setDetailsOpen(true);
 	};
 
+	const handleRefund = (item: TransactionItem) => {
+		setTransactionToRefund(item);
+		setRefundOpen(true);
+	};
+
 	const handleAnticipate = (item: TransactionItem) => {
 		setSelectedForAnticipation(item);
 		setAnticipateOpen(true);
@@ -571,6 +580,7 @@ export function TransactionsPage({
 				onBulkDelete={handleMultipleBulkDelete}
 				onBulkImport={handleBulkImport}
 				onViewDetails={handleViewDetails}
+				onRefund={handleRefund}
 				onToggleSettlement={handleToggleSettlement}
 				onAnticipate={handleAnticipate}
 				onViewAnticipationHistory={handleViewAnticipationHistory}
@@ -681,6 +691,18 @@ export function TransactionsPage({
 				}}
 				transaction={detailsOpen ? selectedTransaction : null}
 				onEdit={handleEdit}
+			/>
+
+			<RefundTransactionDialog
+				open={refundOpen && !!transactionToRefund}
+				onOpenChange={(open) => {
+					setRefundOpen(open);
+					if (!open) {
+						setTransactionToRefund(null);
+					}
+				}}
+				transaction={transactionToRefund}
+				cardOptions={cardOptions}
 			/>
 
 			<ConfirmActionDialog

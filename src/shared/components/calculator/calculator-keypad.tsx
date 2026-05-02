@@ -32,11 +32,11 @@ export function CalculatorKeypad({
 						variant={isActive ? "default" : (btn.variant ?? "outline")}
 						onClick={btn.onClick}
 						className={cn(
-							"h-12 text-base font-medium",
+							"h-14 text-lg font-medium",
 							btn.colSpan === 2 && "col-span-2",
 							btn.colSpan === 3 && "col-span-3",
 							isActive &&
-								"bg-primary text-primary-foreground hover:bg-primary/90 ring-2 ring-primary/30",
+								"bg-primary text-primary-foreground hover:bg-primary/90",
 							btn.className,
 						)}
 					>

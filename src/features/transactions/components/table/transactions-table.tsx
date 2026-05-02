@@ -70,6 +70,7 @@ type LancamentosTableProps = {
 	onBulkDelete?: (items: TransactionItem[]) => void;
 	onBulkImport?: (items: TransactionItem[]) => void;
 	onViewDetails?: (item: TransactionItem) => void;
+	onRefund?: (item: TransactionItem) => void;
 	onToggleSettlement?: (item: TransactionItem) => void;
 	onAnticipate?: (item: TransactionItem) => void;
 	onViewAnticipationHistory?: (item: TransactionItem) => void;
@@ -98,6 +99,7 @@ export function TransactionsTable({
 	onBulkDelete,
 	onBulkImport,
 	onViewDetails,
+	onRefund,
 	onToggleSettlement,
 	onAnticipate,
 	onViewAnticipationHistory,
@@ -131,6 +133,7 @@ export function TransactionsTable({
 				onImport,
 				onConfirmDelete,
 				onViewDetails,
+				onRefund,
 				onToggleSettlement,
 				onAnticipate,
 				onViewAnticipationHistory,
@@ -147,6 +150,7 @@ export function TransactionsTable({
 			onImport,
 			onConfirmDelete,
 			onViewDetails,
+			onRefund,
 			onToggleSettlement,
 			onAnticipate,
 			onViewAnticipationHistory,

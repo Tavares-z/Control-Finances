@@ -29,10 +29,10 @@ import { NavPill } from "./nav-pill";
 import { MobileTools, NavToolsDropdown } from "./nav-tools";
 
 const triggerClass =
-	"h-8! rounded-md! px-2! py-0! text-sm! font-medium! bg-transparent! shadow-none! capitalize! [&_svg]:text-current! text-black/75! hover:text-black! hover:bg-black/10! focus:text-black! focus:bg-black/10! focus-visible:ring-black/20! data-[state=open]:text-black! data-[state=open]:bg-black/10! dark:text-white/75! dark:hover:text-white! dark:hover:bg-white/10! dark:focus:text-white! dark:focus:bg-white/10! dark:focus-visible:ring-white/20! dark:data-[state=open]:text-white! dark:data-[state=open]:bg-white/10!";
+	"h-9! px-2! py-0! bg-transparent! capitalize! [&_svg]:text-current! text-primary-foreground/75! hover:text-primary-foreground! hover:bg-primary-foreground/10! focus:text-primary-foreground! focus:bg-primary-foreground/10! focus-visible:ring-primary-foreground/20! data-[state=open]:text-primary-foreground! data-[state=open]:bg-primary-foreground/10! dark:text-foreground/75! dark:hover:text-foreground! dark:hover:bg-foreground/10! dark:focus:text-foreground! dark:focus:bg-foreground/10! dark:focus-visible:ring-foreground/20! dark:data-[state=open]:text-foreground! dark:data-[state=open]:bg-foreground/10!";
 
 const triggerActiveClass =
-	"bg-black/15! text-black! dark:bg-white/15! dark:text-white!";
+	"bg-primary-foreground/15! text-primary-foreground! dark:bg-foreground/15! dark:text-foreground!";
 
 export function NavMenu() {
 	const pathname = usePathname();

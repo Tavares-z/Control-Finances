@@ -88,9 +88,9 @@ export const AnimatedThemeToggler = ({
 					data-state={isDark ? "dark" : "light"}
 					className={cn(
 						buttonVariants({ variant, size: "icon-sm" }),
-						"group relative transition-all duration-200",
+						"group relative transition-all duration-200 h-9",
 						variant === "ghost" &&
-							"text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/40 data-[state=open]:bg-accent/60 data-[state=open]:text-foreground",
+							"h-9 text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/40 data-[state=open]:bg-accent/60 data-[state=open]:text-foreground",
 						className,
 					)}
 					{...props}

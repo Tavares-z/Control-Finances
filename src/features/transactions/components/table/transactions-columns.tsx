@@ -12,6 +12,7 @@ import {
 	RiHistoryLine,
 	RiMoreFill,
 	RiPencilLine,
+	RiRefund2Line,
 	RiTimeLine,
 } from "@remixicon/react";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -45,6 +46,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/shared/components/ui/tooltip";
+import { REFUND_NOTE_PREFIX } from "@/shared/lib/accounts/constants";
 import { resolveLogoSrc } from "@/shared/lib/logo";
 import { getAvatarSrc } from "@/shared/lib/payers/utils";
 import { formatDate } from "@/shared/utils/date";
@@ -60,6 +62,7 @@ export type BuildColumnsArgs = {
 	onImport?: (item: TransactionItem) => void;
 	onConfirmDelete?: (item: TransactionItem) => void;
 	onViewDetails?: (item: TransactionItem) => void;
+	onRefund?: (item: TransactionItem) => void;
 	onToggleSettlement?: (item: TransactionItem) => void;
 	onAnticipate?: (item: TransactionItem) => void;
 	onViewAnticipationHistory?: (item: TransactionItem) => void;
@@ -121,6 +124,7 @@ function buildColumns({
 	onImport,
 	onConfirmDelete,
 	onViewDetails,
+	onRefund,
 	onToggleSettlement,
 	onAnticipate,
 	onViewAnticipationHistory,
@@ -133,6 +137,7 @@ function buildColumns({
 	const handleImport = onImport ?? noop;
 	const handleConfirmDelete = onConfirmDelete ?? noop;
 	const handleViewDetails = onViewDetails ?? noop;
+	const handleRefund = onRefund ?? noop;
 	const handleToggleSettlement = onToggleSettlement ?? noop;
 	const handleAnticipate = onAnticipate ?? noop;
 	const handleViewAnticipationHistory = onViewAnticipationHistory ?? noop;
@@ -682,6 +687,25 @@ function buildColumns({
 										Importar para Minha Conta
 									</DropdownMenuItem>
 								)}
+							{(() => {
+								const item = row.original;
+								const canRefund =
+									item.userId === currentUserId &&
+									item.transactionType === "Despesa" &&
+									item.condition === "À vista" &&
+									!item.splitGroupId &&
+									!item.readonly &&
+									!item.note?.startsWith(REFUND_NOTE_PREFIX);
+
+								if (!canRefund) return null;
+
+								return (
+									<DropdownMenuItem onSelect={() => handleRefund(item)}>
+										<RiRefund2Line className="size-4" />
+										Reembolso
+									</DropdownMenuItem>
+								);
+							})()}
 							{row.original.userId === currentUserId && (
 								<DropdownMenuItem
 									variant="destructive"

@@ -1,4 +1,3 @@
-import "server-only";
 import { randomBytes } from "node:crypto";
 
 export const generateShareCode = (): string => {

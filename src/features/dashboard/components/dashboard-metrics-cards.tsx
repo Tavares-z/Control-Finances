@@ -41,6 +41,7 @@ const CARDS = [
 			"Consideramos lançamentos efetivados e não efetivados da pessoa principal (admin).",
 			"Movimentações de contas marcadas como não consideradas no saldo total ficam fora deste card.",
 			"Não entram transferências internas nem lançamentos automáticos de fatura.",
+			"Reembolsos não entram como receita; eles abatem despesas e afetam o balanço líquido.",
 			"Saldo inicial também fica fora quando a conta está marcada para desconsiderá-lo das receitas.",
 		],
 	},
@@ -57,6 +58,7 @@ const CARDS = [
 			"Consideramos lançamentos efetivados e não efetivados da pessoa principal (admin).",
 			"Movimentações de contas marcadas como não consideradas no saldo total ficam fora deste card.",
 			"Não entram transferências internas nem lançamentos automáticos de fatura.",
+			"Reembolsos do período reduzem o total de despesas, sem deixar o card negativo.",
 			"O valor mostrado é a saída efetiva do período, sempre em número positivo no card.",
 		],
 	},
@@ -70,6 +72,7 @@ const CARDS = [
 		helpTitle: "Como calculamos o balanço",
 		helpLines: [
 			"Partimos de receitas menos despesas do período.",
+			"Reembolsos entram no resultado líquido, mas não inflam receitas nem despesas.",
 			"Receitas e despesas de contas marcadas como não consideradas no saldo total ficam fora do cálculo base.",
 			"Depois aplicamos ajustes de transferências entre contas consideradas e não consideradas no saldo total.",
 			"Se a transferência entra em conta considerada, soma. Se sai de conta considerada para conta não considerada, subtrai.",
