@@ -19,7 +19,6 @@ export default function RootLayout({
 				subtitle="Gerencie os anexos das suas transações"
 			/>
 			<MonthNavigation />
-
 			{children}
 		</section>
 	);

@@ -25,9 +25,7 @@ export default async function Page({ searchParams }: PageProps) {
 	const userId = await getUserId();
 	const resolvedSearchParams = searchParams ? await searchParams : undefined;
 	const periodoParam = getSingleParam(resolvedSearchParams, "periodo");
-
 	const { period: selectedPeriod } = parsePeriodParam(periodoParam);
-
 	const { budgets, categoriesOptions } = await fetchBudgetsForUser(
 		userId,
 		selectedPeriod,

@@ -10,7 +10,7 @@ export default async function Page() {
 		await fetchAllCardsForUser(userId);
 
 	return (
-		<main className="flex flex-col items-start gap-6">
+		<main className="flex flex-col gap-6">
 			<CardsPage
 				cards={activeCards}
 				archivedCards={archivedCards}

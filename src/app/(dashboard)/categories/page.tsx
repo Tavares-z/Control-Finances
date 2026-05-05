@@ -9,7 +9,7 @@ export default async function Page() {
 	const categories = await fetchCategoriesForUser(userId);
 
 	return (
-		<main className="flex flex-col items-start gap-6">
+		<main className="flex flex-col gap-6">
 			<CategoriesPage categories={categories} />
 		</main>
 	);

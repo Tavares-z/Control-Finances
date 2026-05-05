@@ -36,7 +36,7 @@ export default async function Page({ searchParams }: PageProps) {
 	};
 
 	return (
-		<main className="flex flex-col gap-3">
+		<main className="flex flex-col gap-4">
 			<MonthNavigation />
 			<MonthlyCalendar
 				period={calendarPeriod}

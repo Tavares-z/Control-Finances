@@ -56,7 +56,7 @@ export default async function Page({ searchParams }: PageProps) {
 	const normalizedSourceApps = Array.isArray(sourceApps) ? sourceApps : [];
 
 	return (
-		<main className="flex flex-col items-start gap-6">
+		<main className="flex flex-col gap-6">
 			<InboxPage
 				activeStatus={activeStatus}
 				activeApp={activeApp}

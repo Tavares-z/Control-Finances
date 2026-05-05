@@ -9,7 +9,7 @@ export default async function Page() {
 	const { activeNotes, archivedNotes } = await fetchAllNotesForUser(userId);
 
 	return (
-		<main className="flex flex-col items-start gap-6">
+		<main className="flex flex-col gap-6">
 			<NotesPage notes={activeNotes} archivedNotes={archivedNotes} />
 		</main>
 	);
