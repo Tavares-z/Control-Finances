@@ -11,6 +11,20 @@ type CalculatorDisplayProps = {
 	isResultView: boolean;
 };
 
+const getExpressionSizeClass = (length: number, compact: boolean) => {
+	if (compact) {
+		if (length <= 14) return "text-2xl";
+		if (length <= 20) return "text-xl";
+		if (length <= 28) return "text-base";
+		return "text-sm";
+	}
+	if (length <= 12) return "text-3xl";
+	if (length <= 18) return "text-2xl";
+	if (length <= 24) return "text-xl";
+	if (length <= 32) return "text-base";
+	return "text-sm";
+};
+
 export function CalculatorDisplay({
 	history,
 	expression,
@@ -19,8 +33,10 @@ export function CalculatorDisplay({
 	onCopy,
 	isResultView,
 }: CalculatorDisplayProps) {
+	const sizeClass = getExpressionSizeClass(expression.length, isResultView);
+
 	return (
-		<div className="flex h-24 flex-col rounded-xl border bg-muted px-4 py-4 text-right">
+		<div className="flex h-24 min-w-0 flex-col rounded-xl border bg-muted px-4 py-4 text-right">
 			<div className="min-h-5 truncate text-sm text-muted-foreground">
 				{history ?? (
 					<span
@@ -31,11 +47,11 @@ export function CalculatorDisplay({
 					</span>
 				)}
 			</div>
-			<div className="mt-auto flex items-end justify-end gap-2">
+			<div className="mt-auto flex min-w-0 items-end justify-end gap-2">
 				<div
 					className={cn(
-						"truncate text-right font-semibold transition-all",
-						isResultView ? "text-2xl" : "text-3xl",
+						"min-w-0 flex-1 truncate text-right font-semibold transition-all",
+						sizeClass,
 					)}
 				>
 					{expression}
