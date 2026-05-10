@@ -30,3 +30,6 @@ export const SETTLED_FILTER_VALUES = {
 	PAID: "pago",
 	UNPAID: "nao-pago",
 } as const;
+
+export const AMOUNT_MIN_PARAM = "valorMin";
+export const AMOUNT_MAX_PARAM = "valorMax";

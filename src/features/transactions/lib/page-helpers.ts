@@ -1,5 +1,15 @@
 import type { SQL } from "drizzle-orm";
-import { and, eq, ilike, inArray, isNotNull, or, sql } from "drizzle-orm";
+import {
+	and,
+	eq,
+	gte,
+	ilike,
+	inArray,
+	isNotNull,
+	lte,
+	or,
+	sql,
+} from "drizzle-orm";
 import {
 	cards,
 	type categories,
@@ -10,6 +20,8 @@ import {
 } from "@/db/schema";
 import type { SelectOption } from "@/features/transactions/components/types";
 import {
+	AMOUNT_MAX_PARAM,
+	AMOUNT_MIN_PARAM,
 	PAYMENT_METHODS,
 	SETTLED_FILTER_VALUES,
 	TRANSACTION_CONDITIONS,
@@ -46,6 +58,8 @@ export type TransactionSearchFilters = {
 	settledFilter: string | null;
 	attachmentFilter: string | null;
 	dividedFilter: string | null;
+	amountMinFilter: number | null;
+	amountMaxFilter: number | null;
 };
 
 type BaseSluggedOption = {
@@ -135,6 +149,13 @@ export const getMultiParam = (
 	return list.filter((item): item is string => Boolean(item));
 };
 
+export const parsePositiveAmount = (value: string | null): number | null => {
+	if (!value) return null;
+	const normalized = Number.parseFloat(value.replace(",", "."));
+	if (!Number.isFinite(normalized) || normalized < 0) return null;
+	return Math.round(normalized * 100) / 100;
+};
+
 export const extractTransactionSearchFilters = (
 	params: ResolvedSearchParams,
 ): TransactionSearchFilters => ({
@@ -148,6 +169,12 @@ export const extractTransactionSearchFilters = (
 	settledFilter: getSingleParam(params, "settled"),
 	attachmentFilter: getSingleParam(params, "hasAttachment"),
 	dividedFilter: getSingleParam(params, "isDivided"),
+	amountMinFilter: parsePositiveAmount(
+		getSingleParam(params, AMOUNT_MIN_PARAM),
+	),
+	amountMaxFilter: parsePositiveAmount(
+		getSingleParam(params, AMOUNT_MAX_PARAM),
+	),
 });
 
 export const resolveTransactionPagination = (
@@ -440,6 +467,18 @@ export const buildTransactionWhere = ({
 
 	if (filters.dividedFilter === "true") {
 		where.push(eq(transactions.isDivided, true));
+	}
+
+	if (filters.amountMinFilter !== null) {
+		where.push(
+			gte(sql`abs(${transactions.amount})`, filters.amountMinFilter.toFixed(2)),
+		);
+	}
+
+	if (filters.amountMaxFilter !== null) {
+		where.push(
+			lte(sql`abs(${transactions.amount})`, filters.amountMaxFilter.toFixed(2)),
+		);
 	}
 
 	const searchPattern = buildSearchPattern(filters.searchFilter);

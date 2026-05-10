@@ -4,9 +4,14 @@ import {
 	RiCheckLine,
 	RiCloseLine,
 	RiExpandUpDownLine,
-	RiFilter3Line,
+	RiFilterLine,
 } from "@remixicon/react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import {
+	type ReadonlyURLSearchParams,
+	usePathname,
+	useRouter,
+	useSearchParams,
+} from "next/navigation";
 import {
 	type ReactNode,
 	useCallback,
@@ -16,11 +21,14 @@ import {
 	useTransition,
 } from "react";
 import {
+	AMOUNT_MAX_PARAM,
+	AMOUNT_MIN_PARAM,
 	PAYMENT_METHODS,
 	SETTLED_FILTER_VALUES,
 	TRANSACTION_CONDITIONS,
 	TRANSACTION_TYPES,
 } from "@/features/transactions/lib/constants";
+import { parsePositiveAmount } from "@/features/transactions/lib/page-helpers";
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import {
@@ -69,6 +77,36 @@ import type {
 } from "../types";
 
 const FILTER_EMPTY_VALUE = "__all";
+
+const normalizeAmountParam = (raw: string): string | null => {
+	const parsed = parsePositiveAmount(raw.trim());
+	return parsed === null ? null : parsed.toString();
+};
+
+function useDebouncedAmountFilter(
+	param: string,
+	searchParams: URLSearchParams | ReadonlyURLSearchParams,
+	onChange: (key: string, value: string | null) => void,
+): [string, (value: string) => void] {
+	const current = searchParams.get(param) ?? "";
+	const [value, setValue] = useState(current);
+
+	useEffect(() => {
+		setValue(current);
+	}, [current]);
+
+	useEffect(() => {
+		if (value === current) return;
+		const timeout = setTimeout(() => {
+			const normalized = normalizeAmountParam(value);
+			if ((normalized ?? "") === current) return;
+			onChange(param, normalized);
+		}, 400);
+		return () => clearTimeout(timeout);
+	}, [value, current, param, onChange]);
+
+	return [value, setValue];
+}
 
 interface FilterSelectProps {
 	param: string;
@@ -348,6 +386,7 @@ export function TransactionsFilters({
 					? `${pathname}?${nextParams.toString()}`
 					: pathname;
 				router.replace(target, { scroll: false });
+				router.refresh();
 			});
 		},
 		[searchParams, pathname, router],
@@ -373,6 +412,17 @@ export function TransactionsFilters({
 		return () => clearTimeout(timeout);
 	}, [searchValue, currentSearchParam, handleFilterChange]);
 
+	const [valorMinValue, setValorMinValue] = useDebouncedAmountFilter(
+		AMOUNT_MIN_PARAM,
+		searchParams,
+		handleFilterChange,
+	);
+	const [valorMaxValue, setValorMaxValue] = useDebouncedAmountFilter(
+		AMOUNT_MAX_PARAM,
+		searchParams,
+		handleFilterChange,
+	);
+
 	const handleReset = () => {
 		const periodValue = searchParams.get("periodo");
 		const pageSizeValue = searchParams.get("pageSize");
@@ -384,6 +434,8 @@ export function TransactionsFilters({
 			nextParams.set("pageSize", pageSizeValue);
 		}
 		setSearchValue("");
+		setValorMinValue("");
+		setValorMaxValue("");
 		startTransition(() => {
 			const target = nextParams.toString()
 				? `${pathname}?${nextParams.toString()}`
@@ -467,7 +519,9 @@ export function TransactionsFilters({
 		searchParams.getAll("accountCard").length > 0 ||
 		searchParams.get("settled") ||
 		searchParams.get("hasAttachment") ||
-		searchParams.get("isDivided");
+		searchParams.get("isDivided") ||
+		searchParams.get(AMOUNT_MIN_PARAM) ||
+		searchParams.get(AMOUNT_MAX_PARAM);
 
 	const handleResetFilters = () => {
 		handleReset();
@@ -523,13 +577,27 @@ export function TransactionsFilters({
 								className="flex-1 md:flex-none text-sm border-dashed relative bg-transparent"
 								aria-label="Abrir filtros"
 							>
-								<RiFilter3Line className="size-4" />
+								<RiFilterLine className="size-4" />
 								Filtros
 								{hasActiveFilters && (
 									<span className="absolute -top-1 -right-1 size-3 rounded-full bg-primary" />
 								)}
 							</Button>
 						</DrawerTrigger>
+						{hasActiveFilters && (
+							<Button
+								type="button"
+								variant="ghost"
+								size="sm"
+								onClick={handleReset}
+								disabled={isPending}
+								aria-label="Limpar filtros"
+								className="text-xs text-muted-foreground hover:text-foreground h-9 px-2"
+							>
+								<RiCloseLine className="size-3.5" />
+								Limpar
+							</Button>
+						)}
 						<DrawerContent>
 							<DrawerHeader>
 								<DrawerTitle>Filtros</DrawerTitle>
@@ -634,6 +702,37 @@ export function TransactionsFilters({
 										searchPlaceholder="Buscar conta ou cartão..."
 										groupOrder={["Contas", "Cartões"]}
 									/>
+								</div>
+
+								<div className="space-y-2">
+									<label className="text-sm font-medium">Faixa de valor</label>
+									<div className="flex items-center gap-2">
+										<Input
+											type="number"
+											inputMode="decimal"
+											min="0"
+											step="0.01"
+											placeholder="Mínimo"
+											aria-label="Valor mínimo"
+											value={valorMinValue}
+											onChange={(event) => setValorMinValue(event.target.value)}
+											disabled={isPending}
+											className="text-sm border-dashed"
+										/>
+										<span className="text-xs text-muted-foreground">até</span>
+										<Input
+											type="number"
+											inputMode="decimal"
+											min="0"
+											step="0.01"
+											placeholder="Máximo"
+											aria-label="Valor máximo"
+											value={valorMaxValue}
+											onChange={(event) => setValorMaxValue(event.target.value)}
+											disabled={isPending}
+											className="text-sm border-dashed"
+										/>
+									</div>
 								</div>
 
 								<div className="space-y-3">

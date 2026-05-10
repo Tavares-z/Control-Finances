@@ -9,6 +9,8 @@ type TransactionExportFilters = {
 	settledFilter: string | null;
 	attachmentFilter: string | null;
 	dividedFilter: string | null;
+	amountMinFilter: number | null;
+	amountMaxFilter: number | null;
 };
 
 export type TransactionsExportContext = {

@@ -85,6 +85,8 @@ const EMPTY_FILTERS: TransactionSearchFilters = {
 	settledFilter: null,
 	attachmentFilter: null,
 	dividedFilter: null,
+	amountMinFilter: null,
+	amountMaxFilter: null,
 };
 
 const createEmptySlugMaps = (): SlugMaps => ({
