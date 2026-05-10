@@ -124,8 +124,10 @@ function TimelineItem({
 			</div>
 
 			<div className="flex-1 pb-6 space-y-3 min-w-0">
-				<div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-					<h3 className="font-semibold font-mono">v{version.version}</h3>
+				<div className="flex flex-wrap items-baseline gap-x-2">
+					<h3 className="font-semibold font-mono text-lg">
+						v{version.version}
+					</h3>
 					{isLatest ? (
 						<Badge variant="default" className="text-xs">
 							Atual
@@ -142,7 +144,7 @@ function TimelineItem({
 				</div>
 
 				{version.summary ? (
-					<Card className="p-4">
+					<Card className="p-6">
 						<blockquote className="pl-2 text-sm text-muted-foreground leading-relaxed italic">
 							{version.summary}
 						</blockquote>

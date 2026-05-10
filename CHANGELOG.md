@@ -5,6 +5,33 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [2.5.6] - 2026-05-07
+
+Esta versão entrega um conjunto de melhorias em torno do fluxo de lançamentos: filtros mais úteis, divisão por porcentagem, indicador de orçamento dentro do modal e correção de um bug em totais por pessoa que considerava contas excluídas do saldo. Também inclui ajustes de robustez no display da calculadora (sem mais overflow do modal com valores longos) e o fix do cache de RSC nos filtros multi-seleção.
+
+### Adicionado
+- Lançamentos: filtro por faixa de valor (mín/máx) com debounce e persistência via query string (`amountMin`/`amountMax`).
+- Lançamentos: botão "Limpar" discreto ao lado do botão "Filtros", visível apenas quando há filtros ativos.
+- Modal de lançamento: toggle compacto R$/% no card "Dividir lançamento", permitindo distribuir o valor por porcentagem entre as pessoas. Cada input em modo % exibe o valor convertido em R$ logo abaixo, no mesmo padrão visual do `InlinePeriodPicker`.
+- Modal de lançamento: indicador de orçamento ao lado do nome da categoria selecionada, mostrando `R$ gasto de R$ orçado (%)` com cores semânticas (verde / âmbar / vermelho) conforme o consumo. Suprimido quando o input divide a linha com o tipo de transação (caso pré-lançamentos). Implementado via `getCategoryBudgetSummaryAction` e `fetchCategoryBudgetSummary` em `features/budgets`.
+
+### Alterado
+- Calculadora: display com tamanho de fonte adaptativo (de `text-3xl` a `text-sm`) conforme o comprimento da expressão, mais `truncate` funcional via `min-w-0` nos containers flex. Resolve o overflow do modal com valores muito longos (ex: `9.999.999.999 × 9.999.999.999`).
+
+### Corrigido
+- Pessoas: "Totais do mês" em `/payers/[id]` deixa de somar lançamentos vinculados a contas marcadas como `excludeFromBalance` (ex: "Ajuste de saldo"). Adicionado `excludeTransactionsFromExcludedAccounts()` em 6 queries de `src/shared/lib/payers/details.ts`.
+- Orçamentos: `fetchBudgetsForUser` e `fetchCategoryBudgetSummary` agora respeitam o filtro de contas excluídas do saldo, alinhando o gasto exibido na tela de Orçamentos com o badge de orçamento dentro do modal de lançamento.
+- Lançamentos: tabela de resultados agora reflete corretamente a remoção de um valor em filtros multi-seleção (Pessoa, Conta/Cartão, Categoria, Condição, Forma de Pagamento). Adicionado `router.refresh()` em `handleMultiFilterChange` para invalidar o cache de segmento do router (issue #54).
+
+### Dependências
+- Stack core: `next` 16.2.4 → 16.2.6, `react`/`react-dom` 19.2.5 → 19.2.6.
+- UI: `react-day-picker` 9 → 10 (major), `tailwindcss` / `@tailwindcss/postcss` 4.2.4 → 4.3.0, `tailwind-merge` 3.5.0 → 3.6.0.
+- Auth: `better-auth` 1.6.9 → 1.6.10 e `@better-auth/passkey` 1.6.9 → 1.6.10.
+- AI SDKs: `@ai-sdk/anthropic` 3.0.74 → 3.0.76, `@ai-sdk/google` 3.0.67 → 3.0.71, `@ai-sdk/openai` 3.0.60 → 3.0.63, `ai` 6.0.175 → 6.0.177.
+- AWS: `@aws-sdk/client-s3` e `@aws-sdk/s3-request-presigner` 3.1042.0 → 3.1045.0.
+- E-mail: `resend` 6.12.2 → 6.12.3.
+- Dev tooling: `@biomejs/biome` 2.4.14 → 2.4.15, `knip` 6.11.0 → 6.12.2, `@types/node` 25.6.0 → 25.6.2.
+
 ## [2.5.5] - 2026-05-06
 
 Esta versão melhora a navegação por históricos e lançamentos. O changelog ganhou uma linha do tempo mais leve, colapsável e fácil de escanear; os filtros de lançamentos passam a aceitar múltiplas pessoas, categorias, formas de pagamento, condições e contas/cartões na mesma busca; e os diálogos adotam as animações compartilhadas do design system. Também há pequenos polimentos de texto e layout para deixar a interface mais consistente.
