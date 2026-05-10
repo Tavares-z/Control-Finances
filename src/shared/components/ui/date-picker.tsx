@@ -172,8 +172,8 @@ export function DatePicker({
 						month={month}
 						onMonthChange={setMonth}
 						onSelect={handleCalendarSelect}
-						fromYear={2020}
-						toYear={new Date().getFullYear() + 10}
+						startMonth={new Date(2020, 0)}
+						endMonth={new Date(new Date().getFullYear() + 10, 11)}
 						locale={ptBR}
 					/>
 				</PopoverContent>
