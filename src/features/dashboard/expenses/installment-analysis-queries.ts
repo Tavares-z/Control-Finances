@@ -92,7 +92,10 @@ export async function fetchInstallmentAnalysis(
 			cartaoLogo: cards.logo,
 		})
 		.from(transactions)
-		.leftJoin(cards, eq(transactions.cardId, cards.id))
+		.leftJoin(
+			cards,
+			and(eq(transactions.cardId, cards.id), eq(cards.userId, userId)),
+		)
 		.where(
 			and(
 				eq(transactions.userId, userId),

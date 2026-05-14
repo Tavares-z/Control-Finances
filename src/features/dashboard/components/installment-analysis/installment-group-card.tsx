@@ -3,13 +3,14 @@
 import {
 	RiBankCard2Line,
 	RiCheckboxCircleFill,
-	RiEyeLine,
+	RiFileList2Line,
 	RiTimeLine,
 } from "@remixicon/react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import Image from "next/image";
 import { useState } from "react";
+import { EstablishmentLogo } from "@/shared/components/entity-avatar";
 import MoneyValues from "@/shared/components/money-values";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -29,6 +30,7 @@ import {
 	DialogTitle,
 } from "@/shared/components/ui/dialog";
 import { Progress } from "@/shared/components/ui/progress";
+import { resolveLogoSrc } from "@/shared/lib/logo";
 import { cn } from "@/shared/utils";
 import type { InstallmentGroup } from "./types";
 
@@ -79,6 +81,8 @@ export function InstallmentGroupCard({
 		(sum, i) => sum + i.amount,
 		0,
 	);
+	const cardLogoSrc = resolveLogoSrc(group.cartaoLogo);
+	const cardName = group.cartaoName ?? "Compra parcelada";
 
 	return (
 		<>
@@ -111,25 +115,24 @@ export function InstallmentGroupCard({
 						{/* Info principal */}
 						<div className="flex-1 min-w-0">
 							<div className="flex items-center gap-3 flex-wrap">
-								{group.cartaoLogo ? (
-									<Image
-										src={`/logos/${group.cartaoLogo}`}
-										alt={group.cartaoName ?? "Cartão"}
-										width={40}
-										height={40}
-										className="size-10 rounded-full object-cover"
-									/>
-								) : (
-									<div className="size-10 flex items-center justify-center">
-										<RiBankCard2Line className="size-5 text-muted-foreground" />
-									</div>
-								)}
+								<EstablishmentLogo name={group.name} size={40} />
 								<div className="flex-1 min-w-0">
 									<CardTitle className="text-base truncate">
 										{group.name}
 									</CardTitle>
-									<CardDescription className="text-xs">
-										{group.cartaoName ?? "Compra parcelada"}
+									<CardDescription className="flex min-w-0 items-center gap-1 text-xs">
+										{cardLogoSrc ? (
+											<Image
+												src={cardLogoSrc}
+												alt={`Logo do cartão ${cardName}`}
+												width={18}
+												height={18}
+												className="size-4.5 shrink-0 rounded-full object-cover"
+											/>
+										) : (
+											<RiBankCard2Line className="size-3.5 shrink-0 text-muted-foreground/70" />
+										)}
+										<span className="truncate">{cardName}</span>
 									</CardDescription>
 								</div>
 							</div>
@@ -147,7 +150,7 @@ export function InstallmentGroupCard({
 
 				<CardContent>
 					{/* Grid de valores */}
-					<div className="grid grid-cols-2 gap-4 p-4 rounded-lg bg-muted/50 mb-4">
+					<div className="grid grid-cols-2 gap-4 p-4 rounded-lg bg-primary/5 mb-4">
 						<div className="space-y-1">
 							<p className="text-xs text-muted-foreground font-medium">
 								Valor total
@@ -165,7 +168,7 @@ export function InstallmentGroupCard({
 								amount={pendingAmount}
 								className={cn(
 									"text-lg font-semibold",
-									pendingAmount > 0 ? "text-amber-600" : "text-success-600",
+									pendingAmount > 0 ? "text-primary" : "text-success",
 								)}
 							/>
 						</div>
@@ -183,14 +186,18 @@ export function InstallmentGroupCard({
 							</div>
 							{unpaidCount > 0 && (
 								<div className="flex items-center gap-1 text-muted-foreground">
-									<RiTimeLine className="size-3.5 text-amber-600" />
+									<RiTimeLine className="size-3.5" />
 									<span>
 										{unpaidCount} {unpaidCount === 1 ? "pendente" : "pendentes"}
 									</span>
 								</div>
 							)}
 						</div>
-						<Progress value={progress} className="h-2.5" />
+						<Progress
+							value={progress}
+							className="h-2.5 bg-muted"
+							indicatorClassName="bg-success"
+						/>
 					</div>
 
 					{/* Valor selecionado */}
@@ -212,13 +219,13 @@ export function InstallmentGroupCard({
 					{/* Botão para abrir detalhes */}
 					<Button
 						type="button"
-						variant="outline"
+						variant="secondary"
 						size="sm"
 						className="w-full gap-1.5"
 						onClick={() => setIsDetailsOpen(true)}
 					>
-						<RiEyeLine className="size-4" />
-						Ver detalhes ({group.pendingInstallments.length} parcelas)
+						<RiFileList2Line className="size-4" />
+						detalhes ({group.pendingInstallments.length} parcelas)
 					</Button>
 				</CardContent>
 			</Card>
@@ -228,18 +235,26 @@ export function InstallmentGroupCard({
 				<DialogContent className="max-w-md max-h-[80vh] flex flex-col">
 					<DialogHeader>
 						<div className="flex items-center gap-3">
-							{group.cartaoLogo ? (
-								<img
-									src={`/logos/${group.cartaoLogo}`}
-									alt={group.cartaoName ?? "Cartão"}
-									className="size-8 rounded-full object-cover"
-								/>
-							) : (
-								<div className="size-8 rounded-full bg-muted flex items-center justify-center">
-									<RiBankCard2Line className="size-4 text-muted-foreground" />
+							<EstablishmentLogo name={group.name} size={32} />
+							<div className="min-w-0">
+								<DialogTitle className="truncate text-base">
+									{group.name}
+								</DialogTitle>
+								<div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+									{cardLogoSrc ? (
+										<Image
+											src={cardLogoSrc}
+											alt={`Logo do cartão ${cardName}`}
+											width={14}
+											height={14}
+											className="size-3.5 shrink-0 rounded-full object-cover opacity-75"
+										/>
+									) : (
+										<RiBankCard2Line className="size-3.5 shrink-0 text-muted-foreground/70" />
+									)}
+									<span className="truncate">{cardName}</span>
 								</div>
-							)}
-							<DialogTitle className="text-base">{group.name}</DialogTitle>
+							</div>
 						</div>
 						<DialogDescription className="sr-only">
 							Detalhes das parcelas do grupo {group.name}
