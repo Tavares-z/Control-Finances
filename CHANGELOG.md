@@ -5,6 +5,37 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [2.6.0] - 2026-05-21
+
+Esta versão implementa melhorias pensadas para o uso real do dia a dia. O OpenMonetis passa a lidar melhor com parcelamentos que já começaram, recupera atalhos importantes no extrato, deixa a revisão de importações mais precisa e dá mais controle para quem mantém uma instância self-hosted. Também entram correções de consistência no dashboard, em cartões, no tratamento da categoria `Pagamentos` e nas datas vindas de planilhas.
+
+### Adicionado
+- Autenticação: nova variável `DISABLE_SIGNUP=true` para bloquear novos cadastros. Quando ativa, a tela de cadastro deixa de aparecer na navegação, `/signup` redireciona para login/dashboard e a API de signup responde `403`.
+- Lançamentos: compras parceladas agora podem começar em uma parcela intermediária, como `5 de 10`. O sistema gera apenas as parcelas restantes e preserva o cálculo do valor unitário com base no total original.
+- Logos: adicionado o logo da Bipa à biblioteca local de marcas.
+- Relatórios: a análise de parcelas agora separa parcelas acompanhadas daquelas que ficaram fora do acompanhamento quando o parcelamento começa no meio da série.
+
+### Alterado
+- Contas: a página de extrato em `/accounts/[accountId]` voltou a exibir os botões "Nova Receita" e "Nova Despesa", alinhando o fluxo com as demais telas de lançamentos.
+- Cartões: os cards de `/cards` agora mostram o valor da fatura do mês atual junto dos indicadores de limite. O limite utilizado passa a considerar faturas em aberto, não apenas o status interno do lançamento.
+- Lançamentos: ao criar um lançamento a partir do extrato de uma conta, o diálogo já abre com essa conta selecionada como destino padrão.
+- Importação: os controles globais da revisão de extrato foram realinhados à esquerda, com espaçamento mais compacto e larguras mais consistentes.
+
+### Corrigido
+- Dashboard: o widget "Status de Pagamento" voltou a mostrar corretamente os valores em "A Pagar", somando despesas pelo valor absoluto e mantendo reembolsos como abatimento.
+- Importação: datas vindas de planilhas agora preservam o dia informado no Excel, evitando que `20/05/2026` apareça como `19/05/2026` em fusos como `America/Sao_Paulo`.
+- Importação: o seletor de categoria por linha agora mostra apenas categorias compatíveis com o tipo detectado do lançamento, separando receitas e despesas durante a revisão do extrato.
+- Importação: cada linha da revisão de extrato agora permite escolher uma pessoa específica, enquanto o campo global continua servindo como atalho para aplicar a pessoa nos lançamentos selecionados.
+- Lançamentos: despesas comuns na categoria `Pagamentos` voltaram a poder ser editadas, removidas, copiadas e importadas. A proteção continua valendo apenas para pagamentos automáticos de fatura com nota técnica `AUTO_FATURA:`.
+
+### Dependências
+- Stack core: `pnpm` 10.33.0 → 11.1.3.
+- Auth: `better-auth` e `@better-auth/passkey` 1.6.10 → 1.6.11.
+- AI SDKs: `@ai-sdk/anthropic` 3.0.76 → 3.0.78, `@ai-sdk/google` 3.0.71 → 3.0.75, `@ai-sdk/openai` 3.0.63 → 3.0.64 e `ai` 6.0.177 → 6.0.185.
+- AWS: `@aws-sdk/client-s3` e `@aws-sdk/s3-request-presigner` 3.1045.0 → 3.1050.0.
+- UI e dados: `@tanstack/react-query` 5.100.9 → 5.100.11, `date-fns` 4.1.0 → 4.2.1, `jspdf-autotable` 5.0.7 → 5.0.8, `pg` 8.20.0 → 8.21.0 e `react-day-picker` 10.0.0 → 10.0.1.
+- Dev tooling: `@types/node` 25.6.2 → 25.9.1, `@types/react` 19.2.14 → 19.2.15, `knip` 6.12.2 → 6.14.1, `tsx` 4.21.0 → 4.22.3 e novo `babel-plugin-react-compiler` 1.0.0.
+
 ## [2.5.7] - 2026-05-14
 
 Esta versão faz um polimento visual no relatório de análise de parcelas, deixando o estabelecimento como referência principal do card e mantendo o cartão visível de forma mais discreta no contexto da compra.

@@ -8,7 +8,7 @@
 
 > **⚠️ Não há versão online hospedada.** Você precisa clonar o repositório e rodar localmente ou no seu próprio servidor.
 
-[![Version](https://img.shields.io/badge/version-2.5.7-blue?style=flat-square)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.6.0-blue?style=flat-square)](CHANGELOG.md)
 [![Next.js](https://img.shields.io/badge/Next.js-black?style=flat-square&logo=next.js)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-blue?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-blue?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
@@ -127,10 +127,11 @@ Só quer rodar o OpenMonetis. **Não precisa clonar o repositório nem instalar 
 # 1. Baixe o compose
 curl -fsSL https://raw.githubusercontent.com/felipegcoutinho/openmonetis/main/docker-compose.yml -o docker-compose.yml
 
-# 2. Crie um .en na mesma pasta.
+# 2. Crie um .env na mesma pasta.
 # .env mínimo recomendado para produção
 BETTER_AUTH_SECRET=gere-um-valor-com-openssl-rand-base64-32
 BETTER_AUTH_URL=http://seu-dominio.com
+DISABLE_SIGNUP=false # opcional: true bloqueia novos cadastros
 
 # 3. Suba tudo
 docker compose up -d
@@ -442,6 +443,9 @@ BETTER_AUTH_URL=http://localhost:3000
 POSTGRES_USER=openmonetis
 POSTGRES_PASSWORD=openmonetis_dev_password
 POSTGRES_DB=openmonetis_db
+
+# Autenticação
+DISABLE_SIGNUP=false # true bloqueia novos cadastros
 
 # S3 Server (opcional, necessario para anexos)
 S3_ENDPOINT=
