@@ -22,6 +22,7 @@ Esta versão implementa melhorias pensadas para o uso real do dia a dia. O OpenM
 - Importação: os controles globais da revisão de extrato foram realinhados à esquerda, com espaçamento mais compacto e larguras mais consistentes.
 
 ### Corrigido
+- CI: o workflow de build deixou de fixar uma versão diferente do `pnpm`, usando a versão declarada em `packageManager` para evitar conflito no `pnpm/action-setup`.
 - Dashboard: o widget "Status de Pagamento" voltou a mostrar corretamente os valores em "A Pagar", somando despesas pelo valor absoluto e mantendo reembolsos como abatimento.
 - Importação: datas vindas de planilhas agora preservam o dia informado no Excel, evitando que `20/05/2026` apareça como `19/05/2026` em fusos como `America/Sao_Paulo`.
 - Importação: o seletor de categoria por linha agora mostra apenas categorias compatíveis com o tipo detectado do lançamento, separando receitas e despesas durante a revisão do extrato.
