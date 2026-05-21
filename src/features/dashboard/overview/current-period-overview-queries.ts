@@ -274,15 +274,14 @@ const buildPaymentStatusData = (
 			continue;
 		}
 
-		const target =
-			row.transactionType === TRANSACTION_TYPE_INCOME
-				? result.income
-				: result.expenses;
+		const isExpense = row.transactionType === TRANSACTION_TYPE_EXPENSE;
+		const target = isExpense ? result.expenses : result.income;
+		const displayAmount = isExpense ? Math.abs(amount) : amount;
 
 		if (row.isSettled === true) {
-			target.confirmed += amount;
+			target.confirmed += displayAmount;
 		} else {
-			target.pending += amount;
+			target.pending += displayAmount;
 		}
 	}
 

@@ -12,6 +12,8 @@ export type Card = {
 	accountName: string;
 	limitInUse: number;
 	limitAvailable: number;
+	currentInvoiceAmount: number;
+	currentInvoiceLabel: string;
 };
 
 export type CardFormValues = {

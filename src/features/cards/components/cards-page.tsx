@@ -130,7 +130,7 @@ export function CardsPage({
 		}
 
 		return (
-			<div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
+			<div className="grid gap-4 grid-cols-1 sm:grid-cols-1 xl:grid-cols-3">
 				{list.map((card) => (
 					<CardItem
 						key={card.id}
@@ -142,6 +142,8 @@ export function CardsPage({
 						limit={card.limit}
 						limitInUse={card.limitInUse ?? null}
 						limitAvailable={card.limitAvailable ?? card.limit ?? null}
+						currentInvoiceAmount={card.currentInvoiceAmount}
+						currentInvoiceLabel={card.currentInvoiceLabel}
 						accountName={card.accountName}
 						logo={card.logo}
 						note={card.note}

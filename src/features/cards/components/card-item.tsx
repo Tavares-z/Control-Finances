@@ -1,6 +1,8 @@
 "use client";
 
 import {
+	RiCalendarCloseLine,
+	RiCalendarScheduleLine,
 	RiChat3Line,
 	RiDeleteBin5Line,
 	RiFileList2Line,
@@ -33,6 +35,8 @@ interface CardItemProps {
 	limit: number;
 	limitInUse?: number;
 	limitAvailable?: number;
+	currentInvoiceAmount: number;
+	currentInvoiceLabel: string;
 	accountName: string;
 	logo?: string | null;
 	note?: string | null;
@@ -52,6 +56,8 @@ export function CardItem({
 	limit,
 	limitInUse,
 	limitAvailable,
+	currentInvoiceAmount,
+	currentInvoiceLabel,
 	accountName: _accountName,
 	logo,
 	note,
@@ -77,7 +83,7 @@ export function CardItem({
 
 	return (
 		<Card className="flex flex-col p-6 w-full">
-			<CardHeader className="space-y-2 p-0">
+			<CardHeader className="space-y-1 p-0">
 				<div className="flex items-start justify-between gap-2">
 					<div className="flex flex-1 items-center gap-2">
 						{logoPath ? (
@@ -146,15 +152,17 @@ export function CardItem({
 					)}
 				</div>
 
-				<div className="flex items-center justify-between border-y py-3 text-sm text-muted-foreground">
-					<span>
-						Fecha em{" "}
+				<div className="flex items-center justify-between text-sm text-muted-foreground rounded-lg py-4 px-2 bg-primary/5">
+					<span className="inline-flex items-center gap-1">
+						<RiCalendarCloseLine className="size-4" aria-hidden />
+						Fecha{" "}
 						<span className="font-semibold text-foreground">
 							dia {formatDay(closingDay)}
 						</span>
 					</span>
-					<span>
-						Vence em{" "}
+					<span className="inline-flex items-center gap-1">
+						<RiCalendarScheduleLine className="size-4" aria-hidden />
+						Vence{" "}
 						<span className="font-semibold text-foreground">
 							dia {formatDay(dueDay)}
 						</span>
@@ -165,29 +173,40 @@ export function CardItem({
 			<CardContent className="flex flex-1 flex-col gap-4 px-0">
 				<div className="flex flex-col gap-0.5">
 					<span className="text-xs text-muted-foreground">
-						Limite disponível
+						{currentInvoiceLabel}
 					</span>
 					<MoneyValues
-						amount={available}
-						className="text-xl font-semibold text-success"
+						amount={currentInvoiceAmount}
+						className="text-xl font-semibold text-info"
 					/>
 				</div>
 
-				<div className="grid grid-cols-2 gap-2">
-					<div className="flex flex-col gap-0.5">
+				<div className="flex gap-2 justify-between w-full">
+					<div className="flex min-w-0 flex-col gap-0.5">
 						<span className="text-xs text-muted-foreground">Limite total</span>
 						<MoneyValues
 							amount={limit}
 							className="text-sm font-semibold text-foreground"
 						/>
 					</div>
-					<div className="flex flex-col gap-0.5">
+
+					<div className="flex min-w-0 flex-col gap-0.5">
 						<span className="text-xs text-muted-foreground">
 							Limite utilizado
 						</span>
 						<MoneyValues
 							amount={used}
-							className="text-sm font-semibold text-destructive"
+							className="text-sm font-semibold text-primary"
+						/>
+					</div>
+
+					<div className="flex min-w-0 flex-col gap-0.5">
+						<span className="text-xs text-muted-foreground">
+							Limite disponível
+						</span>
+						<MoneyValues
+							amount={available}
+							className="text-sm font-semibold text-success"
 						/>
 					</div>
 				</div>
@@ -200,7 +219,7 @@ export function CardItem({
 						aria-label={`${usagePercent.toFixed(0)}% do limite utilizado`}
 					/>
 					<span className="text-xs text-muted-foreground">
-						{usagePercent.toFixed(1)}% utilizado
+						{usagePercent.toFixed(0)}% utilizado
 					</span>
 				</div>
 			</CardContent>
@@ -220,7 +239,7 @@ export function CardItem({
 					className="flex items-center gap-1 font-medium text-primary transition-opacity hover:opacity-80"
 				>
 					<RiFileList2Line className="size-4" aria-hidden />
-					ver fatura
+					fatura
 				</button>
 				<button
 					type="button"
