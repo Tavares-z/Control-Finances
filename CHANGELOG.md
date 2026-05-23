@@ -5,6 +5,38 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [2.6.4] - 2026-05-23
+
+Esta versão reúne o polimento final antes da próxima publicação: melhora o fluxo de antecipação de parcelas, deixa os dialogs de lançamentos mais seguros e consistentes, e incorpora as contribuições vindas dos PRs abertos para nomes de logos e ajustes no cadastro de transações.
+
+### Adicionado
+- Logos: adicionado um dicionário de nomes de exibição para logos, com busca normalizada sem acentos e fallback para o comportamento anterior quando não houver mapeamento específico (PR #69).
+- Lançamentos: o dialog de adicionar múltiplos lançamentos agora pede confirmação antes de descartar alterações não salvas ao fechar ou cancelar (PR #70).
+
+### Alterado
+- Lançamentos: o modal "Histórico de Antecipações" agora segue o padrão do modal de detalhes, com `Fechar` e `Desfazer Antecipação` no rodapé, contagem dentro do conteúdo e cards de antecipação reorganizados em blocos mais escaneáveis.
+- Lançamentos: a antecipação de parcelas agora só permite selecionar parcelas futuras ao período escolhido, evitando antecipar a parcela do próprio mês sem bloquear parcelas seguintes da mesma compra.
+- Lançamentos: ao criar uma antecipação, o cache do histórico da série agora é invalidado e o modal refaz a busca ao abrir.
+- Lançamentos: ao adicionar uma nova linha no dialog de múltiplos lançamentos, a data passa a seguir a última transação informada em vez de voltar para a data atual (PR #72).
+
+### Corrigido
+- Lançamentos: ajustado o espaçamento horizontal da área rolável do dialog de adicionar transação para preservar o alinhamento dos campos e botões (PR #71).
+
+## [2.6.3] - 2026-05-22
+
+Esta versão concentra os ajustes feitos depois da `2.6.2` em um único ciclo público. O foco está em dar mais precisão aos filtros de lançamentos por período real de compra e em polir a análise de parcelas para priorizar parcelamentos mais próximos da quitação sem causar saltos visuais nos cards.
+
+### Adicionado
+- Lançamentos: o drawer de filtros agora permite informar data inicial e data final para filtrar a tabela por `data_compra`.
+
+### Alterado
+- Lançamentos: quando um intervalo de datas está ativo, a consulta server-side deixa de limitar os dados a um único mês e usa o intervalo real de compra, mantendo paginação e exportação alinhadas ao que aparece na tabela.
+- Relatórios: os cards de `/reports/installment-analysis` agora são ordenados pelo percentual pago em ordem decrescente, mantendo a data da compra como critério de desempate.
+- Relatórios: em `/reports/installment-analysis`, o contador de parcelas selecionadas agora aparece discretamente no botão "detalhes", sem criar uma área extra no corpo do card.
+
+### Corrigido
+- Relatórios: selecionar parcelas em um card de `/reports/installment-analysis` não força mais os outros cards da mesma linha a reservarem espaço vazio para o resumo de seleção.
+
 ## [2.6.2] - 2026-05-21
 
 Esta versão corrige o build da imagem Docker depois da atualização para `pnpm@11.1.3`. A etapa de dependências dentro do Docker não recebia a configuração do workspace, então o install congelado falhava ao comparar os `overrides` e as políticas de build com o lockfile.
