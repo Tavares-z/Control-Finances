@@ -569,7 +569,7 @@ export function TransactionDialog({
 				>
 					<div
 						ref={scrollContainerRef}
-						className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain pr-1 pb-1"
+						className="min-h-0 min-w-0 flex-1 overscroll-contain"
 					>
 						{/* Detalhes */}
 						<div className="space-y-3">
