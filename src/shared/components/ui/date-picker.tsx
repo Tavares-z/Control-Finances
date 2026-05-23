@@ -75,6 +75,7 @@ export interface DatePickerProps {
 	required?: boolean;
 	disabled?: boolean;
 	className?: string;
+	inputClassName?: string;
 	/** Show compact format like "10 mar" instead of "10 de março de 2025" */
 	compact?: boolean;
 }
@@ -87,6 +88,7 @@ export function DatePicker({
 	required = false,
 	disabled = false,
 	className,
+	inputClassName,
 	compact = false,
 }: DatePickerProps) {
 	const [open, setOpen] = React.useState(false);
@@ -140,7 +142,7 @@ export function DatePicker({
 				id={id}
 				value={displayValue}
 				placeholder={placeholder}
-				className="bg-background pr-10"
+				className={cn("bg-background pr-10", inputClassName)}
 				onChange={handleInputChange}
 				onKeyDown={handleInputKeyDown}
 				required={required}

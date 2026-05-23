@@ -33,3 +33,5 @@ export const SETTLED_FILTER_VALUES = {
 
 export const AMOUNT_MIN_PARAM = "valorMin";
 export const AMOUNT_MAX_PARAM = "valorMax";
+export const DATE_START_PARAM = "dataInicio";
+export const DATE_END_PARAM = "dataFim";

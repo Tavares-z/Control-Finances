@@ -43,15 +43,34 @@ const loadPdfDeps = async () => {
 	return { jsPDF, autoTable };
 };
 
+const formatPeriodDate = (dateString: string) =>
+	formatDateOnly(dateString, {
+		day: "2-digit",
+		month: "2-digit",
+		year: "numeric",
+	}) ?? dateString;
+
 export function TransactionsExport({
 	lancamentos,
 	period,
 	exportContext,
 }: TransactionsExportProps) {
 	const [isExporting, setIsExporting] = useState(false);
+	const dateStartFilter = exportContext?.filters.dateStartFilter ?? null;
+	const dateEndFilter = exportContext?.filters.dateEndFilter ?? null;
+	const periodLabel =
+		dateStartFilter || dateEndFilter
+			? `${dateStartFilter ? formatPeriodDate(dateStartFilter) : "Início"} até ${
+					dateEndFilter ? formatPeriodDate(dateEndFilter) : "hoje"
+				}`
+			: displayPeriod(period);
+	const filePeriodSlug =
+		dateStartFilter || dateEndFilter
+			? `${dateStartFilter ?? "inicio"}-${dateEndFilter ?? "hoje"}`
+			: period;
 
 	const getFileName = (extension: string) => {
-		return `lancamentos-${period}.${extension}`;
+		return `lancamentos-${filePeriodSlug}.${extension}`;
 	};
 
 	const formatDate = (dateString: string) => {
@@ -251,7 +270,7 @@ export function TransactionsExport({
 			doc.text("Lançamentos", titleX, 15);
 
 			doc.setFontSize(10);
-			doc.text(`Período: ${displayPeriod(period)}`, titleX, 22);
+			doc.text(`Período: ${periodLabel}`, titleX, 22);
 			doc.text(
 				`Gerado em: ${
 					formatDateTime(new Date(), {

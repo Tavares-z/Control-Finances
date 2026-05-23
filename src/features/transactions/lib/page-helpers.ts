@@ -22,6 +22,8 @@ import type { SelectOption } from "@/features/transactions/components/types";
 import {
 	AMOUNT_MAX_PARAM,
 	AMOUNT_MIN_PARAM,
+	DATE_END_PARAM,
+	DATE_START_PARAM,
 	PAYMENT_METHODS,
 	SETTLED_FILTER_VALUES,
 	TRANSACTION_CONDITIONS,
@@ -38,7 +40,7 @@ import {
 	PAYER_ROLE_ADMIN,
 	PAYER_ROLE_THIRD_PARTY,
 } from "@/shared/lib/payers/constants";
-import { toDateOnlyString } from "@/shared/utils/date";
+import { parseLocalDateString, toDateOnlyString } from "@/shared/utils/date";
 import { slugify } from "@/shared/utils/string";
 
 type PayerRow = typeof payers.$inferSelect;
@@ -66,6 +68,8 @@ export type TransactionSearchFilters = {
 	dividedFilter: string | null;
 	amountMinFilter: number | null;
 	amountMaxFilter: number | null;
+	dateStartFilter: string | null;
+	dateEndFilter: string | null;
 };
 
 type BaseSluggedOption = {
@@ -162,6 +166,14 @@ export const parsePositiveAmount = (value: string | null): number | null => {
 	return Math.round(normalized * 100) / 100;
 };
 
+export const parseDateFilterParam = (value: string | null): string | null => {
+	if (!value) return null;
+	const normalized = value.trim();
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return null;
+	const parsed = parseLocalDateString(normalized);
+	return Number.isNaN(parsed.getTime()) ? null : normalized;
+};
+
 export const extractTransactionSearchFilters = (
 	params: ResolvedSearchParams,
 ): TransactionSearchFilters => ({
@@ -181,6 +193,10 @@ export const extractTransactionSearchFilters = (
 	amountMaxFilter: parsePositiveAmount(
 		getSingleParam(params, AMOUNT_MAX_PARAM),
 	),
+	dateStartFilter: parseDateFilterParam(
+		getSingleParam(params, DATE_START_PARAM),
+	),
+	dateEndFilter: parseDateFilterParam(getSingleParam(params, DATE_END_PARAM)),
 });
 
 export const resolveTransactionPagination = (
@@ -377,10 +393,29 @@ export const buildTransactionWhere = ({
 	accountId?: string;
 	payerId?: string;
 }): SQL[] => {
-	const where: SQL[] = [
-		eq(transactions.userId, userId),
-		eq(transactions.period, period),
-	];
+	const where: SQL[] = [eq(transactions.userId, userId)];
+
+	if (filters.dateStartFilter || filters.dateEndFilter) {
+		if (filters.dateStartFilter) {
+			where.push(
+				gte(
+					transactions.purchaseDate,
+					parseLocalDateString(filters.dateStartFilter),
+				),
+			);
+		}
+
+		if (filters.dateEndFilter) {
+			where.push(
+				lte(
+					transactions.purchaseDate,
+					parseLocalDateString(filters.dateEndFilter),
+				),
+			);
+		}
+	} else {
+		where.push(eq(transactions.period, period));
+	}
 
 	if (payerId) {
 		where.push(eq(transactions.payerId, payerId));

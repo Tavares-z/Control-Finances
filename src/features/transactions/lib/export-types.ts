@@ -11,6 +11,8 @@ type TransactionExportFilters = {
 	dividedFilter: string | null;
 	amountMinFilter: number | null;
 	amountMaxFilter: number | null;
+	dateStartFilter: string | null;
+	dateEndFilter: string | null;
 };
 
 export type TransactionsExportContext = {
