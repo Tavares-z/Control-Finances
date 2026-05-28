@@ -57,6 +57,7 @@ export type TransactionFilterOption = {
 	label: string;
 	icon?: string | null;
 	avatarUrl?: string | null;
+	type?: string | null;
 };
 
 export type AccountCardFilterOption = TransactionFilterOption & {

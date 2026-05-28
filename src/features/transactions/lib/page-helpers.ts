@@ -118,6 +118,9 @@ export type SlugMaps = {
 type FilterOption = {
 	slug: string;
 	label: string;
+	icon?: string | null;
+	avatarUrl?: string | null;
+	type?: string | null;
 };
 
 type AccountCardFilterOption = FilterOption & {
@@ -686,7 +689,12 @@ export const buildOptionSets = ({
 	);
 
 	const categoryFilterOptions = sortByLabel(
-		categoryFiltersRaw.map(({ slug, label, icon }) => ({ slug, label, icon })),
+		categoryFiltersRaw.map(({ slug, label, type, icon }) => ({
+			slug,
+			label,
+			type,
+			icon,
+		})),
 	);
 
 	const accountCardFilterOptions = sortByLabel(

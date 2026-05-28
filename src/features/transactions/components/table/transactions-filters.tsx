@@ -67,6 +67,7 @@ import {
 	SelectTrigger,
 } from "@/shared/components/ui/select";
 import { Separator } from "@/shared/components/ui/separator";
+import { Spinner } from "@/shared/components/ui/spinner";
 import { Switch } from "@/shared/components/ui/switch";
 import {
 	ToggleGroup,
@@ -193,6 +194,16 @@ type MultiOption = {
 	render?: ReactNode;
 };
 
+const getCategoryFilterGroup = (type?: string | null) => {
+	if (type === "receita") {
+		return "Receitas";
+	}
+	if (type === "despesa") {
+		return "Despesas";
+	}
+	return "Outras";
+};
+
 interface MultiSelectFilterProps {
 	placeholder: string;
 	options: MultiOption[];
@@ -290,7 +301,10 @@ function MultiSelectFilter({
 					>
 						{triggerLabel}
 					</span>
-					<RiExpandUpDownLine className="ml-2 size-4 shrink-0 opacity-50" />
+					<RiExpandUpDownLine
+						className="ml-2 size-4 shrink-0 opacity-50"
+						aria-hidden
+					/>
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent align="start" className="w-[260px] p-0">
@@ -331,7 +345,10 @@ function MultiSelectFilter({
 												{option.render ?? option.label}
 											</span>
 											{isSelected ? (
-												<RiCheckLine className="ml-auto size-4 shrink-0" />
+												<RiCheckLine
+													className="ml-auto size-4 shrink-0"
+													aria-hidden
+												/>
 											) : null}
 										</CommandItem>
 									);
@@ -518,6 +535,7 @@ export function TransactionsFilters({
 			categoryOptions.map((option) => ({
 				value: option.slug,
 				label: option.label,
+				group: getCategoryFilterGroup(option.type),
 				render: (
 					<CategorySelectContent label={option.label} icon={option.icon} />
 				),
@@ -585,6 +603,7 @@ export function TransactionsFilters({
 
 	return (
 		<div
+			aria-busy={isPending}
 			className={cn(
 				"flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center",
 				className,
@@ -608,7 +627,7 @@ export function TransactionsFilters({
 						aria-label="Limpar busca"
 						className="absolute top-1/2 right-2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 					>
-						<RiCloseLine className="size-4" />
+						<RiCloseLine className="size-4" aria-hidden />
 					</button>
 				) : null}
 			</div>
@@ -630,12 +649,19 @@ export function TransactionsFilters({
 							<Button
 								variant="outline"
 								className="flex-1 md:flex-none text-sm border-dashed relative bg-transparent"
-								aria-label="Abrir filtros"
+								aria-label={isPending ? "Aplicando filtros" : "Abrir filtros"}
 							>
-								<RiFilterLine className="size-4" />
-								Filtros
+								{isPending ? (
+									<Spinner className="size-4" role="presentation" aria-hidden />
+								) : (
+									<RiFilterLine className="size-4" aria-hidden />
+								)}
+								{isPending ? "Aplicando..." : "Filtros"}
 								{hasActiveFilters && (
-									<span className="absolute -top-1 -right-1 size-3 rounded-full bg-primary" />
+									<span
+										className="absolute -top-1 -right-1 size-3 rounded-full bg-primary"
+										aria-hidden
+									/>
 								)}
 							</Button>
 						</DrawerTrigger>
@@ -649,7 +675,7 @@ export function TransactionsFilters({
 								aria-label="Limpar filtros"
 								className="text-xs text-muted-foreground hover:text-foreground h-9 px-2"
 							>
-								<RiCloseLine className="size-3.5" />
+								<RiCloseLine className="size-3.5" aria-hidden />
 								Limpar
 							</Button>
 						)}
@@ -746,6 +772,7 @@ export function TransactionsFilters({
 												disabled={isPending}
 												searchable
 												searchPlaceholder="Buscar categoria..."
+												groupOrder={["Despesas", "Receitas", "Outras"]}
 											/>
 										</div>
 
@@ -775,7 +802,7 @@ export function TransactionsFilters({
 									<div className="space-y-2">
 										<div className="flex items-center justify-between gap-2">
 											<label className="text-xs font-medium text-muted-foreground">
-												Período
+												Intervalo de datas
 											</label>
 											{hasDateRangeFilter ? (
 												<button
@@ -932,15 +959,33 @@ export function TransactionsFilters({
 
 							<DrawerFooter>
 								<div className="flex items-center justify-between gap-3 rounded-md border border-dashed px-3 py-2">
-									<span className="text-xs text-muted-foreground">
-										{hasActiveFilters
-											? `${activeFilterCount} ${
-													activeFilterCount === 1
-														? "filtro ativo"
-														: "filtros ativos"
-												}`
-											: "Nenhum filtro ativo"}
-									</span>
+									<div className="flex min-w-0 flex-col gap-0.5">
+										<span
+											className="text-xs text-muted-foreground"
+											aria-live="polite"
+										>
+											{hasActiveFilters
+												? `${activeFilterCount} ${
+														activeFilterCount === 1
+															? "filtro ativo"
+															: "filtros ativos"
+													}`
+												: "Nenhum filtro ativo"}
+										</span>
+										{isPending ? (
+											<span
+												className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
+												role="status"
+											>
+												<Spinner
+													className="size-3"
+													role="presentation"
+													aria-hidden
+												/>
+												Aplicando filtros...
+											</span>
+										) : null}
+									</div>
 									<Button
 										type="button"
 										variant="ghost"

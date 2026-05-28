@@ -47,6 +47,7 @@ import type {
 import { TransactionsBulkBar } from "./transactions-bulk-bar";
 import { getTransactionColumns } from "./transactions-columns";
 import { TransactionsFilters } from "./transactions-filters";
+import { TransactionsMobileList } from "./transactions-mobile-list";
 import { TransactionsPagination } from "./transactions-pagination";
 
 type TransactionsTableProps = {
@@ -349,7 +350,23 @@ export function TransactionsTable({
 				<CardContent className="px-2 py-4 sm:px-4">
 					{hasRows ? (
 						<>
-							<div className="overflow-x-auto">
+							<TransactionsMobileList
+								data={rowModel.rows.map((row) => row.original)}
+								currentUserId={currentUserId}
+								onEdit={onEdit}
+								onCopy={onCopy}
+								onImport={onImport}
+								onConfirmDelete={onConfirmDelete}
+								onViewDetails={onViewDetails}
+								onRefund={onRefund}
+								onToggleSettlement={onToggleSettlement}
+								onAnticipate={onAnticipate}
+								onViewAnticipationHistory={onViewAnticipationHistory}
+								isSettlementLoading={isSettlementLoading ?? (() => false)}
+								showActions={showActions}
+							/>
+
+							<div className="hidden overflow-x-auto md:block">
 								<Table>
 									<TableHeader>
 										{table.getHeaderGroups().map((headerGroup) => (
