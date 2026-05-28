@@ -229,12 +229,14 @@ if (await askYesNo("  E-mail via Resend (notificações e convites)?")) {
 let anthropicKey = "";
 let openaiKey = "";
 let googleAiKey = "";
+let minimaxKey = "";
 let openrouterKey = "";
-if (await askYesNo("  Insights com IA (Claude, GPT, Gemini, OpenRouter)?")) {
+if (await askYesNo("  Insights com IA (Claude, GPT, Gemini, MiniMax, OpenRouter)?")) {
   console.log(`  ${c.dim}Deixe em branco o que não for usar${c.reset}`);
   anthropicKey = await ask("  ANTHROPIC_API_KEY: ");
   openaiKey = await ask("  OPENAI_API_KEY: ");
   googleAiKey = await ask("  GOOGLE_GENERATIVE_AI_API_KEY: ");
+  minimaxKey = await ask("  MINIMAX_API_KEY: ");
   openrouterKey = await ask("  OPENROUTER_API_KEY: ");
 }
 
@@ -285,6 +287,9 @@ const envContent = [
   "# === Better Auth ===",
   `BETTER_AUTH_SECRET=${authSecret}`,
   `BETTER_AUTH_URL=${betterAuthUrl}`,
+  "DISABLE_SIGNUP=false",
+  "AUTH_SESSION_EXPIRES_IN_DAYS=30",
+  "AUTH_SESSION_UPDATE_AGE_HOURS=24",
   "",
   "# === Portas ===",
   "APP_PORT=3000",
@@ -310,6 +315,7 @@ const envContent = [
   opt("ANTHROPIC_API_KEY", anthropicKey),
   opt("OPENAI_API_KEY", openaiKey),
   opt("GOOGLE_GENERATIVE_AI_API_KEY", googleAiKey),
+  opt("MINIMAX_API_KEY", minimaxKey),
   opt("OPENROUTER_API_KEY", openrouterKey),
 ].join("\n");
 
