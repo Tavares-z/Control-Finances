@@ -32,8 +32,19 @@ import {
 	formatCurrency,
 	formatDecimalForDbRequired,
 } from "@/shared/utils/currency";
-import { getBusinessTodayDate, getTodayInfo } from "@/shared/utils/date";
+import {
+	getBusinessTodayDate,
+	getTodayInfo,
+	parseLocalDateString,
+} from "@/shared/utils/date";
+import { derivePeriodFromDate } from "@/shared/utils/period";
 import { normalizeFilePath } from "@/shared/utils/string";
+
+const ACCOUNT_YIELD_CATEGORY_NAME = "Rendimentos";
+const ACCOUNT_YIELD_CATEGORY_ICON = "RiFundsLine";
+const ACCOUNT_YIELD_TRANSACTION_NAME = "Rendimento";
+const ACCOUNT_YIELD_CONDITION = INITIAL_BALANCE_CONDITION;
+const ACCOUNT_YIELD_PAYMENT_METHOD = "Transferência bancária" as const;
 
 const accountBaseSchema = z.object({
 	name: z
@@ -407,6 +418,107 @@ const adjustAccountBalanceSchema = z.object({
 });
 
 type AdjustAccountBalanceInput = z.infer<typeof adjustAccountBalanceSchema>;
+
+const addAccountYieldSchema = z.object({
+	accountId: uuidSchema("FinancialAccount"),
+	amount: z
+		.number({ message: "Valor inválido." })
+		.positive("Informe um valor maior que zero."),
+	date: z
+		.string({ message: "Data inválida." })
+		.trim()
+		.regex(/^\d{4}-\d{2}-\d{2}$/u, "Data inválida."),
+});
+
+type AddAccountYieldInput = z.infer<typeof addAccountYieldSchema>;
+
+export async function addAccountYieldAction(
+	input: AddAccountYieldInput,
+): Promise<ActionResult> {
+	try {
+		const user = await getUser();
+		const data = addAccountYieldSchema.parse(input);
+		const adminPayerId = await getAdminPayerId(user.id);
+
+		if (!adminPayerId) {
+			throw new Error(
+				"Pessoa com papel administrador não encontrada. Crie uma pessoa admin antes de adicionar rendimentos.",
+			);
+		}
+
+		const purchaseDate = parseLocalDateString(data.date);
+		if (Number.isNaN(purchaseDate.getTime())) {
+			throw new Error("Data inválida.");
+		}
+
+		await db.transaction(async (tx: typeof db) => {
+			const account = await tx.query.financialAccounts.findFirst({
+				columns: { id: true },
+				where: and(
+					eq(financialAccounts.id, data.accountId),
+					eq(financialAccounts.userId, user.id),
+				),
+			});
+
+			if (!account) {
+				throw new Error("Conta não encontrada.");
+			}
+
+			const existingCategory = await tx.query.categories.findFirst({
+				columns: { id: true },
+				where: and(
+					eq(categories.userId, user.id),
+					eq(categories.type, "receita"),
+					eq(categories.name, ACCOUNT_YIELD_CATEGORY_NAME),
+				),
+			});
+
+			const category =
+				existingCategory ??
+				(
+					await tx
+						.insert(categories)
+						.values({
+							name: ACCOUNT_YIELD_CATEGORY_NAME,
+							type: "receita",
+							icon: ACCOUNT_YIELD_CATEGORY_ICON,
+							userId: user.id,
+						})
+						.returning({ id: categories.id })
+				)[0];
+
+			if (!category) {
+				throw new Error(
+					"Não foi possível preparar a categoria de rendimentos.",
+				);
+			}
+
+			await tx.insert(transactions).values({
+				condition: ACCOUNT_YIELD_CONDITION,
+				name: ACCOUNT_YIELD_TRANSACTION_NAME,
+				paymentMethod: ACCOUNT_YIELD_PAYMENT_METHOD,
+				note: null,
+				amount: formatDecimalForDbRequired(data.amount),
+				purchaseDate,
+				transactionType: "Receita" as const,
+				period: derivePeriodFromDate(data.date),
+				isSettled: true,
+				userId: user.id,
+				accountId: data.accountId,
+				cardId: null,
+				categoryId: category.id,
+				payerId: adminPayerId,
+			});
+		});
+
+		revalidateForEntity("accounts", user.id);
+		revalidateForEntity("transactions", user.id);
+
+		return { success: true, message: "Rendimento adicionado com sucesso." };
+	} catch (error) {
+		return handleActionError(error);
+	}
+}
 
 export async function adjustAccountBalanceAction(
 	input: AdjustAccountBalanceInput,
