@@ -44,7 +44,10 @@ export function NavMenu() {
 	return (
 		<>
 			{/* Desktop */}
-			<nav className="hidden md:flex items-center justify-center flex-1 gap-4">
+			<nav
+				aria-label="Navegação principal"
+				className="hidden md:flex items-center justify-center flex-1 gap-4"
+			>
 				<NavigationMenu viewport={false}>
 					<NavigationMenuList className="gap-2">
 						<NavigationMenuItem>
@@ -97,7 +100,7 @@ export function NavMenu() {
 						size="icon-sm"
 						className="-order-1 md:hidden"
 					>
-						<RiMenuLine className="size-5" />
+						<RiMenuLine className="size-5" aria-hidden />
 						<span className="sr-only">Abrir menu</span>
 					</Button>
 				</SheetTrigger>
@@ -105,10 +108,13 @@ export function NavMenu() {
 					<SheetHeader className="border-b border-border/60 p-4">
 						<SheetTitle>Menu</SheetTitle>
 					</SheetHeader>
-					<nav className="p-3 overflow-y-auto">
+					<nav
+						className="p-3 overflow-y-auto"
+						aria-label="Menu principal mobile"
+					>
 						<MobileLink
 							href="/dashboard"
-							icon={<RiDashboardLine className="size-4" />}
+							icon={<RiDashboardLine className="size-4" aria-hidden />}
 							onClick={close}
 							preservePeriod
 						>

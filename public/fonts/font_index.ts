@@ -1,6 +1,6 @@
-import { Inter } from "next/font/google";
+import { Golos_Text } from "next/font/google";
 
-export const inter = Inter({
+export const inter = Golos_Text({
 	subsets: ["latin"],
 	display: "swap",
 	variable: "--font-inter",

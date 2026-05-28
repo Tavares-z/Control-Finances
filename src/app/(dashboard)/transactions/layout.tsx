@@ -16,8 +16,7 @@ export default function RootLayout({
 				icon={<RiArrowLeftRightLine />}
 				title="Lançamentos"
 				subtitle="Acompanhe todos os lançamentos financeiros do mês selecionado incluindo
-        receitas, despesas e transações previstas. Use o seletor abaixo para
-        navegar pelos meses e visualizar as movimentações correspondentes."
+        receitas, despesas e transações previstas."
 			/>
 			{children}
 		</section>

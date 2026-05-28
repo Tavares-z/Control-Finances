@@ -16,8 +16,7 @@ export default function RootLayout({
 				icon={<RiBankLine />}
 				title="Contas"
 				subtitle="Acompanhe todas as contas do mês selecionado incluindo receitas,
-        despesas e transações previstas. Use o seletor abaixo para navegar pelos
-        meses e visualizar as movimentações correspondentes."
+        despesas e transações previstas."
 			/>
 			{children}
 		</section>

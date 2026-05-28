@@ -13,9 +13,9 @@ export default function PageDescription({
 				<span className="text-primary">{icon}</span>
 				{title}
 			</h1>
-			<h2 className="text-sm max-w-2xl text-muted-foreground leading-relaxed">
+			<p className="text-sm max-w-2xl text-muted-foreground leading-relaxed">
 				{subtitle}
-			</h2>
+			</p>
 		</div>
 	);
 }
