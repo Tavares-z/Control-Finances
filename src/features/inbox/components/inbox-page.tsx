@@ -20,6 +20,8 @@ import {
 } from "@/features/inbox/actions";
 import { INBOX_DEFAULT_PAGE_SIZE } from "@/features/inbox/page-helpers";
 import { TransactionDialog } from "@/features/transactions/components/dialogs/transaction-dialog/transaction-dialog";
+import { InboxProcessTypeDialog, type InboxProcessType } from "./inbox-process-type-dialog";
+import { InboxTransferDialog } from "./inbox-transfer-dialog";
 import { ConfirmActionDialog } from "@/shared/components/confirm-action-dialog";
 import { Tabs, TabsContent } from "@/shared/components/ui/tabs";
 import { InboxBulkActions } from "./inbox-bulk-actions";
@@ -73,6 +75,8 @@ export function InboxPage({
 	const searchParams = useSearchParams();
 	const [isPending, startTransition] = useTransition();
 	const [processOpen, setProcessOpen] = useState(false);
+	const [processTypeOpen, setProcessTypeOpen] = useState(false);
+    const [transferOpen, setTransferOpen] = useState(false);
 	const [itemToProcess, setItemToProcess] = useState<InboxItem | null>(null);
 
 	const [detailsOpen, setDetailsOpen] = useState(false);
@@ -132,10 +136,18 @@ export function InboxPage({
 		if (!open) setItemToDiscard(null);
 	};
 
-	const handleProcessRequest = useCallback((item: InboxItem) => {
-		setItemToProcess(item);
-		setProcessOpen(true);
-	}, []);
+    const handleProcessRequest = useCallback((item: InboxItem) => {
+        setItemToProcess(item);
+        setProcessTypeOpen(true);
+    }, []);
+
+    const handleProcessTypeSelect = useCallback((type: InboxProcessType) => {
+        if (type === "transferencia-contas") {
+                setTransferOpen(true);
+                return;
+        }
+        setProcessOpen(true);
+    }, []);
 
 	const handleDetailsRequest = useCallback((item: InboxItem) => {
 		setItemDetails(item);
@@ -515,11 +527,28 @@ export function InboxPage({
 				defaultAmount={defaultAmount}
 				defaultCardId={matchedCartaoId}
 				defaultPaymentMethod={matchedCartaoId ? "Cartão de crédito" : null}
-				defaultTransactionType="Despesa"
-				forceShowTransactionType
+				defaultTransactionType={
+		        itemToProcess?.parsedAmount && parseFloat(itemToProcess.parsedAmount) < 0
+				        ? "Despesa"
+				        : "Receita"
+  				}
+                forceShowTransactionType
 				onSuccess={handleLancamentoSuccess}
 			/>
+            <InboxProcessTypeDialog
+                open={processTypeOpen}
+                onOpenChange={setProcessTypeOpen}
+                onSelect={handleProcessTypeSelect}
+            />
 
+            <InboxTransferDialog
+                open={transferOpen}
+                onOpenChange={setTransferOpen}
+                accountOptions={accountOptions}
+                defaultAmount={defaultAmount}
+                defaultDate={defaultPurchaseDate}
+                onSuccess={handleLancamentoSuccess}
+            />  
 			<InboxDetailsDialog
 				open={detailsOpen}
 				onOpenChange={handleDetailsOpenChange}
