@@ -17,7 +17,7 @@ import { Bot, Sparkles } from "lucide-react";
 
 const MODELS = [
 	{ value: "google/gemini-2.0-flash-001", label: "Gemini 2.0 Flash" },
-	{ value: "google/gemini-2.5-flash-preview", label: "Gemini 2.5 Flash" },
+	{ value: "google/gemini-2.5-flash-preview-05-20", label: "Gemini 2.5 Flash" },
 	{ value: "anthropic/claude-haiku-3-5", label: "Claude 3.5 Haiku" },
 	{ value: "openai/gpt-4o-mini", label: "GPT-4o Mini" },
 	{ value: "openai/gpt-4o", label: "GPT-4o" },
