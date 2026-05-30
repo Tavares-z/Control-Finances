@@ -2,7 +2,7 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { streamText } from "ai";
 import { getUserId } from "@/shared/lib/auth/server";
 import { db } from "@/shared/lib/db";
-import { chatMessages, userPreferences } from "@/db/schema"; // userPreferences já estava importado separado, unificado aqui
+import { chatMessages, userPreferences } from "@/db/schema";
 import { eq, asc } from "drizzle-orm";
 import { buildChatContext } from "@/features/chat/lib/build-chat-context";
 
@@ -40,7 +40,6 @@ export async function POST(req: Request) {
 		return new Response("Mensagem vazia", { status: 400 });
 	}
 
-	// MUDANÇA 1: buscar prefs junto com history e context
 	const [history, financialContext, prefs] = await Promise.all([
 		db.query.chatMessages.findMany({
 			where: eq(chatMessages.userId, userId),
@@ -53,7 +52,6 @@ export async function POST(req: Request) {
 		}),
 	]);
 
-	// MUDANÇA 1 (cont.): extrair modelo e personalidade das prefs
 	const modelId = prefs?.chatModel ?? "google/gemini-2.0-flash-001";
 	const personalityExtra = prefs?.chatPersonality ?? "";
 
@@ -64,8 +62,10 @@ export async function POST(req: Request) {
 	});
 
 	const result = streamText({
-		model: openrouter(modelId), // MUDANÇA 2: era hardcoded "google/gemini-2.0-flash-001"
-		system: `${SYSTEM_PROMPT}\n\n${financialContext}\n\n${personalityExtra}`, // MUDANÇA 2: adiciona personalityExtra
+		model: openrouter(modelId),
+		system: [SYSTEM_PROMPT, financialContext, personalityExtra]
+			.filter(Boolean)
+			.join("\n\n"),
 		messages: [
 			...history.map((m) => ({
 				role: m.role as "user" | "assistant",

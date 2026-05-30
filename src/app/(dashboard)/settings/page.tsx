@@ -2,7 +2,6 @@ import { RiAndroidLine, RiArrowRightSLine } from "@remixicon/react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
-import { eq } from "drizzle-orm";
 import { AssistantForm } from "@/features/settings/components/assistant-form";
 import { CompanionTab } from "@/features/settings/components/companion-tab";
 import { DeleteAccountForm } from "@/features/settings/components/delete-account-form";
@@ -21,7 +20,6 @@ import {
 	TabsTrigger,
 } from "@/shared/components/ui/tabs";
 import { auth } from "@/shared/lib/auth/config";
-import { db, schema } from "@/shared/lib/db";
 
 export default async function Page() {
 	await connection();
@@ -38,10 +36,6 @@ export default async function Page() {
 
 	const { authProvider, userPreferences, userApiTokens } =
 		await fetchSettingsPageData(session.user.id);
-
-	const prefs = await db.query.userPreferences.findFirst({
-		where: eq(schema.userPreferences.userId, session.user.id),
-	});
 
 	return (
 		<div className="w-full">
@@ -198,8 +192,8 @@ export default async function Page() {
 							</div>
 							<Separator />
 							<AssistantForm
-								initialModel={prefs?.chatModel ?? "google/gemini-2.0-flash-001"}
-								initialPersonality={prefs?.chatPersonality ?? ""}
+								initialModel={userPreferences?.chatModel ?? "google/gemini-2.0-flash-001"}
+								initialPersonality={userPreferences?.chatPersonality ?? ""}
 							/>
 						</div>
 					</Card>

@@ -6,6 +6,8 @@ interface UserPreferences {
 	statementNoteAsColumn: boolean;
 	transactionsColumnOrder: string[] | null;
 	attachmentMaxSizeMb: number;
+	chatModel: string | null;
+	chatPersonality: string | null;
 }
 
 interface ApiToken {
@@ -34,6 +36,8 @@ export async function fetchUserPreferences(
 			statementNoteAsColumn: schema.userPreferences.statementNoteAsColumn,
 			transactionsColumnOrder: schema.userPreferences.transactionsColumnOrder,
 			attachmentMaxSizeMb: schema.userPreferences.attachmentMaxSizeMb,
+			chatModel: schema.userPreferences.chatModel,
+			chatPersonality: schema.userPreferences.chatPersonality,
 		})
 		.from(schema.userPreferences)
 		.where(eq(schema.userPreferences.userId, userId))
