@@ -4,7 +4,6 @@ import {
   RiArrowLeftRightLine,
   RiArrowUpLine,
   RiArrowDownLine,
-  RiUserLine,
 } from "@remixicon/react";
 import {
   Dialog,
@@ -19,7 +18,6 @@ export type InboxProcessType =
   | "despesa"
   | "receita"
   | "transferencia-contas"
-  | "transferencia-terceiros";
 
 interface InboxProcessTypeDialogProps {
   open: boolean;
@@ -50,12 +48,6 @@ const options: {
     label: "Transferência entre contas",
     description: "Movimentação entre suas próprias contas",
     icon: <RiArrowLeftRightLine className="size-5 text-blue-500" />,
-  },
-  {
-    type: "transferencia-terceiros",
-    label: "Transferência para terceiros",
-    description: "Pix ou transferência enviada para outra pessoa",
-    icon: <RiUserLine className="size-5 text-orange-500" />,
   },
 ];
 
