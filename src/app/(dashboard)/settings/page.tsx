@@ -2,8 +2,8 @@ import { RiAndroidLine, RiArrowRightSLine } from "@remixicon/react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
+import { eq } from "drizzle-orm";
 import { AssistantForm } from "@/features/settings/components/assistant-form";
-
 import { CompanionTab } from "@/features/settings/components/companion-tab";
 import { DeleteAccountForm } from "@/features/settings/components/delete-account-form";
 import { PasskeysForm } from "@/features/settings/components/passkeys-form";
@@ -21,6 +21,7 @@ import {
 	TabsTrigger,
 } from "@/shared/components/ui/tabs";
 import { auth } from "@/shared/lib/auth/config";
+import { db, schema } from "@/shared/lib/db";
 
 export default async function Page() {
 	await connection();
@@ -39,7 +40,7 @@ export default async function Page() {
 		await fetchSettingsPageData(session.user.id);
 
 	const prefs = await db.query.userPreferences.findFirst({
-		where: eq(userPreferences.userId, session.user.id),
+		where: eq(schema.userPreferences.userId, session.user.id),
 	});
 
 	return (
@@ -55,8 +56,8 @@ export default async function Page() {
 							<TabsTrigger value="senha">Alterar senha</TabsTrigger>
 							<TabsTrigger value="passkeys">Passkeys</TabsTrigger>
 							<TabsTrigger value="email">Alterar e-mail</TabsTrigger>
+							<TabsTrigger value="assistente">Assistente</TabsTrigger>
 							<TabsTrigger value="deletar" className="text-destructive">
-								<TabsTrigger value="assistente">Assistente</TabsTrigger>
 								Ações perigosas
 							</TabsTrigger>
 						</TabsList>
@@ -186,11 +187,22 @@ export default async function Page() {
 					</Card>
 				</TabsContent>
 
-				<TabsContent value="assistente" className="mt-6">
-					<AssistantForm
-						initialModel={prefs?.chatModel ?? "google/gemini-2.0-flash-001"}
-						initialPersonality={prefs?.chatPersonality ?? ""}
-					/>
+				<TabsContent value="assistente" className="mt-4">
+					<Card className="p-6">
+						<div className="space-y-4">
+							<div>
+								<h2 className="text-xl font-semibold mb-1">Assistente</h2>
+								<p className="text-sm text-muted-foreground">
+									Configure o modelo de IA e a personalidade da Monetinha.
+								</p>
+							</div>
+							<Separator />
+							<AssistantForm
+								initialModel={prefs?.chatModel ?? "google/gemini-2.0-flash-001"}
+								initialPersonality={prefs?.chatPersonality ?? ""}
+							/>
+						</div>
+					</Card>
 				</TabsContent>
 
 				<TabsContent value="deletar" className="mt-4">
