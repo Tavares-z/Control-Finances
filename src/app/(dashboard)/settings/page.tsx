@@ -2,6 +2,7 @@ import { RiAndroidLine, RiArrowRightSLine } from "@remixicon/react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
+import { AssistantForm } from "@/features/settings/components/assistant-form";
 
 import { CompanionTab } from "@/features/settings/components/companion-tab";
 import { DeleteAccountForm } from "@/features/settings/components/delete-account-form";
@@ -37,6 +38,10 @@ export default async function Page() {
 	const { authProvider, userPreferences, userApiTokens } =
 		await fetchSettingsPageData(session.user.id);
 
+	const prefs = await db.query.userPreferences.findFirst({
+		where: eq(userPreferences.userId, session.user.id),
+	});
+
 	return (
 		<div className="w-full">
 			<Tabs defaultValue="preferencias" className="w-full">
@@ -51,6 +56,7 @@ export default async function Page() {
 							<TabsTrigger value="passkeys">Passkeys</TabsTrigger>
 							<TabsTrigger value="email">Alterar e-mail</TabsTrigger>
 							<TabsTrigger value="deletar" className="text-destructive">
+								<TabsTrigger value="assistente">Assistente</TabsTrigger>
 								Ações perigosas
 							</TabsTrigger>
 						</TabsList>
@@ -178,6 +184,13 @@ export default async function Page() {
 							/>
 						</div>
 					</Card>
+				</TabsContent>
+
+				<TabsContent value="assistente" className="mt-6">
+					<AssistantForm
+						initialModel={prefs?.chatModel ?? "google/gemini-2.0-flash-001"}
+						initialPersonality={prefs?.chatPersonality ?? ""}
+					/>
 				</TabsContent>
 
 				<TabsContent value="deletar" className="mt-4">

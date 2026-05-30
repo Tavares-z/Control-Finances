@@ -20,6 +20,9 @@ import { getAdminPayerId } from "@/shared/lib/payers/get-admin-id";
 import { generateShareCode } from "@/shared/lib/payers/share-code";
 import { normalizeNameFromEmail } from "@/shared/lib/payers/utils";
 import { deleteS3Object } from "@/shared/lib/storage/presign";
+import { auth } from "@/lib/auth";
+import { db } from "@/db";
+import * as schema from "@/db/schema";
 
 type ActionResponse<T = void> = {
 	success: boolean;
@@ -768,4 +771,38 @@ export async function revokeApiTokenAction(
 			error: "Erro ao revogar token. Tente novamente.",
 		};
 	}
+}
+
+export async function updateChatSettings(data: {
+	chatModel: string;
+	chatPersonality: string;
+}) {
+	const session = await auth.api.getSession({ headers: await headers() });
+	if (!session?.user?.id) return { success: false, error: "Não autenticado" };
+ 
+	const existing = await db
+		.select()
+		.from(schema.userPreferences)
+		.where(eq(schema.userPreferences.userId, session.user.id))
+		.limit(1);
+ 
+	if (existing[0]) {
+		await db
+			.update(schema.userPreferences)
+			.set({
+				chatModel: data.chatModel,
+				chatPersonality: data.chatPersonality,
+				updatedAt: new Date(),
+			})
+			.where(eq(schema.userPreferences.userId, session.user.id));
+	} else {
+		await db.insert(schema.userPreferences).values({
+			userId: session.user.id,
+			chatModel: data.chatModel,
+			chatPersonality: data.chatPersonality,
+		});
+	}
+ 
+	revalidatePath("/", "layout");
+	return { success: true };
 }
