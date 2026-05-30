@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { updateChatSettings } from "../actions";
 import {
 	Select,
@@ -15,7 +15,7 @@ import { Label } from "@/shared/components/ui/label";
 import { toast } from "sonner";
 import { Bot, Sparkles } from "lucide-react";
 
-const MODELS = [
+export const MODELS = [
 	{ value: "google/gemini-2.0-flash-001", label: "Gemini 2.0 Flash" },
 	{ value: "google/gemini-2.5-flash-preview-05-20", label: "Gemini 2.5 Flash" },
 	{ value: "anthropic/claude-haiku-3-5", label: "Claude 3.5 Haiku" },
@@ -32,13 +32,14 @@ export function AssistantForm({
 	initialModel = "google/gemini-2.0-flash-001",
 	initialPersonality = "",
 }: AssistantFormProps) {
-	const [model, setModel] = useState(initialModel);
+	const [model, setModel] = useState<typeof MODELS[number]["value"]>(
+		MODELS.find((m) => m.value === initialModel)?.value ?? "google/gemini-2.0-flash-001",
+	);
 	const [personality, setPersonality] = useState(initialPersonality);
-	const [loading, setLoading] = useState(false);
+	const [isPending, startTransition] = useTransition();
 
-	async function handleSave() {
-		setLoading(true);
-		try {
+	function handleSave() {
+		startTransition(async () => {
 			const result = await updateChatSettings({
 				chatModel: model,
 				chatPersonality: personality,
@@ -49,11 +50,7 @@ export function AssistantForm({
 			} else {
 				toast.error(result.error ?? "Erro ao salvar configurações.");
 			}
-		} catch {
-			toast.error("Erro inesperado ao salvar.");
-		} finally {
-			setLoading(false);
-		}
+		});
 	}
 
 	return (
@@ -66,7 +63,7 @@ export function AssistantForm({
 			{/* Modelo */}
 			<div className="space-y-2">
 				<Label htmlFor="chat-model">Modelo de IA</Label>
-				<Select value={model} onValueChange={setModel}>
+				<Select value={model} onValueChange={(v) => setModel(v as typeof MODELS[number]["value"])}>
 					<SelectTrigger id="chat-model" className="w-full sm:w-72">
 						<SelectValue placeholder="Selecione o modelo" />
 					</SelectTrigger>
@@ -105,10 +102,10 @@ export function AssistantForm({
 
 			<Button
 				onClick={handleSave}
-				disabled={loading}
+				disabled={isPending}
 				className="bg-orange-500 hover:bg-orange-600 text-white"
 			>
-				{loading ? "Salvando…" : "Salvar configurações"}
+				{isPending ? "Salvando…" : "Salvar configurações"}
 			</Button>
 		</div>
 	);
