@@ -5,8 +5,7 @@ import { LogoDevProvider } from "@/shared/components/providers/logo-dev-provider
 import { PrivacyProvider } from "@/shared/components/providers/privacy-provider";
 import { getUserSession } from "@/shared/lib/auth/server";
 import { isLogoDevEnabled } from "@/shared/lib/logo/server";
-import { ChatWidget } from "@/features/chat/lib/components/chat-widget";
-
+import { ChatWidget } from "@/features/chat/components/chat-widget";
 
 export default async function DashboardLayout({
 	children,
