@@ -428,7 +428,7 @@ export const savedInsights = pgTable(
 			.references(() => user.id, { onDelete: "cascade" }),
 		period: text("period").notNull(),
 		modelId: text("model_id").notNull(),
-		data: text("data").notNull(), // JSON stringificado com as análises
+		data: text("data").notNull(),
 		createdAt: timestamp("created_at", {
 			mode: "date",
 			withTimezone: true,
@@ -446,6 +446,31 @@ export const savedInsights = pgTable(
 		userPeriodIdx: uniqueIndex("insights_salvos_user_period_idx").on(
 			table.userId,
 			table.period,
+		),
+	}),
+);
+
+export const chatMessages = pgTable(
+	"mensagens_chat",
+	{
+		id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		role: text("role").notNull(), // "user" | "assistant"
+		content: text("content").notNull(),
+		createdAt: timestamp("created_at", {
+			mode: "date",
+			withTimezone: true,
+		})
+			.notNull()
+			.defaultNow(),
+	},
+	(table) => ({
+		userIdIdx: index("mensagens_chat_user_id_idx").on(table.userId),
+		userIdCreatedAtIdx: index("mensagens_chat_user_id_created_at_idx").on(
+			table.userId,
+			table.createdAt,
 		),
 	}),
 );
@@ -748,6 +773,7 @@ export const userRelations = relations(user, ({ many, one }) => ({
 	apiTokens: many(apiTokens),
 	inboxItems: many(inboxItems),
 	establishmentLogos: many(establishmentLogos),
+	chatMessages: many(chatMessages), // 👈 adiciona aqui
 }));
 
 export const accountRelations = relations(account, ({ one }) => ({
@@ -1069,3 +1095,13 @@ export const establishmentLogosRelations = relations(
 		}),
 	}),
 );
+
+export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
+	user: one(user, {
+		fields: [chatMessages.userId],
+		references: [user.id],
+	}),
+}));
+
+export type ChatMessage = typeof chatMessages.$inferSelect;
+export type NewChatMessage = typeof chatMessages.$inferInsert;
