@@ -65,7 +65,7 @@ export async function POST(req: Request) {
 
 	const result = streamText({
 		model: openrouter(modelId), // MUDANÇA 2: era hardcoded "google/gemini-2.0-flash-001"
-		system: `${SYSTEM_PROMPT}\n\n${personalityExtra}\n\n${financialContext}`, // MUDANÇA 2: adiciona personalityExtra
+		system: `${SYSTEM_PROMPT}\n\n${financialContext}\n\n${personalityExtra}`, // MUDANÇA 2: adiciona personalityExtra
 		messages: [
 			...history.map((m) => ({
 				role: m.role as "user" | "assistant",
