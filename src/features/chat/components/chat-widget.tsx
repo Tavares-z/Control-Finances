@@ -111,7 +111,7 @@ export function ChatWidget() {
 			<button
 				onClick={() => setOpen((v) => !v)}
 				className={cn(
-					"fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-all duration-200",
+					"fixed bottom-6 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-all duration-200 sm:right-6",
 					"bg-orange-500 hover:bg-orange-600 text-white",
 					open && "rotate-90",
 				)}
@@ -121,7 +121,7 @@ export function ChatWidget() {
 			</button>
 
 			{open && (
-				<div className="fixed bottom-24 right-6 z-50 flex w-[360px] flex-col rounded-2xl border border-border bg-background shadow-2xl overflow-hidden">
+				<div className="fixed bottom-24 right-3 left-3 z-50 flex flex-col rounded-2xl border border-border bg-background shadow-2xl overflow-hidden sm:left-auto sm:right-6 sm:w-[360px]">
 					<div className="flex items-center gap-3 bg-orange-500 px-4 py-3">
 						<div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-lg">
 							🪙
@@ -132,7 +132,7 @@ export function ChatWidget() {
 						</div>
 					</div>
 
-					<div className="h-80 overflow-y-auto px-4 py-3">
+					<div className="h-64 overflow-y-auto px-4 py-3 sm:h-80">
 						<div className="flex flex-col gap-3">
 							{messages.map((msg) => (
 								<div
