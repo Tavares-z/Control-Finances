@@ -159,6 +159,8 @@ export const userPreferences = pgTable("preferencias_usuario", {
 		hidden: string[];
 		myAccountsShowExcluded?: boolean;
 	}>(),
+	chatModel: text("chat_model"),
+	chatPersonality: text("chat_personality"),
 	createdAt: timestamp("created_at", {
 		mode: "date",
 		withTimezone: true,
