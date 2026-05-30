@@ -20,9 +20,6 @@ import { getAdminPayerId } from "@/shared/lib/payers/get-admin-id";
 import { generateShareCode } from "@/shared/lib/payers/share-code";
 import { normalizeNameFromEmail } from "@/shared/lib/payers/utils";
 import { deleteS3Object } from "@/shared/lib/storage/presign";
-import { auth } from "@/lib/auth";
-import { db } from "@/db";
-import * as schema from "@/db/schema";
 
 type ActionResponse<T = void> = {
 	success: boolean;
