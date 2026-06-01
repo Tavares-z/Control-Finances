@@ -1,23 +1,43 @@
 import { db } from "@/shared/lib/db";
-import { transactions, financialAccounts, categories, budgets } from "@/db/schema";
+import {
+	transactions,
+	financialAccounts,
+	categories,
+	budgets,
+	cards,
+} from "@/db/schema";
 import { eq, and, gte, lte, desc, sum, count } from "drizzle-orm";
 import { formatCurrency } from "@/shared/utils/currency";
 
 export async function buildChatContext(userId: string): Promise<string> {
-	const now = new Date();
-	const currentPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-	const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-	const threeMonthsAgoPeriod = `${threeMonthsAgo.getFullYear()}-${String(threeMonthsAgo.getMonth() + 1).padStart(2, "0")}`;
+	try {
+		const now = new Date();
+		const currentPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+		const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+		const threeMonthsAgoPeriod = `${threeMonthsAgo.getFullYear()}-${String(threeMonthsAgo.getMonth() + 1).padStart(2, "0")}`;
 
-	const [accounts, currentTransactions, topCategories, activeBudgets] =
-		await Promise.all([
-			// Contas e saldos
-			db.query.financialAccounts.findMany({
-				where: and(
-					eq(financialAccounts.userId, userId),
-					eq(financialAccounts.status, "ativa"),
+		const [
+			accounts,
+			currentTransactions,
+			topCategories,
+			activeBudgets,
+			userCategories,
+			userCards,
+		] = await Promise.all([
+			// Contas ativas com ID
+			db
+				.select({
+					id: financialAccounts.id,
+					name: financialAccounts.name,
+					accountType: financialAccounts.accountType,
+				})
+				.from(financialAccounts)
+				.where(
+					and(
+						eq(financialAccounts.userId, userId),
+						eq(financialAccounts.status, "ativa"),
+					),
 				),
-			}),
 
 			// Transações do mês atual
 			db.query.transactions.findMany({
@@ -42,7 +62,7 @@ export async function buildChatContext(userId: string): Promise<string> {
 				.where(
 					and(
 						eq(transactions.userId, userId),
-						eq(transactions.transactionType, "despesa"),
+						eq(transactions.transactionType, "Despesa"),
 						gte(transactions.period, threeMonthsAgoPeriod),
 						lte(transactions.period, currentPeriod),
 					),
@@ -59,36 +79,53 @@ export async function buildChatContext(userId: string): Promise<string> {
 				),
 				with: { category: true },
 			}),
+
+			// Todas as categorias do usuário (para tool calling)
+			db
+				.select({
+					id: categories.id,
+					name: categories.name,
+					type: categories.type,
+				})
+				.from(categories)
+				.where(eq(categories.userId, userId))
+				.orderBy(categories.name),
+
+			// Todos os cartões do usuário (para tool calling)
+			db
+				.select({
+					id: cards.id,
+					name: cards.name,
+				})
+				.from(cards)
+				.where(eq(cards.userId, userId)),
 		]);
 
-	const totalIncome = currentTransactions
-		.filter((t) => t.transactionType === "receita")
-		.reduce((acc, t) => acc + Number(t.amount), 0);
+		const totalIncome = currentTransactions
+			.filter((t) => t.transactionType === "Receita")
+			.reduce((acc, t) => acc + Number(t.amount), 0);
 
-	const totalExpenses = currentTransactions
-		.filter((t) => t.transactionType === "despesa")
-		.reduce((acc, t) => acc + Number(t.amount), 0);
+		const totalExpenses = currentTransactions
+			.filter((t) => t.transactionType === "Despesa")
+			.reduce((acc, t) => acc + Number(t.amount), 0);
 
-	const balance = totalIncome - totalExpenses;
+		const balance = totalIncome - totalExpenses;
 
-	const recentTransactions = currentTransactions.slice(0, 10).map((t) => ({
-		nome: t.name,
-		valor: formatCurrency(Number(t.amount)),
-		tipo: t.transactionType,
-		categoria: t.category?.name ?? "Sem categoria",
-		data: t.purchaseDate,
-	}));
+		const recentTransactions = currentTransactions.slice(0, 10).map((t) => ({
+			nome: t.name,
+			valor: formatCurrency(Number(t.amount)),
+			tipo: t.transactionType,
+			categoria: t.category?.name ?? "Sem categoria",
+			data: t.purchaseDate,
+		}));
 
-	const context = `
+		return `
 ## Contexto financeiro do usuário — ${currentPeriod}
 
 ### Resumo do mês atual
 - Total de receitas: ${formatCurrency(totalIncome)}
 - Total de despesas: ${formatCurrency(totalExpenses)}
 - Saldo do mês: ${formatCurrency(balance)}
-
-### Contas ativas
-${accounts.map((a) => `- ${a.name} (${a.accountType})`).join("\n") || "Nenhuma conta cadastrada"}
 
 ### Top categorias de gastos (últimos 3 meses)
 ${topCategories.map((c) => `- ${c.categoryName}: ${formatCurrency(Number(c.total))} (${c.qtd} lançamentos)`).join("\n") || "Sem dados"}
@@ -98,7 +135,21 @@ ${activeBudgets.map((b) => `- ${b.category?.name ?? "Sem categoria"}: limite ${f
 
 ### Últimos 10 lançamentos
 ${recentTransactions.map((t) => `- ${t.data} | ${t.tipo} | ${t.nome} | ${t.valor} | ${t.categoria}`).join("\n")}
-`.trim();
 
-	return context;
+---
+## Dados para registro de transações (use os IDs EXATOS ao chamar ferramentas)
+
+### Contas disponíveis
+${accounts.length > 0 ? accounts.map((a) => `- ID: ${a.id} | ${a.name} (${a.accountType})`).join("\n") : "Nenhuma conta ativa cadastrada"}
+
+### Cartões de crédito disponíveis
+${userCards.length > 0 ? userCards.map((c) => `- ID: ${c.id} | ${c.name}`).join("\n") : "Nenhum cartão cadastrado"}
+
+### Categorias disponíveis
+${userCategories.length > 0 ? userCategories.map((c) => `- ID: ${c.id} | ${c.name} (${c.type})`).join("\n") : "Nenhuma categoria cadastrada"}
+`.trim();
+	} catch (error) {
+		console.error("Erro ao construir contexto financeiro:", error);
+		return "Contexto financeiro indisponível no momento.";
+	}
 }
