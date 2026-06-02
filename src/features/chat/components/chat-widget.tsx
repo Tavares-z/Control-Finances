@@ -1,14 +1,30 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { X, Send, MessageCircle, Loader2, Paperclip } from "lucide-react";
+import { useRouter } from "next/navigation";
+import {
+	X,
+	Send,
+	MessageCircle,
+	Loader2,
+	Paperclip,
+	Maximize2,
+	Minimize2,
+	ArrowUpRight,
+} from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 const cn = (...inputs: ClassValue[]) => twMerge(clsx(inputs));
 
-const ACCEPTED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+const ACCEPTED_MIME_TYPES = [
+	"image/jpeg",
+	"image/png",
+	"image/webp",
+	"application/pdf",
+];
 const ACCEPTED_EXTENSIONS = ".jpg,.jpeg,.png,.webp,.pdf";
 const MAX_FILE_MB = 10;
+const INSIGHT_THRESHOLD = 400;
 
 interface FileAttachment {
 	data: string;
@@ -44,7 +60,9 @@ const SUGGESTIONS = [
 ];
 
 export function ChatWidget() {
+	const router = useRouter();
 	const [open, setOpen] = useState(false);
+	const [expanded, setExpanded] = useState(false);
 	const [input, setInput] = useState("");
 	const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
 	const [loading, setLoading] = useState(false);
@@ -61,6 +79,14 @@ export function ChatWidget() {
 	useEffect(() => {
 		if (open) setTimeout(() => inputRef.current?.focus(), 100);
 	}, [open]);
+
+	useEffect(() => {
+		const handleEsc = (e: KeyboardEvent) => {
+			if (e.key === "Escape") setExpanded(false);
+		};
+		window.addEventListener("keydown", handleEsc);
+		return () => window.removeEventListener("keydown", handleEsc);
+	}, []);
 
 	function fileToBase64(f: File): Promise<string> {
 		return new Promise((resolve, reject) => {
@@ -83,7 +109,6 @@ export function ChatWidget() {
 			setFileError("Tipo não suportado. Use JPG, PNG, WEBP ou PDF.");
 			return;
 		}
-
 		if (selected.size > MAX_FILE_MB * 1024 * 1024) {
 			setFileError(`Arquivo muito grande. Máximo ${MAX_FILE_MB}MB.`);
 			return;
@@ -91,17 +116,30 @@ export function ChatWidget() {
 
 		const base64 = await fileToBase64(selected);
 		const isImage = selected.type.startsWith("image/");
-
 		setFile({
 			data: base64,
 			mimeType: selected.type,
 			name: selected.name,
-			previewUrl: isImage ? `data:${selected.type};base64,${base64}` : undefined,
+			previewUrl: isImage
+				? `data:${selected.type};base64,${base64}`
+				: undefined,
 		});
 
-		// Reset input
 		if (fileInputRef.current) fileInputRef.current.value = "";
 		inputRef.current?.focus();
+	}
+
+	function openInsightPage(content: string) {
+		try {
+			sessionStorage.setItem(
+				"monetinha_insight",
+				JSON.stringify({ content, timestamp: Date.now() }),
+			);
+			router.push("/insights/monetinha");
+		} catch {
+			// sessionStorage indisponível — fallback para expand
+			setExpanded(true);
+		}
 	}
 
 	async function sendMessage(override?: string) {
@@ -113,7 +151,6 @@ export function ChatWidget() {
 		setFile(null);
 		setFileError(null);
 
-		// Adicionar mensagem do usuário na UI
 		setMessages((prev) => [
 			...prev,
 			{
@@ -138,7 +175,11 @@ export function ChatWidget() {
 				body: JSON.stringify({
 					message: text,
 					file: sentFile
-						? { data: sentFile.data, mimeType: sentFile.mimeType, name: sentFile.name }
+						? {
+								data: sentFile.data,
+								mimeType: sentFile.mimeType,
+								name: sentFile.name,
+							}
 						: null,
 				}),
 			});
@@ -186,80 +227,155 @@ export function ChatWidget() {
 		}
 	}
 
+	function handleClose() {
+		setOpen(false);
+		setExpanded(false);
+	}
+
 	const canSend = !loading && (input.trim().length > 0 || file !== null);
 
 	return (
 		<>
-			<button
-				onClick={() => setOpen((v) => !v)}
-				className={cn(
-					"fixed bottom-6 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-all duration-200 sm:right-6",
-					"bg-orange-500 hover:bg-orange-600 text-white",
-					open && "rotate-90",
-				)}
-				aria-label="Abrir chat da Monetinha"
-			>
-				{open ? <X size={22} /> : <MessageCircle size={22} />}
-			</button>
+			{/* Botão flutuante */}
+			{!expanded && (
+				<button
+					onClick={() => setOpen((v) => !v)}
+					className={cn(
+						"fixed bottom-6 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-all duration-200 sm:right-6",
+						"bg-orange-500 hover:bg-orange-600 text-white",
+						open && "rotate-90",
+					)}
+					aria-label="Abrir chat da Monetinha"
+				>
+					{open ? <X size={22} /> : <MessageCircle size={22} />}
+				</button>
+			)}
 
+			{/* Backdrop escuro (modo expandido) */}
+			{open && expanded && (
+				<div
+					className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm"
+					onClick={() => setExpanded(false)}
+				/>
+			)}
+
+			{/* Painel do chat */}
 			{open && (
-				<div className="fixed bottom-24 right-3 left-3 z-50 flex flex-col rounded-2xl border border-border bg-background shadow-2xl overflow-hidden sm:left-auto sm:right-6 sm:w-[360px]">
+				<div
+					className={cn(
+						"fixed z-50 flex flex-col border border-border bg-background shadow-2xl overflow-hidden transition-all duration-300",
+						expanded
+							? "inset-4 rounded-2xl sm:inset-8 md:inset-12"
+							: "bottom-24 right-3 left-3 rounded-2xl sm:left-auto sm:right-6 sm:w-[360px]",
+					)}
+				>
 					{/* Header */}
-					<div className="flex items-center gap-3 bg-orange-500 px-4 py-3">
+					<div className="flex items-center gap-3 bg-orange-500 px-4 py-3 shrink-0">
 						<div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-lg">
 							🪙
 						</div>
-						<div>
+						<div className="flex-1">
 							<p className="text-sm font-semibold text-white">Monetinha</p>
 							<p className="text-xs text-orange-100">Assistente financeira</p>
 						</div>
+						<button
+							onClick={() => setExpanded((v) => !v)}
+							className="flex h-7 w-7 items-center justify-center rounded-full text-white/80 hover:bg-white/20 transition-colors"
+							aria-label={expanded ? "Minimizar" : "Expandir"}
+						>
+							{expanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+						</button>
+						<button
+							onClick={handleClose}
+							className="flex h-7 w-7 items-center justify-center rounded-full text-white/80 hover:bg-white/20 transition-colors"
+							aria-label="Fechar"
+						>
+							<X size={15} />
+						</button>
 					</div>
 
 					{/* Mensagens */}
-					<div className="h-64 overflow-y-auto px-4 py-3 sm:h-80">
-						<div className="flex flex-col gap-3">
+					<div
+						className={cn(
+							"overflow-y-auto px-4 py-3",
+							expanded ? "flex-1 px-6" : "h-64 sm:h-80",
+						)}
+					>
+						<div
+							className={cn(
+								"flex flex-col gap-3",
+								expanded && "max-w-3xl mx-auto w-full",
+							)}
+						>
 							{messages.map((msg) => (
-								<div
-									key={msg.id}
-									className={cn(
-										"max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed",
-										msg.role === "user"
-											? "ml-auto bg-orange-500 text-white rounded-br-sm"
-											: "mr-auto bg-muted text-foreground rounded-bl-sm",
-									)}
-								>
-									{/* Preview de arquivo */}
-									{msg.filePreview && (
-										<div className="mb-2">
-											{msg.filePreview.type === "image" && msg.filePreview.url ? (
-												<img
-													src={msg.filePreview.url}
-													alt={msg.filePreview.name}
-													className="max-h-32 w-full rounded-lg object-cover"
-												/>
-											) : (
-												<div className="flex items-center gap-1.5 rounded-lg bg-white/20 px-2 py-1.5 text-xs">
-													<Paperclip size={12} />
-													<span className="truncate max-w-[180px]">{msg.filePreview.name}</span>
-												</div>
-											)}
-										</div>
-									)}
-									{msg.content || (
-										<Loader2
-											size={14}
-											className="animate-spin text-muted-foreground"
-										/>
-									)}
+								<div key={msg.id} className={cn(
+									"flex flex-col",
+									msg.role === "user" ? "items-end" : "items-start",
+								)}>
+									<div
+										className={cn(
+											"max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed",
+											msg.role === "user"
+												? "bg-orange-500 text-white rounded-br-sm"
+												: "bg-muted text-foreground rounded-bl-sm",
+										)}
+									>
+										{/* Preview de arquivo */}
+										{msg.filePreview && (
+											<div className="mb-2">
+												{msg.filePreview.type === "image" && msg.filePreview.url ? (
+													<img
+														src={msg.filePreview.url}
+														alt={msg.filePreview.name}
+														className="max-h-40 w-full rounded-lg object-cover"
+													/>
+												) : (
+													<div className="flex items-center gap-1.5 rounded-lg bg-white/20 px-2 py-1.5 text-xs">
+														<Paperclip size={12} />
+														<span className="truncate max-w-[200px]">
+															{msg.filePreview.name}
+														</span>
+													</div>
+												)}
+											</div>
+										)}
+
+										{msg.content || (
+											<Loader2
+												size={14}
+												className="animate-spin text-muted-foreground"
+											/>
+										)}
+									</div>
+
+									{/* Card "Ver análise completa" em respostas longas */}
+									{msg.role === "assistant" &&
+										msg.content.length > INSIGHT_THRESHOLD && (
+											<button
+												onClick={() => openInsightPage(msg.content)}
+												className="mt-2 flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-xs text-muted-foreground hover:border-orange-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-950/20 transition-all max-w-[85%] text-left"
+											>
+												<span className="text-base">📊</span>
+												<span className="flex-1 font-medium">
+													Ver análise completa
+												</span>
+												<ArrowUpRight size={13} className="shrink-0" />
+											</button>
+										)}
 								</div>
 							))}
 							<div ref={bottomRef} />
 						</div>
 					</div>
 
-					{/* Sugestões (só no início) */}
+					{/* Sugestões */}
 					{messages.length === 1 && (
-						<div className="flex flex-wrap gap-2 px-4 pb-2">
+						<div
+							className={cn(
+								"flex flex-wrap gap-2 px-4 pb-2 shrink-0",
+								expanded && "max-w-3xl mx-auto w-full px-6",
+							)}
+						>
 							{SUGGESTIONS.map((s) => (
 								<button
 									key={s.label}
@@ -272,9 +388,14 @@ export function ChatWidget() {
 						</div>
 					)}
 
-					{/* Preview do arquivo selecionado */}
+					{/* Preview arquivo selecionado */}
 					{file && (
-						<div className="mx-3 mb-2 flex items-center gap-2 rounded-xl border border-border bg-muted/50 px-3 py-2">
+						<div
+							className={cn(
+								"mx-3 mb-2 flex items-center gap-2 rounded-xl border border-border bg-muted/50 px-3 py-2 shrink-0",
+								expanded && "mx-6",
+							)}
+						>
 							{file.previewUrl ? (
 								<img
 									src={file.previewUrl}
@@ -299,21 +420,30 @@ export function ChatWidget() {
 						</div>
 					)}
 
-					{/* Erro de arquivo */}
 					{fileError && (
-						<p className="mx-3 mb-2 text-xs text-destructive">{fileError}</p>
+						<p
+							className={cn(
+								"mx-3 mb-2 text-xs text-destructive shrink-0",
+								expanded && "mx-6",
+							)}
+						>
+							{fileError}
+						</p>
 					)}
 
 					{/* Input */}
-					<div className="flex items-end gap-2 border-t border-border px-3 py-3">
-						{/* Input de arquivo oculto */}
+					<div
+						className={cn(
+							"flex items-end gap-2 border-t border-border px-3 py-3 shrink-0",
+							expanded && "px-6 py-4 max-w-3xl mx-auto w-full",
+						)}
+					>
 						<input
 							ref={fileInputRef}
 							type="file"
 							accept={ACCEPTED_EXTENSIONS}
 							onChange={handleFileSelect}
 							className="hidden"
-							aria-label="Anexar arquivo"
 						/>
 						<button
 							onClick={() => fileInputRef.current?.click()}
@@ -329,7 +459,11 @@ export function ChatWidget() {
 							value={input}
 							onChange={(e) => setInput(e.target.value)}
 							onKeyDown={handleKeyDown}
-							placeholder={file ? "Adicione uma mensagem (opcional)..." : "Pergunta pra Monetinha..."}
+							placeholder={
+								file
+									? "Adicione uma mensagem (opcional)..."
+									: "Pergunta pra Monetinha..."
+							}
 							rows={1}
 							className="flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground max-h-24"
 						/>
