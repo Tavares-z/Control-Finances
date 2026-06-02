@@ -34,6 +34,19 @@ const updateNameSchema = z.object({
 	lastName: z.string().min(1, "Sobrenome é obrigatório"),
 });
 
+const ALLOWED_MODELS = [
+	"google/gemini-3.5-flash",
+	"google/gemini-2.5-flash-preview",
+	"anthropic/claude-3-5-haiku",
+	"openai/gpt-4o-mini",
+	"openai/gpt-4o",
+] as const;
+ 
+const updateChatSettingsSchema = z.object({
+	chatModel: z.enum(ALLOWED_MODELS),
+	chatPersonality: z.string().max(500),
+});
+
 const updatePasswordSchema = z
 	.object({
 		currentPassword: z.string().min(1, "Senha atual é obrigatória"),
@@ -770,36 +783,53 @@ export async function revokeApiTokenAction(
 	}
 }
 
-export async function updateChatSettings(data: {
-	chatModel: string;
-	chatPersonality: string;
-}) {
-	const session = await auth.api.getSession({ headers: await headers() });
-	if (!session?.user?.id) return { success: false, error: "Não autenticado" };
+export async function updateChatSettings(
+	data: z.infer<typeof updateChatSettingsSchema>,
+): Promise<ActionResponse> {
+	try {
+		const session = await auth.api.getSession({ headers: await headers() });
+		if (!session?.user?.id) {
+			return { success: false, error: "Não autenticado" };
+		}
  
-	const existing = await db
-		.select()
-		.from(schema.userPreferences)
-		.where(eq(schema.userPreferences.userId, session.user.id))
-		.limit(1);
+		const validated = updateChatSettingsSchema.parse(data);
  
-	if (existing[0]) {
-		await db
-			.update(schema.userPreferences)
-			.set({
-				chatModel: data.chatModel,
-				chatPersonality: data.chatPersonality,
-				updatedAt: new Date(),
-			})
-			.where(eq(schema.userPreferences.userId, session.user.id));
-	} else {
-		await db.insert(schema.userPreferences).values({
-			userId: session.user.id,
-			chatModel: data.chatModel,
-			chatPersonality: data.chatPersonality,
-		});
+		const existing = await db
+			.select()
+			.from(schema.userPreferences)
+			.where(eq(schema.userPreferences.userId, session.user.id))
+			.limit(1);
+ 
+		if (existing[0]) {
+			await db
+				.update(schema.userPreferences)
+				.set({
+					chatModel: validated.chatModel,
+					chatPersonality: validated.chatPersonality,
+					updatedAt: new Date(),
+				})
+				.where(eq(schema.userPreferences.userId, session.user.id));
+		} else {
+			await db.insert(schema.userPreferences).values({
+				userId: session.user.id,
+				chatModel: validated.chatModel,
+				chatPersonality: validated.chatPersonality,
+			});
+		}
+ 
+		revalidatePath("/", "layout");
+		return { success: true, message: "Configurações salvas com sucesso" };
+	} catch (error) {
+		if (error instanceof z.ZodError) {
+			return {
+				success: false,
+				error: error.issues[0]?.message || "Dados inválidos",
+			};
+		}
+		console.error("Erro ao salvar configurações do chat:", error);
+		return {
+			success: false,
+			error: "Erro ao salvar configurações. Tente novamente.",
+		};
 	}
- 
-	revalidatePath("/", "layout");
-	return { success: true };
 }

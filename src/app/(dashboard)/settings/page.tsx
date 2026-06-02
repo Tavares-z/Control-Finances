@@ -192,7 +192,7 @@ export default async function Page() {
 							</div>
 							<Separator />
 							<AssistantForm
-								initialModel={userPreferences?.chatModel ?? "google/gemini-2.0-flash-001"}
+								initialModel={userPreferences?.chatModel ?? "google/gemini-2.5-flash-preview"}
 								initialPersonality={userPreferences?.chatPersonality ?? ""}
 							/>
 						</div>

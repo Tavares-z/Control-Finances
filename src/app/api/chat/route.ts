@@ -170,7 +170,7 @@ export async function POST(req: Request) {
 		}),
 	]);
 
-	const modelId = prefs?.chatModel ?? "google/gemini-2.0-flash-001";
+	const modelId = prefs?.chatModel ?? "google/gemini-2.5-flash-preview";
 	const personalityExtra = prefs?.chatPersonality ?? "";
 
 	const userMessageForDB = file

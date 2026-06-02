@@ -14,27 +14,21 @@ import { Button } from "@/shared/components/ui/button";
 import { Label } from "@/shared/components/ui/label";
 import { Separator } from "@/shared/components/ui/separator";
 import { toast } from "sonner";
-import {
-	Bot,
-	Sparkles,
-	Settings2,
-	CalendarDays,
-	Database,
-	Search,
-	Shield,
-} from "lucide-react";
+import { Bot, Sparkles, CalendarDays, Database, Search, Shield } from "lucide-react";
 
 export const MODELS = [
-	{ value: "google/gemini-2.0-flash-001", label: "Gemini 2.0 Flash" },
-	{ value: "google/gemini-2.5-flash-preview-05-20", label: "Gemini 2.5 Flash" },
-	{ value: "anthropic/claude-haiku-3-5", label: "Claude 3.5 Haiku" },
+	{ value: "google/gemini-3.5-flash", label: "Gemini 3.5 Flash" },
+	{ value: "google/gemini-2.5-flash-preview", label: "Gemini 2.5 Flash" },
+	{ value: "anthropic/claude-3-5-haiku", label: "Claude 3.5 Haiku" },
 	{ value: "openai/gpt-4o-mini", label: "GPT-4o Mini" },
 	{ value: "openai/gpt-4o", label: "GPT-4o" },
 ] as const;
 
 function getCurrentPeriod() {
-	const now = new Date();
-	return now.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+	return new Date().toLocaleDateString("pt-BR", {
+		month: "long",
+		year: "numeric",
+	});
 }
 
 interface AssistantFormProps {
@@ -43,12 +37,12 @@ interface AssistantFormProps {
 }
 
 export function AssistantForm({
-	initialModel = "google/gemini-2.0-flash-001",
+	initialModel = "google/gemini-3.5-flash",
 	initialPersonality = "",
 }: AssistantFormProps) {
 	const [model, setModel] = useState<(typeof MODELS)[number]["value"]>(
 		MODELS.find((m) => m.value === initialModel)?.value ??
-			"google/gemini-2.0-flash-001",
+			"google/gemini-3.5-flash",
 	);
 	const [personality, setPersonality] = useState(initialPersonality);
 	const [isPending, startTransition] = useTransition();
@@ -81,9 +75,7 @@ export function AssistantForm({
 				<Label htmlFor="chat-model">Modelo de IA</Label>
 				<Select
 					value={model}
-					onValueChange={(v) =>
-						setModel(v as (typeof MODELS)[number]["value"])
-					}
+					onValueChange={(v) => setModel(v as (typeof MODELS)[number]["value"])}
 				>
 					<SelectTrigger id="chat-model" className="w-full sm:w-72">
 						<SelectValue placeholder="Selecione o modelo" />
@@ -131,61 +123,54 @@ export function AssistantForm({
 
 			<Separator />
 
-			{/* Resumo da análise */}
-			<div className="space-y-4">
-				<div className="flex items-center gap-2">
-					<Settings2 className="size-4 text-muted-foreground" />
-					<span className="text-sm font-semibold">Resumo da análise</span>
+			{/* Configuração atual */}
+			<div className="space-y-3">
+				<div>
+					<p className="text-sm font-semibold">Configuração atual</p>
+					<p className="text-xs text-muted-foreground mt-0.5">
+						A análise seguirá o formato e as prioridades originais.
+					</p>
 				</div>
 
-				<div className="space-y-4">
-					<div className="flex items-start gap-3">
-						<div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
-							<CalendarDays className="size-4 text-muted-foreground" />
+				<div className="grid gap-2">
+					{/* Período */}
+					<div className="flex items-center gap-3 rounded-xl border border-border bg-muted/30 px-4 py-3">
+						<CalendarDays className="size-4 shrink-0 text-muted-foreground" />
+						<div className="min-w-0">
+							<p className="text-xs text-muted-foreground">Período</p>
+							<p className="text-sm font-medium capitalize">{getCurrentPeriod()}</p>
 						</div>
-						<div>
-							<p className="text-sm font-medium">Período</p>
-							<p className="text-sm text-muted-foreground capitalize">
-								{getCurrentPeriod()}
+					</div>
+
+					{/* Fonte dos dados */}
+					<div className="flex items-start gap-3 rounded-xl border border-border bg-muted/30 px-4 py-3">
+						<Database className="size-4 shrink-0 mt-0.5 text-muted-foreground" />
+						<div className="min-w-0">
+							<p className="text-xs text-muted-foreground">Fonte dos dados</p>
+							<p className="text-sm font-medium leading-snug">
+								Transações, categorias, cartões, contas, orçamentos, recorrências e parcelamentos do mês.
 							</p>
 						</div>
 					</div>
 
-					<div className="flex items-start gap-3">
-						<div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
-							<Database className="size-4 text-muted-foreground" />
-						</div>
-						<div>
-							<p className="text-sm font-medium">Fonte dos dados</p>
-							<p className="text-sm text-muted-foreground">
-								Transações, categorias, cartões, contas, orçamentos,
-								recorrências e parcelamentos do mês.
+					{/* Escopo */}
+					<div className="flex items-start gap-3 rounded-xl bg-orange-500/10 border border-orange-500/20 px-4 py-3">
+						<Search className="size-4 shrink-0 mt-0.5 text-orange-500" />
+						<div className="min-w-0">
+							<p className="text-xs text-orange-500/80">Escopo da análise</p>
+							<p className="text-sm font-medium text-orange-600 dark:text-orange-400 leading-snug">
+								Busca comportamentos, gatilhos, recomendações e melhorias financeiras.
 							</p>
 						</div>
 					</div>
 
-					<div className="flex items-start gap-3">
-						<div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
-							<Search className="size-4 text-muted-foreground" />
-						</div>
-						<div>
-							<p className="text-sm font-medium">Escopo da análise</p>
-							<p className="text-sm text-muted-foreground">
-								Busca comportamentos, gatilhos, recomendações e melhorias
-								financeiras.
-							</p>
-						</div>
-					</div>
-
-					<div className="flex items-start gap-3">
-						<div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
-							<Shield className="size-4 text-muted-foreground" />
-						</div>
-						<div>
-							<p className="text-sm font-medium">Privacidade dos dados</p>
-							<p className="text-sm text-muted-foreground">
-								Dados enviados ao provedor externo escolhido. Nenhuma informação
-								é armazenada pelo OpenMonetis.
+					{/* Privacidade */}
+					<div className="flex items-start gap-3 rounded-xl border border-border bg-muted/30 px-4 py-3">
+						<Shield className="size-4 shrink-0 mt-0.5 text-muted-foreground" />
+						<div className="min-w-0">
+							<p className="text-xs text-muted-foreground">Privacidade dos dados</p>
+							<p className="text-sm font-medium leading-snug">
+								Dados enviados ao provedor externo escolhido. Nenhuma informação é armazenada pelo OpenMonetis.
 							</p>
 						</div>
 					</div>
