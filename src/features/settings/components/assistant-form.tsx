@@ -12,8 +12,17 @@ import {
 import { Textarea } from "@/shared/components/ui/textarea";
 import { Button } from "@/shared/components/ui/button";
 import { Label } from "@/shared/components/ui/label";
+import { Separator } from "@/shared/components/ui/separator";
 import { toast } from "sonner";
-import { Bot, Sparkles } from "lucide-react";
+import {
+	Bot,
+	Sparkles,
+	Settings2,
+	CalendarDays,
+	Database,
+	Search,
+	Shield,
+} from "lucide-react";
 
 export const MODELS = [
 	{ value: "google/gemini-2.0-flash-001", label: "Gemini 2.0 Flash" },
@@ -22,6 +31,11 @@ export const MODELS = [
 	{ value: "openai/gpt-4o-mini", label: "GPT-4o Mini" },
 	{ value: "openai/gpt-4o", label: "GPT-4o" },
 ] as const;
+
+function getCurrentPeriod() {
+	const now = new Date();
+	return now.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+}
 
 interface AssistantFormProps {
 	initialModel?: string;
@@ -32,8 +46,9 @@ export function AssistantForm({
 	initialModel = "google/gemini-2.0-flash-001",
 	initialPersonality = "",
 }: AssistantFormProps) {
-	const [model, setModel] = useState<typeof MODELS[number]["value"]>(
-		MODELS.find((m) => m.value === initialModel)?.value ?? "google/gemini-2.0-flash-001",
+	const [model, setModel] = useState<(typeof MODELS)[number]["value"]>(
+		MODELS.find((m) => m.value === initialModel)?.value ??
+			"google/gemini-2.0-flash-001",
 	);
 	const [personality, setPersonality] = useState(initialPersonality);
 	const [isPending, startTransition] = useTransition();
@@ -55,6 +70,7 @@ export function AssistantForm({
 
 	return (
 		<div className="space-y-6">
+			{/* Título */}
 			<div className="flex items-center gap-2 text-orange-500">
 				<Bot className="size-5" />
 				<h3 className="font-semibold text-base">Monetinha — Assistente AI</h3>
@@ -63,7 +79,12 @@ export function AssistantForm({
 			{/* Modelo */}
 			<div className="space-y-2">
 				<Label htmlFor="chat-model">Modelo de IA</Label>
-				<Select value={model} onValueChange={(v) => setModel(v as typeof MODELS[number]["value"])}>
+				<Select
+					value={model}
+					onValueChange={(v) =>
+						setModel(v as (typeof MODELS)[number]["value"])
+					}
+				>
 					<SelectTrigger id="chat-model" className="w-full sm:w-72">
 						<SelectValue placeholder="Selecione o modelo" />
 					</SelectTrigger>
@@ -107,6 +128,69 @@ export function AssistantForm({
 			>
 				{isPending ? "Salvando…" : "Salvar configurações"}
 			</Button>
+
+			<Separator />
+
+			{/* Resumo da análise */}
+			<div className="space-y-4">
+				<div className="flex items-center gap-2">
+					<Settings2 className="size-4 text-muted-foreground" />
+					<span className="text-sm font-semibold">Resumo da análise</span>
+				</div>
+
+				<div className="space-y-4">
+					<div className="flex items-start gap-3">
+						<div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
+							<CalendarDays className="size-4 text-muted-foreground" />
+						</div>
+						<div>
+							<p className="text-sm font-medium">Período</p>
+							<p className="text-sm text-muted-foreground capitalize">
+								{getCurrentPeriod()}
+							</p>
+						</div>
+					</div>
+
+					<div className="flex items-start gap-3">
+						<div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
+							<Database className="size-4 text-muted-foreground" />
+						</div>
+						<div>
+							<p className="text-sm font-medium">Fonte dos dados</p>
+							<p className="text-sm text-muted-foreground">
+								Transações, categorias, cartões, contas, orçamentos,
+								recorrências e parcelamentos do mês.
+							</p>
+						</div>
+					</div>
+
+					<div className="flex items-start gap-3">
+						<div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
+							<Search className="size-4 text-muted-foreground" />
+						</div>
+						<div>
+							<p className="text-sm font-medium">Escopo da análise</p>
+							<p className="text-sm text-muted-foreground">
+								Busca comportamentos, gatilhos, recomendações e melhorias
+								financeiras.
+							</p>
+						</div>
+					</div>
+
+					<div className="flex items-start gap-3">
+						<div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
+							<Shield className="size-4 text-muted-foreground" />
+						</div>
+						<div>
+							<p className="text-sm font-medium">Privacidade dos dados</p>
+							<p className="text-sm text-muted-foreground">
+								Dados enviados ao provedor externo escolhido. Nenhuma informação
+								é armazenada pelo OpenMonetis.
+							</p>
+						</div>
+					</div>
+				</div>
+			</div>
 		</div>
 	);
 }
