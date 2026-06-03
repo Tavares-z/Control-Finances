@@ -6,6 +6,7 @@ import { PrivacyProvider } from "@/shared/components/providers/privacy-provider"
 import { getUserSession } from "@/shared/lib/auth/server";
 import { isLogoDevEnabled } from "@/shared/lib/logo/server";
 import { ChatWidget } from "@/features/chat/components/chat-widget";
+import { fetchUserPreferences } from "@/features/settings/queries";
 
 export default async function DashboardLayout({
 	children,
@@ -16,6 +17,8 @@ export default async function DashboardLayout({
 	const session = await getUserSession();
 	const navbarData = await fetchDashboardNavbarData(session.user.id);
 	const logoDevEnabled = isLogoDevEnabled();
+	const userPreferences = await fetchUserPreferences(session.user.id);
+	const chatModel = userPreferences?.chatModel ?? "google/gemini-3.5-flash";
 
 	return (
 		<LogoDevProvider enabled={logoDevEnabled}>
@@ -33,7 +36,7 @@ export default async function DashboardLayout({
 						</div>
 					</div>
 				</div>
-				<ChatWidget />
+				<ChatWidget currentModel={chatModel} />
 			</PrivacyProvider>
 		</LogoDevProvider>
 	);
