@@ -59,7 +59,11 @@ const SUGGESTIONS = [
 	{ emoji: "🎯", label: "Ver orçamentos" },
 ];
 
-export function ChatWidget() {
+interface ChatWidgetProps {
+	currentModel?: string;
+}
+
+export function ChatWidget({ currentModel }: ChatWidgetProps) {
 	const router = useRouter();
 	const [open, setOpen] = useState(false);
 	const [expanded, setExpanded] = useState(false);
@@ -71,6 +75,8 @@ export function ChatWidget() {
 	const bottomRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
+	const modelSupportsVision = VISION_SUPPORTED_MODELS.has(currentModel ?? "");
+
 
 	useEffect(() => {
 		bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -159,10 +165,10 @@ export function ChatWidget() {
 				content: text || "",
 				filePreview: sentFile
 					? {
-							type: sentFile.mimeType === "application/pdf" ? "pdf" : "image",
-							name: sentFile.name,
-							url: sentFile.previewUrl,
-						}
+						type: sentFile.mimeType === "application/pdf" ? "pdf" : "image",
+						name: sentFile.name,
+						url: sentFile.previewUrl,
+					}
 					: null,
 			},
 		]);
@@ -176,11 +182,12 @@ export function ChatWidget() {
 					message: text,
 					file: sentFile
 						? {
-								data: sentFile.data,
-								mimeType: sentFile.mimeType,
-								name: sentFile.name,
-							}
+							data: sentFile.data,
+							mimeType: sentFile.mimeType,
+							name: sentFile.name,
+						}
 						: null,
+					model: currentModel,
 				}),
 			});
 
@@ -232,7 +239,7 @@ export function ChatWidget() {
 		setExpanded(false);
 	}
 
-	const canSend = !loading && (input.trim().length > 0 || file !== null);
+	const canSend = !loading && (input.trim().length > 0 || file !== null) && !(!modelSupportsVision && file !== null);
 
 	return (
 		<>
@@ -420,13 +427,18 @@ export function ChatWidget() {
 						</div>
 					)}
 
+					{!modelSupportsVision && file && (
+						<p className={cn("mx-3 mb-2 text-xs text-destructive shrink-0", expanded && "mx-6")}>
+							O modelo atual não suporta arquivos. Troque o modelo nas{" "}
+							<a href="/settings" className="underline underline-offset-2 hover:text-destructive/80">
+								configurações
+							</a>
+							.
+						</p>
+					)}
+
 					{fileError && (
-						<p
-							className={cn(
-								"mx-3 mb-2 text-xs text-destructive shrink-0",
-								expanded && "mx-6",
-							)}
-						>
+						<p className={cn("mx-3 mb-2 text-xs text-destructive shrink-0", expanded && "mx-6")}>
 							{fileError}
 						</p>
 					)}
@@ -480,3 +492,9 @@ export function ChatWidget() {
 		</>
 	);
 }
+const VISION_SUPPORTED_MODELS = new Set([
+	"google/gemini-3.5-flash",
+	"anthropic/claude-3-5-haiku",
+	"openai/gpt-4o-mini",
+	"openai/gpt-4o",
+]);
