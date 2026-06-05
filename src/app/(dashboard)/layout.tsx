@@ -17,12 +17,12 @@ export default async function DashboardLayout({
 }>) {
 	await connection();
 	const session = await getUserSession();
-	const [navbarData, appPreferences] = await Promise.all([
+	const [navbarData, appPreferences, userPreferences] = await Promise.all([
 		fetchDashboardNavbarData(session.user.id),
 		fetchAppPreferences(session.user.id),
-	]);
+		fetchUserPreferences(session.user.id),
+	])
 	const logoDevEnabled = isLogoDevEnabled();
-	const userPreferences = await fetchUserPreferences(session.user.id);
 	const chatModel = userPreferences?.chatModel ?? "google/gemini-3.5-flash";
 
 	return (
