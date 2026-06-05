@@ -89,7 +89,7 @@ export function CategoryDetailHeader({
 				</div>
 
 				<div className="grid gap-3 md:grid-cols-3">
-					<div className="rounded-md border border-dashed bg-muted/20 px-3 py-3">
+					<div className="rounded-lg border p-3">
 						<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
 							Total em {currentPeriodLabel}
 						</p>
@@ -98,7 +98,7 @@ export function CategoryDetailHeader({
 						</p>
 					</div>
 
-					<div className="rounded-md border border-dashed bg-muted/20 px-3 py-3">
+					<div className="rounded-lg border p-3">
 						<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
 							Total em {previousPeriodLabel}
 						</p>
@@ -107,7 +107,7 @@ export function CategoryDetailHeader({
 						</p>
 					</div>
 
-					<div className="rounded-md border border-dashed bg-muted/20 px-3 py-3">
+					<div className="rounded-lg border p-3">
 						<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
 							Variação
 						</p>

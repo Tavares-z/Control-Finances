@@ -240,13 +240,13 @@ export function InvoiceSummaryCard({
 					</div>
 
 					{/* Linha 2 — valor da fatura (hero) */}
-					<div className="space-y-4">
+					<div className="space-y-3">
 						<p className="text-sm text-muted-foreground">Valor da fatura</p>
 						<div className="flex items-center gap-2">
 							<MoneyValues
 								amount={Math.abs(totalAmount)}
 								className={cn(
-									"text-3xl tracking-tighter font-semibold",
+									"text-3xl leading-none tracking-tighter sm:text-2xl",
 									isPaid ? "text-success" : "text-foreground",
 								)}
 							/>
@@ -259,7 +259,7 @@ export function InvoiceSummaryCard({
 										type="button"
 										variant="ghost"
 										size="icon-sm"
-										className="text-muted-foreground hover:text-foreground"
+										className="text-primary hover:text-primary"
 										aria-label="Ajustar fatura"
 									>
 										<RiEqualizerLine className="size-4" />

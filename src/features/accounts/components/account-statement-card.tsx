@@ -82,7 +82,7 @@ export function AccountStatementCard({
 					</div>
 
 					{/* Linha 2 — saldo final (hero) */}
-					<div className="space-y-4">
+					<div className="space-y-3">
 						<p className="text-sm text-muted-foreground ">
 							Saldo ao final do período
 						</p>

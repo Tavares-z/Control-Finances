@@ -83,6 +83,9 @@ export default async function Page() {
 									userPreferences?.transactionsColumnOrder ?? null
 								}
 								attachmentMaxSizeMb={userPreferences?.attachmentMaxSizeMb ?? 50}
+								showTransactionSummary={
+									userPreferences?.showTransactionSummary ?? true
+								}
 							/>
 						</div>
 					</Card>

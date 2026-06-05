@@ -26,6 +26,18 @@ export type NavItem = {
 	hideOnMobile?: boolean;
 };
 
+export type NavbarEntityLink = {
+	id: string;
+	name: string;
+	logo: string | null;
+	amount: number;
+};
+
+export type NavbarFinanceLinks = {
+	cards: NavbarEntityLink[];
+	accounts: NavbarEntityLink[];
+};
+
 type NavSection = {
 	label: string;
 	items: NavItem[];

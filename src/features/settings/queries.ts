@@ -8,6 +8,7 @@ interface UserPreferences {
 	attachmentMaxSizeMb: number;
 	chatModel: string | null;
 	chatPersonality: string | null;
+	showTransactionSummary: boolean;
 }
 
 interface ApiToken {
@@ -38,6 +39,7 @@ export async function fetchUserPreferences(
 			attachmentMaxSizeMb: schema.userPreferences.attachmentMaxSizeMb,
 			chatModel: schema.userPreferences.chatModel,
 			chatPersonality: schema.userPreferences.chatPersonality,
+			showTransactionSummary: schema.userPreferences.showTransactionSummary,
 		})
 		.from(schema.userPreferences)
 		.where(eq(schema.userPreferences.userId, userId))

@@ -4,7 +4,7 @@ import { QueryProvider } from "@/shared/components/providers/query-provider";
 import { ThemeProvider } from "@/shared/components/providers/theme-provider";
 import { Toaster } from "@/shared/components/ui/sonner";
 import "./globals.css";
-import { inter } from "@/public/fonts/font_index";
+import { bricolage } from "@/public/fonts/font_index";
 
 export const metadata: Metadata = {
 	title: {
@@ -24,7 +24,7 @@ export default function RootLayout({
 		<html
 			data-scroll-behavior="smooth"
 			lang="pt-BR"
-			className={`${inter.variable}`}
+			className={`${bricolage.className}`}
 			suppressHydrationWarning
 		>
 			<head>

@@ -38,7 +38,7 @@ export const metadata: Metadata = {
 		description: DESCRIPTION,
 		images: [
 			{
-				url: "/images/dashboard-preview-light.webp",
+				url: "/images/dashboard-preview-light.png",
 				width: 1920,
 				height: 1080,
 				alt: "OpenMonetis — Dashboard de finanças pessoais",
@@ -49,7 +49,7 @@ export const metadata: Metadata = {
 		card: "summary_large_image",
 		title: TITLE,
 		description: DESCRIPTION,
-		images: ["/images/dashboard-preview-light.webp"],
+		images: ["/images/dashboard-preview-light.png"],
 	},
 	robots: {
 		index: true,
