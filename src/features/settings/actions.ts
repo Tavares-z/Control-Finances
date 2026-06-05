@@ -1,5 +1,6 @@
 "use server";
 
+import { chatMessages } from "@/db/schema";
 import { createHash, randomBytes } from "node:crypto";
 import { verifyPassword } from "better-auth/crypto";
 import { and, eq, isNull, ne, or } from "drizzle-orm";
@@ -794,30 +795,38 @@ export async function updateChatSettings(
 			return { success: false, error: "Não autenticado" };
 		}
  
-		const validated = updateChatSettingsSchema.parse(data);
- 
-		const existing = await db
-			.select()
-			.from(schema.userPreferences)
-			.where(eq(schema.userPreferences.userId, session.user.id))
-			.limit(1);
- 
-		if (existing[0]) {
-			await db
-				.update(schema.userPreferences)
-				.set({
-					chatModel: validated.chatModel,
-					chatPersonality: validated.chatPersonality,
-					updatedAt: new Date(),
-				})
-				.where(eq(schema.userPreferences.userId, session.user.id));
-		} else {
-			await db.insert(schema.userPreferences).values({
-				userId: session.user.id,
-				chatModel: validated.chatModel,
-				chatPersonality: validated.chatPersonality,
-			});
-		}
+const validated = updateChatSettingsSchema.parse(data);
+
+const existing = await db
+    .select()
+    .from(schema.userPreferences)
+    .where(eq(schema.userPreferences.userId, session.user.id))
+    .limit(1);
+
+// Limpa histórico apenas se o modelo mudou
+const currentModel = existing[0]?.chatModel;
+if (currentModel && currentModel !== validated.chatModel) {
+    await db
+        .delete(schema.chatMessages)
+        .where(eq(schema.chatMessages.userId, session.user.id));
+}
+
+if (existing[0]) {
+    await db
+        .update(schema.userPreferences)
+        .set({
+            chatModel: validated.chatModel,
+            chatPersonality: validated.chatPersonality,
+            updatedAt: new Date(),
+        })
+        .where(eq(schema.userPreferences.userId, session.user.id));
+} else {
+    await db.insert(schema.userPreferences).values({
+        userId: session.user.id,
+        chatModel: validated.chatModel,
+        chatPersonality: validated.chatPersonality,
+    });
+}
  
 		revalidatePath("/", "layout");
 		return { success: true, message: "Configurações salvas com sucesso" };

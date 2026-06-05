@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { updateChatSettings } from "../actions";
 import {
@@ -41,10 +42,11 @@ export function AssistantForm({
 }: AssistantFormProps) {
 	const [model, setModel] = useState<(typeof MODELS)[number]["value"]>(
 		MODELS.find((m) => m.value === initialModel)?.value ??
-			"google/gemini-3.5-flash",
+		"google/gemini-3.5-flash",
 	);
 	const [personality, setPersonality] = useState(initialPersonality);
 	const [isPending, startTransition] = useTransition();
+	const router = useRouter();
 
 	function handleSave() {
 		startTransition(async () => {
@@ -55,6 +57,7 @@ export function AssistantForm({
 
 			if (result.success) {
 				toast.success("Configurações da Monetinha salvas!");
+				router.refresh();
 			} else {
 				toast.error(result.error ?? "Erro ao salvar configurações.");
 			}

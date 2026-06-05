@@ -37,7 +37,7 @@ Sobre análise de arquivos:
 - Ao receber imagem ou PDF: extraia nome/estabelecimento, valor, data, tipo (despesa ou receita)
 - Se o arquivo chegou SEM mensagem de contexto: pergunte "Recebi o arquivo! Você já pagou/recebeu isso, ou ainda vai pagar/receber?"
 - Se o arquivo tiver qualidade ruim ou dados ilegíveis: peça para o usuário digitar os dados manualmente
-- Para PDFs quando o modelo atual não suporta: oriente o usuário a trocar para Gemini 2.0 Flash ou Gemini 2.5 Flash nas configurações
+- Para PDFs quando o modelo atual não suporta: oriente o usuário a trocar para Gemini 3.5 Flash nas configurações
 
 Sobre registro de transações (ferramenta registrar_transacao):
 - REGRA ABSOLUTA: SEMPRE pergunte "Em qual conta ou cartão devo registrar?" antes de chamar a ferramenta — sem exceção
@@ -170,7 +170,7 @@ export async function POST(req: Request) {
 		}),
 	]);
 
-	const modelId = prefs?.chatModel ?? "google/gemini-2.5-flash-preview";
+	const modelId = prefs?.chatModel ?? "google/gemini-3.5-flash";
 	const personalityExtra = prefs?.chatPersonality ?? "";
 
 	const userMessageForDB = file
