@@ -113,6 +113,10 @@ export function AssistantForm({
 					Instrução extra enviada à Monetinha em toda conversa.{" "}
 					<span className="tabular-nums">{personality.length}/500</span>
 				</p>
+				<p className="text-xs text-muted-foreground flex items-center gap-1.5">
+					<span className="inline-block size-1.5 rounded-full bg-green-500 shrink-0" />
+					Prompt padrão ativo. A análise seguirá o formato e as prioridades originais.
+				</p>
 			</div>
 
 			<Button

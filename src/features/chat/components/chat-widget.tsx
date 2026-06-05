@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import {
 	X,
 	Send,
@@ -25,6 +24,13 @@ const ACCEPTED_MIME_TYPES = [
 const ACCEPTED_EXTENSIONS = ".jpg,.jpeg,.png,.webp,.pdf";
 const MAX_FILE_MB = 10;
 const INSIGHT_THRESHOLD = 400;
+
+const VISION_SUPPORTED_MODELS = new Set([
+	"google/gemini-3.5-flash",
+	"anthropic/claude-3-5-haiku",
+	"openai/gpt-4o-mini",
+	"openai/gpt-4o",
+]);
 
 interface FileAttachment {
 	data: string;
@@ -64,7 +70,6 @@ interface ChatWidgetProps {
 }
 
 export function ChatWidget({ currentModel }: ChatWidgetProps) {
-	const router = useRouter();
 	const [open, setOpen] = useState(false);
 	const [expanded, setExpanded] = useState(false);
 	const [input, setInput] = useState("");
@@ -72,11 +77,12 @@ export function ChatWidget({ currentModel }: ChatWidgetProps) {
 	const [loading, setLoading] = useState(false);
 	const [file, setFile] = useState<FileAttachment | null>(null);
 	const [fileError, setFileError] = useState<string | null>(null);
+	const [insightContent, setInsightContent] = useState<string | null>(null);
 	const bottomRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
-	const modelSupportsVision = VISION_SUPPORTED_MODELS.has(currentModel ?? "");
 
+	const modelSupportsVision = VISION_SUPPORTED_MODELS.has(currentModel ?? "");
 
 	useEffect(() => {
 		bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -88,11 +94,17 @@ export function ChatWidget({ currentModel }: ChatWidgetProps) {
 
 	useEffect(() => {
 		const handleEsc = (e: KeyboardEvent) => {
-			if (e.key === "Escape") setExpanded(false);
+			if (e.key === "Escape") {
+				if (insightContent) {
+					setInsightContent(null);
+				} else {
+					setExpanded(false);
+				}
+			}
 		};
 		window.addEventListener("keydown", handleEsc);
 		return () => window.removeEventListener("keydown", handleEsc);
-	}, []);
+	}, [insightContent]);
 
 	function fileToBase64(f: File): Promise<string> {
 		return new Promise((resolve, reject) => {
@@ -135,17 +147,8 @@ export function ChatWidget({ currentModel }: ChatWidgetProps) {
 		inputRef.current?.focus();
 	}
 
-	function openInsightPage(content: string) {
-		try {
-			sessionStorage.setItem(
-				"monetinha_insight",
-				JSON.stringify({ content, timestamp: Date.now() }),
-			);
-			router.push("/insights/monetinha");
-		} catch {
-			// sessionStorage indisponível — fallback para expand
-			setExpanded(true);
-		}
+	function openInsightModal(content: string) {
+		setInsightContent(content);
 	}
 
 	async function sendMessage(override?: string) {
@@ -165,10 +168,10 @@ export function ChatWidget({ currentModel }: ChatWidgetProps) {
 				content: text || "",
 				filePreview: sentFile
 					? {
-						type: sentFile.mimeType === "application/pdf" ? "pdf" : "image",
-						name: sentFile.name,
-						url: sentFile.previewUrl,
-					}
+							type: sentFile.mimeType === "application/pdf" ? "pdf" : "image",
+							name: sentFile.name,
+							url: sentFile.previewUrl,
+						}
 					: null,
 			},
 		]);
@@ -182,12 +185,11 @@ export function ChatWidget({ currentModel }: ChatWidgetProps) {
 					message: text,
 					file: sentFile
 						? {
-							data: sentFile.data,
-							mimeType: sentFile.mimeType,
-							name: sentFile.name,
-						}
+								data: sentFile.data,
+								mimeType: sentFile.mimeType,
+								name: sentFile.name,
+							}
 						: null,
-					model: currentModel,
 				}),
 			});
 
@@ -239,7 +241,50 @@ export function ChatWidget({ currentModel }: ChatWidgetProps) {
 		setExpanded(false);
 	}
 
-	const canSend = !loading && (input.trim().length > 0 || file !== null) && !(!modelSupportsVision && file !== null);
+	const canSend =
+		!loading &&
+		(input.trim().length > 0 || file !== null) &&
+		!(!modelSupportsVision && file !== null);
+
+	function renderInline(text: string) {
+		const parts = text.split(/(\*\*[^*]+\*\*)/);
+		return parts.map((part, i) =>
+			part.startsWith("**") ? (
+				<strong key={i}>{part.slice(2, -2)}</strong>
+			) : (
+				part
+			),
+		);
+	}
+
+	function renderMarkdown(content: string) {
+		return content.split("\n").map((line, i) => {
+			if (line.startsWith("## "))
+				return (
+					<h2 key={i} className="text-lg font-bold mt-4 mb-2">
+						{line.slice(3)}
+					</h2>
+				);
+			if (line.startsWith("### "))
+				return (
+					<h3 key={i} className="text-base font-semibold mt-3 mb-1">
+						{line.slice(4)}
+					</h3>
+				);
+			if (line.startsWith("- "))
+				return (
+					<li key={i} className="ml-4 text-sm leading-relaxed">
+						{renderInline(line.slice(2))}
+					</li>
+				);
+			if (line.trim() === "") return <div key={i} className="h-2" />;
+			return (
+				<p key={i} className="text-sm leading-relaxed">
+					{renderInline(line)}
+				</p>
+			);
+		});
+	}
 
 	return (
 		<>
@@ -315,10 +360,13 @@ export function ChatWidget({ currentModel }: ChatWidgetProps) {
 							)}
 						>
 							{messages.map((msg) => (
-								<div key={msg.id} className={cn(
-									"flex flex-col",
-									msg.role === "user" ? "items-end" : "items-start",
-								)}>
+								<div
+									key={msg.id}
+									className={cn(
+										"flex flex-col",
+										msg.role === "user" ? "items-end" : "items-start",
+									)}
+								>
 									<div
 										className={cn(
 											"max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed",
@@ -330,7 +378,8 @@ export function ChatWidget({ currentModel }: ChatWidgetProps) {
 										{/* Preview de arquivo */}
 										{msg.filePreview && (
 											<div className="mb-2">
-												{msg.filePreview.type === "image" && msg.filePreview.url ? (
+												{msg.filePreview.type === "image" &&
+												msg.filePreview.url ? (
 													<img
 														src={msg.filePreview.url}
 														alt={msg.filePreview.name}
@@ -359,7 +408,7 @@ export function ChatWidget({ currentModel }: ChatWidgetProps) {
 									{msg.role === "assistant" &&
 										msg.content.length > INSIGHT_THRESHOLD && (
 											<button
-												onClick={() => openInsightPage(msg.content)}
+												onClick={() => openInsightModal(msg.content)}
 												className="mt-2 flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-xs text-muted-foreground hover:border-orange-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-950/20 transition-all max-w-[85%] text-left"
 											>
 												<span className="text-base">📊</span>
@@ -428,9 +477,17 @@ export function ChatWidget({ currentModel }: ChatWidgetProps) {
 					)}
 
 					{!modelSupportsVision && file && (
-						<p className={cn("mx-3 mb-2 text-xs text-destructive shrink-0", expanded && "mx-6")}>
+						<p
+							className={cn(
+								"mx-3 mb-2 text-xs text-destructive shrink-0",
+								expanded && "mx-6",
+							)}
+						>
 							O modelo atual não suporta arquivos. Troque o modelo nas{" "}
-							<a href="/settings" className="underline underline-offset-2 hover:text-destructive/80">
+							<a
+								href="/settings"
+								className="underline underline-offset-2 hover:text-destructive/80"
+							>
 								configurações
 							</a>
 							.
@@ -438,7 +495,12 @@ export function ChatWidget({ currentModel }: ChatWidgetProps) {
 					)}
 
 					{fileError && (
-						<p className={cn("mx-3 mb-2 text-xs text-destructive shrink-0", expanded && "mx-6")}>
+						<p
+							className={cn(
+								"mx-3 mb-2 text-xs text-destructive shrink-0",
+								expanded && "mx-6",
+							)}
+						>
 							{fileError}
 						</p>
 					)}
@@ -489,12 +551,41 @@ export function ChatWidget({ currentModel }: ChatWidgetProps) {
 					</div>
 				</div>
 			)}
+
+			{/* Modal de insight */}
+			{insightContent && (
+				<>
+					<div
+						className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm"
+						onClick={() => setInsightContent(null)}
+					/>
+					<div className="fixed inset-4 sm:inset-8 md:inset-12 z-[61] flex flex-col rounded-2xl border border-border bg-background shadow-2xl overflow-hidden">
+						<div className="flex items-center gap-3 bg-orange-500 px-4 py-3 shrink-0">
+							<div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-lg">
+								🪙
+							</div>
+							<div className="flex-1">
+								<p className="text-sm font-semibold text-white">
+									Análise da Monetinha
+								</p>
+								<p className="text-xs text-orange-100">Assistente financeira</p>
+							</div>
+							<button
+								onClick={() => setInsightContent(null)}
+								className="flex h-7 w-7 items-center justify-center rounded-full text-white/80 hover:bg-white/20 transition-colors"
+								aria-label="Fechar análise"
+							>
+								<X size={15} />
+							</button>
+						</div>
+						<div className="flex-1 overflow-y-auto px-6 py-4">
+							<div className="max-w-3xl mx-auto">
+								{renderMarkdown(insightContent)}
+							</div>
+						</div>
+					</div>
+				</>
+			)}
 		</>
 	);
 }
-const VISION_SUPPORTED_MODELS = new Set([
-	"google/gemini-3.5-flash",
-	"anthropic/claude-3-5-haiku",
-	"openai/gpt-4o-mini",
-	"openai/gpt-4o",
-]);

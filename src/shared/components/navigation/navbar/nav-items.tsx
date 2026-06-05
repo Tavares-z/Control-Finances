@@ -10,7 +10,6 @@ import {
 	RiGroupLine,
 	RiPriceTag3Line,
 	RiSecurePaymentLine,
-	RiSparklingLine,
 	RiStore2Line,
 	RiTodoLine,
 } from "@remixicon/react";
@@ -136,14 +135,7 @@ export const NAV_SECTIONS: NavSection[] = [
 	{
 		label: "Relatórios",
 		items: [
-			{
-				href: "/insights",
-				label: "Insights",
-				description: "Análises inteligentes dos seus dados",
-				icon: <RiSparklingLine className="size-4" />,
-				iconClass: "text-primary",
-				preservePeriod: true,
-			},
+
 			{
 				href: "/reports/category-trends",
 				label: "Tendências",
