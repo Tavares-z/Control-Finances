@@ -11,6 +11,7 @@ import {
   fetchMonthlySummaryForChat,
   fetchTransactionsForChat,
 } from "@/features/chat/lib/execute-chat-queries";
+import { fetchGoalsForUser } from "@/features/goals/queries";
 
 const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY,
@@ -32,6 +33,7 @@ Suas capacidades:
 - Analisar arquivos (imagens e PDFs) para extrair dados financeiros
 - Registrar transações diretamente no sistema via ferramenta
 - Consultar resumo mensal e listar transações em tempo real via ferramentas
+- Consultar metas financeiras e acompanhar progresso via ferramenta
 
 Regras gerais:
 - NUNCA invente números ou dados — use apenas o contexto financeiro fornecido ou as ferramentas de consulta
@@ -54,7 +56,12 @@ Sobre registro de transações (ferramenta registrar_transacao):
 Sobre consulta de dados (ferramentas consultar_resumo_mensal e listar_transacoes):
 - Use consultar_resumo_mensal para perguntas sobre totais, saldo ou gastos por categoria
 - Use listar_transacoes para perguntas sobre transações específicas ou histórico
-- Sempre use as ferramentas antes de dizer que não tem acesso a um dado financeiro`;
+- Sempre use as ferramentas antes de dizer que não tem acesso a um dado financeiro
+
+Sobre metas financeiras (ferramenta consultar_metas):
+- Use consultar_metas para perguntas como "como estão minhas metas", "quanto falta para minha meta de X", "estou batendo minhas metas?"
+- Comemore metas concluídas com entusiasmo 🎉
+- Para metas com prazo próximo e progresso baixo, alerte com carinho`;
 
 const registrarSchema = z.object({
   name: z.string().describe("Nome do estabelecimento ou descrição"),
@@ -270,6 +277,27 @@ export async function POST(req: Request) {
             categoryId: categoryId ?? undefined,
             limit: limit ?? undefined,
           });
+        },
+      },
+      consultar_metas: {
+        description:
+          "Consulta as metas financeiras ativas do usuário com progresso atualizado. Use para responder 'como estão minhas metas', 'quanto falta para minha meta de X', 'estou batendo minhas metas', 'qual minha meta mais próxima de ser concluída'.",
+        inputSchema: z.object({}),
+        execute: async () => {
+          const goals = await fetchGoalsForUser(userId, "ativa");
+          return goals.map((g) => ({
+            id: g.id,
+            name: g.name,
+            targetAmount: g.targetAmount,
+            currentAmount: g.currentAmount,
+            remainingAmount: g.remainingAmount,
+            usedPercentage: Number(g.usedPercentage.toFixed(1)),
+            isCompleted: g.isCompleted,
+            deadline: g.deadline
+              ? g.deadline.toISOString().slice(0, 10)
+              : null,
+            accountName: g.accountName,
+          }));
         },
       },
     },

@@ -12,6 +12,7 @@ import {
 	RiNumbersLine,
 	RiPieChartLine,
 	RiRefreshLine,
+	RiSaveLine,
 	RiStore3Line,
 	RiTodoLine,
 	RiWallet3Line,
@@ -23,6 +24,7 @@ import { BillWidget } from "@/features/dashboard/components/widgets/bill-widget"
 import { CategoryTrendsWidget } from "@/features/dashboard/components/widgets/category-trends-widget";
 import { ExpensesByCategoryWidgetWithChart } from "@/features/dashboard/components/widgets/expenses-by-category-widget-with-chart";
 import { GoalsProgressWidget } from "@/features/dashboard/components/widgets/goals-progress-widget";
+import { GoalsWidget } from "@/features/dashboard/components/widgets/goals-widget";
 import { InboxWidget } from "@/features/dashboard/components/widgets/inbox-widget";
 import { IncomeByCategoryWidgetWithChart } from "@/features/dashboard/components/widgets/income-by-category-widget-with-chart";
 import { IncomeExpenseBalanceWidget } from "@/features/dashboard/components/widgets/income-expense-balance-widget";
@@ -165,6 +167,22 @@ export const widgetsConfig: WidgetConfig[] = [
 				className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors inline-flex items-center gap-1"
 			>
 				Ver todos
+				<RiArrowRightLine className="size-4" />
+			</Link>
+		),
+	},
+	{
+		id: "financial-goals",
+		title: "Metas financeiras",
+		subtitle: "Progresso das suas metas ativas",
+		icon: <RiSaveLine className="size-4" />,
+		component: ({ data }) => <GoalsWidget goals={data.goalsData} />,
+		action: (
+			<Link
+				href="/metas"
+				className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors inline-flex items-center gap-1"
+			>
+				Ver todas
 				<RiArrowRightLine className="size-4" />
 			</Link>
 		),

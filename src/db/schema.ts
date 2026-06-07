@@ -400,6 +400,46 @@ export const budgets = pgTable(
 	}),
 );
 
+// ===================== METAS FINANCEIRAS =====================
+
+export const goals = pgTable(
+	"metas",
+	{
+		id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+		name: text("nome").notNull(),
+		targetAmount: numeric("valor_alvo", { precision: 12, scale: 2 }).notNull(),
+		deadline: date("prazo", { mode: "date" }),
+		icon: text("icone"),
+		note: text("anotacao"),
+		status: text("status").notNull().default("ativa"), // ativa | concluida | arquivada
+		accountId: uuid("conta_id").references(() => financialAccounts.id, {
+			onDelete: "set null",
+		}),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		createdAt: timestamp("created_at", {
+			mode: "date",
+			withTimezone: true,
+		})
+			.notNull()
+			.defaultNow(),
+		updatedAt: timestamp("updated_at", {
+			mode: "date",
+			withTimezone: true,
+		})
+			.notNull()
+			.defaultNow(),
+	},
+	(table) => ({
+		userIdStatusIdx: index("metas_user_id_status_idx").on(
+			table.userId,
+			table.status,
+		),
+		accountIdIdx: index("metas_conta_id_idx").on(table.accountId),
+	}),
+);
+
 export const notes = pgTable(
 	"anotacoes",
 	{
@@ -706,57 +746,45 @@ export const transactions = pgTable(
 		importBatchId: text("import_batch_id"),
 	},
 	(table) => ({
-		// Índice composto mais importante: userId + period (usado em quase todas as queries do dashboard)
 		userIdPeriodIdx: index("lancamentos_user_id_period_idx").on(
 			table.userId,
 			table.period,
 		),
-		// Índice composto userId + period + transactionType (cobre maioria das queries do dashboard)
 		userIdPeriodTypeIdx: index("lancamentos_user_id_period_type_idx").on(
 			table.userId,
 			table.period,
 			table.transactionType,
 		),
-		// Índice para queries por pagador + period (invoice/breakdown queries)
 		payerIdPeriodIdx: index("lancamentos_pagador_id_period_idx").on(
 			table.payerId,
 			table.period,
 		),
-		// Índice composto para o filtro quente do dashboard: userId + payerId + period
 		userIdPayerIdPeriodIdx: index(
 			"lancamentos_user_id_pagador_id_period_idx",
 		).on(table.userId, table.payerId, table.period),
-		// Índice para queries ordenadas por data de compra
 		userIdPurchaseDateIdx: index("lancamentos_user_id_purchase_date_idx").on(
 			table.userId,
 			table.purchaseDate,
 		),
-		// Índice para buscar parcelas de uma série
 		seriesIdIdx: index("lancamentos_series_id_idx").on(table.seriesId),
-		// Índice para buscar shares de um split (userId + splitGroupId)
 		userIdSplitGroupIdIdx: index("lancamentos_user_id_split_group_id_idx").on(
 			table.userId,
 			table.splitGroupId,
 		),
-		// Índice para buscar transferências relacionadas
 		transferIdIdx: index("lancamentos_transfer_id_idx").on(table.transferId),
-		// Índice para filtrar por condição (aberto, realizado, cancelado)
 		userIdConditionIdx: index("lancamentos_user_id_condition_idx").on(
 			table.userId,
 			table.condition,
 		),
-		// Índice para queries de cartão específico
 		cardIdPeriodIdx: index("lancamentos_cartao_id_period_idx").on(
 			table.cardId,
 			table.period,
 		),
-		// FK indexes: evitam seq scan em deletes/updates nas tabelas pai
 		accountIdIdx: index("lancamentos_conta_id_idx").on(table.accountId),
 		categoryIdIdx: index("lancamentos_categoria_id_idx").on(table.categoryId),
 		anticipationIdIdx: index("lancamentos_antecipacao_id_idx").on(
 			table.anticipationId,
 		),
-		// Dedup OFX: garante FITID único por usuário
 		ofxFitIdUserIdIdx: uniqueIndex("lancamentos_ofx_fit_id_user_id_idx")
 			.on(table.userId, table.ofxFitId)
 			.where(sql`ofx_fit_id IS NOT NULL`),
@@ -773,12 +801,13 @@ export const userRelations = relations(user, ({ many, one }) => ({
 	invoices: many(invoices),
 	transactions: many(transactions),
 	budgets: many(budgets),
+	goals: many(goals),
 	payers: many(payers),
 	installmentAnticipations: many(installmentAnticipations),
 	apiTokens: many(apiTokens),
 	inboxItems: many(inboxItems),
 	establishmentLogos: many(establishmentLogos),
-	chatMessages: many(chatMessages), // 👈 adiciona aqui
+	chatMessages: many(chatMessages),
 }));
 
 export const accountRelations = relations(account, ({ one }) => ({
@@ -804,6 +833,7 @@ export const financialAccountsRelations = relations(
 		}),
 		cards: many(cards),
 		transactions: many(transactions),
+		goals: many(goals),
 	}),
 );
 
@@ -872,6 +902,17 @@ export const budgetsRelations = relations(budgets, ({ one }) => ({
 	category: one(categories, {
 		fields: [budgets.categoryId],
 		references: [categories.id],
+	}),
+}));
+
+export const goalsRelations = relations(goals, ({ one }) => ({
+	user: one(user, {
+		fields: [goals.userId],
+		references: [user.id],
+	}),
+	financialAccount: one(financialAccounts, {
+		fields: [goals.accountId],
+		references: [financialAccounts.id],
 	}),
 }));
 
@@ -1055,6 +1096,8 @@ export type Payer = typeof payers.$inferSelect;
 export type Card = typeof cards.$inferSelect;
 export type Invoice = typeof invoices.$inferSelect;
 export type Budget = typeof budgets.$inferSelect;
+export type Goal = typeof goals.$inferSelect;
+export type NewGoal = typeof goals.$inferInsert;
 export type Note = typeof notes.$inferSelect;
 export type SavedInsight = typeof savedInsights.$inferSelect;
 export type Transaction = typeof transactions.$inferSelect;
