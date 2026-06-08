@@ -1,0 +1,30 @@
+Ôùç injected env (0) from .env // tip: Ôîÿ custom filepath { path: '/custom/path/.env' }
+Ôû▓ Next.js 16.2.6 (Turbopack)
+- Environments: .env
+- Cache Components enabled
+- Experiments (use with caution):
+  ┬À optimizePackageImports
+  Ô£ô prefetchInlining
+
+  Creating an optimized production build ...
+Ôùç injected env (0) from .env // tip: Ôîÿ multiple files { path: ['.env.local', '.env'] }
+Ô£ô Compiled successfully in 22.2min
+  Running TypeScript ...
+  Finished TypeScript in 5.0min ...
+  Collecting page data using 3 workers ...
+  Generating static pages using 3 workers (0/45) ...
+  Generating static pages using 3 workers (11/45) 
+  Generating static pages using 3 workers (22/45) 
+  Generating static pages using 3 workers (33/45) 
+Ô£ô Generating static pages using 3 workers (45/45) in 33.3s
+  Finalizing page optimization ...
+
+> Build error occurred
+Error: EPERM: operation not permitted, symlink '..\..\..\@opentelemetry+api@1.9.1\node_modules\@opentelemetry\api' -> 'C:\OpenMonetis-dev\.next\standalone\node_modules\.pnpm\next@16.2.6_@opentelemetry+_17509ea0c0fb3689b3e31d8b20c4f728\node_modules\@opentelemetry\api'
+    at ignore-listed frames {
+  errno: -4048,
+  code: 'EPERM',
+  syscall: 'symlink',
+  path: '..\\..\\..\\@opentelemetry+api@1.9.1\\node_modules\\@opentelemetry\\api',
+  dest: 'C:\\OpenMonetis-dev\\.next\\standalone\\node_modules\\.pnpm\\next@16.2.6_@opentelemetry+_17509ea0c0fb3689b3e31d8b20c4f728\\node_modules\\@opentelemetry\\api'
+}

@@ -9,6 +9,7 @@ import {
 	RiFileChartLine,
 	RiGroupLine,
 	RiPriceTag3Line,
+	RiSaveLine,
 	RiSecurePaymentLine,
 	RiStore2Line,
 	RiTodoLine,
@@ -96,6 +97,13 @@ export const NAV_SECTIONS: NavSection[] = [
 				iconClass: "text-primary",
 				preservePeriod: true,
 			},
+			{
+				href: "/metas",
+				label: "Metas",
+				description: "Acompanhe seus objetivos financeiros",
+				icon: <RiSaveLine className="size-4" />,
+				iconClass: "text-primary",
+			},
 		],
 	},
 	{
@@ -135,7 +143,6 @@ export const NAV_SECTIONS: NavSection[] = [
 	{
 		label: "Relatórios",
 		items: [
-
 			{
 				href: "/reports/category-trends",
 				label: "Tendências",
