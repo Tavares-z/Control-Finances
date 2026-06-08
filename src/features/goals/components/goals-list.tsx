@@ -5,15 +5,34 @@ import { useState } from "react";
 import type { AccountData } from "@/features/accounts/queries";
 import { GoalCard } from "@/features/goals/components/goal-card";
 import { GoalDialog } from "@/features/goals/components/goal-dialog";
-import type { GoalData } from "@/features/goals/queries";
+import type { GoalData, GoalStatus } from "@/features/goals/queries";
 import { Button } from "@/shared/components/ui/button";
+
+const EMPTY_STATE = {
+	ativa: {
+		label: "Nenhuma meta ativa",
+		description: "Crie metas financeiras para acompanhar seu progresso rumo aos seus objetivos.",
+		showCreate: true,
+	},
+	concluida: {
+		label: "Nenhuma meta concluída",
+		description: "Metas atingidas aparecerão aqui.",
+		showCreate: false,
+	},
+	arquivada: {
+		label: "Nenhuma meta arquivada",
+		description: "Metas arquivadas aparecerão aqui.",
+		showCreate: false,
+	},
+} as const;
 
 interface GoalsListProps {
 	goals: GoalData[];
 	accounts: AccountData[];
+	status: GoalStatus;
 }
 
-export function GoalsList({ goals, accounts }: GoalsListProps) {
+export function GoalsList({ goals, accounts, status }: GoalsListProps) {
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [selectedGoal, setSelectedGoal] = useState<GoalData | null>(null);
 
@@ -27,6 +46,8 @@ export function GoalsList({ goals, accounts }: GoalsListProps) {
 		if (!open) setSelectedGoal(null);
 	};
 
+	const emptyState = EMPTY_STATE[status];
+
 	if (goals.length === 0) {
 		return (
 			<>
@@ -38,24 +59,27 @@ export function GoalsList({ goals, accounts }: GoalsListProps) {
 						/>
 					</div>
 					<div className="flex flex-col gap-1">
-						<p className="font-medium text-sm">Nenhuma meta cadastrada</p>
+						<p className="font-medium text-sm">{emptyState.label}</p>
 						<p className="text-xs text-muted-foreground max-w-xs">
-							Crie metas financeiras para acompanhar seu progresso rumo aos
-							seus objetivos.
+							{emptyState.description}
 						</p>
 					</div>
-					<Button size="sm" onClick={() => setDialogOpen(true)}>
-						<RemixIcons.RiAddLine className="size-4" aria-hidden />
-						Criar primeira meta
-					</Button>
+					{emptyState.showCreate && (
+						<Button size="sm" onClick={() => setDialogOpen(true)}>
+							<RemixIcons.RiAddLine className="size-4" aria-hidden />
+							Criar primeira meta
+						</Button>
+					)}
 				</div>
 
-				<GoalDialog
-					open={dialogOpen}
-					onOpenChange={handleDialogOpenChange}
-					goal={null}
-					accounts={accounts}
-				/>
+				{emptyState.showCreate && (
+					<GoalDialog
+						open={dialogOpen}
+						onOpenChange={handleDialogOpenChange}
+						goal={null}
+						accounts={accounts}
+					/>
+				)}
 			</>
 		);
 	}

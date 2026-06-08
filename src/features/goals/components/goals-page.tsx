@@ -63,15 +63,15 @@ export function GoalsPage({
 				</TabsList>
 
 				<TabsContent value="ativas" className="mt-4">
-					<GoalsList goals={activeGoals} accounts={accounts} />
+					<GoalsList goals={activeGoals} accounts={accounts} status="ativa" />
 				</TabsContent>
 
 				<TabsContent value="concluidas" className="mt-4">
-					<GoalsList goals={completedGoals} accounts={accounts} />
+					<GoalsList goals={completedGoals} accounts={accounts} status="concluida" />
 				</TabsContent>
 
 				<TabsContent value="arquivadas" className="mt-4">
-					<GoalsList goals={archivedGoals} accounts={accounts} />
+					<GoalsList goals={archivedGoals} accounts={accounts} status="arquivada" />
 				</TabsContent>
 			</Tabs>
 

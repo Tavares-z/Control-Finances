@@ -40,15 +40,7 @@ const createGoalSchema = goalBaseSchema;
 const updateGoalSchema = goalBaseSchema.extend({
 	id: uuidSchema("Meta"),
 });
-const archiveGoalSchema = z.object({
-	id: uuidSchema("Meta"),
-});
-const deleteGoalSchema = z.object({
-	id: uuidSchema("Meta"),
-});
-const completeGoalSchema = z.object({
-	id: uuidSchema("Meta"),
-});
+const idSchema = z.object({ id: uuidSchema("Meta") });
 
 type CreateGoalInput = z.input<typeof createGoalSchema>;
 type UpdateGoalInput = z.input<typeof updateGoalSchema>;
@@ -112,37 +104,12 @@ export async function updateGoalAction(
 	}
 }
 
-export async function archiveGoalAction(
-	input: z.input<typeof archiveGoalSchema>,
-): Promise<ActionResult> {
-	try {
-		const user = await getUser();
-		const data = archiveGoalSchema.parse(input);
-
-		const [updated] = await db
-			.update(goals)
-			.set({ status: "arquivada", updatedAt: new Date() })
-			.where(and(eq(goals.id, data.id), eq(goals.userId, user.id)))
-			.returning({ id: goals.id });
-
-		if (!updated) {
-			return { success: false, error: "Meta não encontrada." };
-		}
-
-		revalidateForEntity("goals", user.id);
-
-		return { success: true, message: "Meta arquivada com sucesso." };
-	} catch (error) {
-		return handleActionError(error);
-	}
-}
-
 export async function completeGoalAction(
-	input: z.input<typeof completeGoalSchema>,
+	input: z.input<typeof idSchema>,
 ): Promise<ActionResult> {
 	try {
 		const user = await getUser();
-		const data = completeGoalSchema.parse(input);
+		const data = idSchema.parse(input);
 
 		const [updated] = await db
 			.update(goals)
@@ -162,12 +129,62 @@ export async function completeGoalAction(
 	}
 }
 
-export async function deleteGoalAction(
-	input: z.input<typeof deleteGoalSchema>,
+export async function reactivateGoalAction(
+	input: z.input<typeof idSchema>,
 ): Promise<ActionResult> {
 	try {
 		const user = await getUser();
-		const data = deleteGoalSchema.parse(input);
+		const data = idSchema.parse(input);
+
+		const [updated] = await db
+			.update(goals)
+			.set({ status: "ativa", updatedAt: new Date() })
+			.where(and(eq(goals.id, data.id), eq(goals.userId, user.id)))
+			.returning({ id: goals.id });
+
+		if (!updated) {
+			return { success: false, error: "Meta não encontrada." };
+		}
+
+		revalidateForEntity("goals", user.id);
+
+		return { success: true, message: "Meta reativada com sucesso." };
+	} catch (error) {
+		return handleActionError(error);
+	}
+}
+
+export async function archiveGoalAction(
+	input: z.input<typeof idSchema>,
+): Promise<ActionResult> {
+	try {
+		const user = await getUser();
+		const data = idSchema.parse(input);
+
+		const [updated] = await db
+			.update(goals)
+			.set({ status: "arquivada", updatedAt: new Date() })
+			.where(and(eq(goals.id, data.id), eq(goals.userId, user.id)))
+			.returning({ id: goals.id });
+
+		if (!updated) {
+			return { success: false, error: "Meta não encontrada." };
+		}
+
+		revalidateForEntity("goals", user.id);
+
+		return { success: true, message: "Meta arquivada com sucesso." };
+	} catch (error) {
+		return handleActionError(error);
+	}
+}
+
+export async function deleteGoalAction(
+	input: z.input<typeof idSchema>,
+): Promise<ActionResult> {
+	try {
+		const user = await getUser();
+		const data = idSchema.parse(input);
 
 		const [deleted] = await db
 			.delete(goals)

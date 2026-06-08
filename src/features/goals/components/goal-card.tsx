@@ -7,6 +7,7 @@ import {
 	archiveGoalAction,
 	completeGoalAction,
 	deleteGoalAction,
+	reactivateGoalAction,
 } from "@/features/goals/actions";
 import type { GoalData } from "@/features/goals/queries";
 import { Button } from "@/shared/components/ui/button";
@@ -56,36 +57,39 @@ export function GoalCard({ goal, onEdit }: GoalCardProps) {
 	const isOverdue =
 		goal.deadline && new Date(goal.deadline) < new Date() && !goal.isCompleted;
 
-	const handleArchive = () => {
-		startTransition(async () => {
-			const result = await archiveGoalAction({ id: goal.id });
-			if (result.success) {
-				toast.success(result.message);
-			} else {
-				toast.error(result.error);
-			}
-		});
-	};
+	const isActive = goal.status === "ativa";
+	const isCompleted = goal.status === "concluida";
+	const isArchived = goal.status === "arquivada";
 
 	const handleComplete = () => {
 		startTransition(async () => {
 			const result = await completeGoalAction({ id: goal.id });
-			if (result.success) {
-				toast.success(result.message);
-			} else {
-				toast.error(result.error);
-			}
+			if (result.success) toast.success(result.message);
+			else toast.error(result.error);
+		});
+	};
+
+	const handleReactivate = () => {
+		startTransition(async () => {
+			const result = await reactivateGoalAction({ id: goal.id });
+			if (result.success) toast.success(result.message);
+			else toast.error(result.error);
+		});
+	};
+
+	const handleArchive = () => {
+		startTransition(async () => {
+			const result = await archiveGoalAction({ id: goal.id });
+			if (result.success) toast.success(result.message);
+			else toast.error(result.error);
 		});
 	};
 
 	const handleDelete = () => {
 		startTransition(async () => {
 			const result = await deleteGoalAction({ id: goal.id });
-			if (result.success) {
-				toast.success(result.message);
-			} else {
-				toast.error(result.error);
-			}
+			if (result.success) toast.success(result.message);
+			else toast.error(result.error);
 		});
 	};
 
@@ -112,10 +116,16 @@ export function GoalCard({ goal, onEdit }: GoalCardProps) {
 				</div>
 
 				<div className="flex items-center gap-1 shrink-0">
-					{goal.isCompleted && (
+					{isCompleted && (
 						<span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
 							<RemixIcons.RiCheckLine className="size-3" aria-hidden />
 							Concluída
+						</span>
+					)}
+					{isArchived && (
+						<span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+							<RemixIcons.RiArchiveLine className="size-3" aria-hidden />
+							Arquivada
 						</span>
 					)}
 
@@ -136,16 +146,43 @@ export function GoalCard({ goal, onEdit }: GoalCardProps) {
 								<RemixIcons.RiEditLine className="size-4" aria-hidden />
 								Editar
 							</DropdownMenuItem>
-							{!goal.isCompleted && (
-								<DropdownMenuItem onClick={handleComplete}>
-									<RemixIcons.RiCheckDoubleLine className="size-4" aria-hidden />
-									Marcar como concluída
+
+							{/* Ativa: pode concluir e arquivar */}
+							{isActive && (
+								<>
+									<DropdownMenuItem onClick={handleComplete}>
+										<RemixIcons.RiCheckDoubleLine className="size-4" aria-hidden />
+										Marcar como concluída
+									</DropdownMenuItem>
+									<DropdownMenuItem onClick={handleArchive}>
+										<RemixIcons.RiArchiveLine className="size-4" aria-hidden />
+										Arquivar
+									</DropdownMenuItem>
+								</>
+							)}
+
+							{/* Concluída: pode desfazer conclusão ou arquivar */}
+							{isCompleted && (
+								<>
+									<DropdownMenuItem onClick={handleReactivate}>
+										<RemixIcons.RiArrowGoBackLine className="size-4" aria-hidden />
+										Marcar como não concluída
+									</DropdownMenuItem>
+									<DropdownMenuItem onClick={handleArchive}>
+										<RemixIcons.RiArchiveLine className="size-4" aria-hidden />
+										Arquivar
+									</DropdownMenuItem>
+								</>
+							)}
+
+							{/* Arquivada: pode reativar */}
+							{isArchived && (
+								<DropdownMenuItem onClick={handleReactivate}>
+									<RemixIcons.RiArrowGoBackLine className="size-4" aria-hidden />
+									Desarquivar
 								</DropdownMenuItem>
 							)}
-							<DropdownMenuItem onClick={handleArchive}>
-								<RemixIcons.RiArchiveLine className="size-4" aria-hidden />
-								Arquivar
-							</DropdownMenuItem>
+
 							<DropdownMenuSeparator />
 							<DropdownMenuItem
 								onClick={handleDelete}
@@ -165,7 +202,7 @@ export function GoalCard({ goal, onEdit }: GoalCardProps) {
 					value={goal.usedPercentage}
 					className={cn(
 						"h-2",
-						goal.isCompleted && "[&>div]:bg-emerald-500",
+						isCompleted && "[&>div]:bg-emerald-500",
 					)}
 				/>
 				<div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -179,7 +216,7 @@ export function GoalCard({ goal, onEdit }: GoalCardProps) {
 
 			{/* Footer */}
 			<div className="flex items-center justify-between text-xs">
-				{!goal.isCompleted && (
+				{!isCompleted && (
 					<span className="text-muted-foreground">
 						Faltam{" "}
 						<span className="font-medium text-foreground">
@@ -187,7 +224,7 @@ export function GoalCard({ goal, onEdit }: GoalCardProps) {
 						</span>
 					</span>
 				)}
-				{goal.isCompleted && (
+				{isCompleted && (
 					<span className="text-emerald-600 dark:text-emerald-400 font-medium">
 						Meta atingida!
 					</span>
