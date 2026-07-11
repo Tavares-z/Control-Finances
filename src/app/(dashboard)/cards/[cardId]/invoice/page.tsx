@@ -210,6 +210,9 @@ export default async function Page({ params, searchParams }: PageProps) {
 					noteAsColumn={userPreferences?.statementNoteAsColumn ?? false}
 					columnOrder={userPreferences?.transactionsColumnOrder ?? null}
 					attachmentMaxSizeMb={userPreferences?.attachmentMaxSizeMb ?? 50}
+					groupTransactionsByDate={
+						userPreferences?.groupTransactionsByDate ?? true
+					}
 					defaultCardId={card.id}
 					defaultPaymentMethod="Cartão de crédito"
 					lockCardSelection
