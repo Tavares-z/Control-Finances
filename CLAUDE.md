@@ -4,7 +4,7 @@
 - **Projeto:** Control-Finances — fork pessoal do OpenMonetis, deployado no Railway
 - **Upstream:** https://github.com/felipegcoutinho/openmonetis (versionamento semver, releases por tag)
 - **Fork local:** `C:\OpenMonetis-dev` (Windows, PowerShell + VS Code) — preencher URL do remote `origin` aqui: https://github.com/Tavares-z/Control-Finances
-- **Sync atual:** upstream v2.7.2 → v2.7.12 (em andamento)
+- **Sync atual:** upstream v2.7.2 → v2.7.12 (quase completo — falta só parte de Config/infra, ver "Estado do Sync" abaixo)
 
 ## Contexto de Fork e Atualizações — REGRAS OBRIGATÓRIAS
 1. **NUNCA sugerir merge automático** de uma nova versão do upstream sem antes verificar conflitos com as customizações abaixo.
@@ -51,13 +51,16 @@ Estado do Sync (v2.7.2 → v2.7.12)
 ✅ Settings/Monetinha (page.tsx, actions.ts, queries.ts, preferences-form.tsx)
 ✅ Checkbox compacto (estilo upstream adotado)
 ✅ Transações tabela/lista (12 arquivos: columns, mobile-list, actions-menu, page, table, core, single-actions, export-actions, page-helpers, date.ts, installment-detection.ts, actions barrel)
-⬜ Wiring de groupTransactionsByDate nas páginas que chamam <TransactionsPage>: /transactions, accounts/[accountId]/statement, cards/[cardId]/invoice, categories/[categoryId], payers/[payerId]
-⬜ Dashboard widgets (vínculo de tendências às categorias)
-⬜ Popovers de fatura/data
-⬜ Anexos (filtro por pessoa)
-⬜ Import de planilhas (mapeamento automático de categoria)
-⬜ Cards (destacar fatura paga)
-⬜ Config/infra (deps, CI, docker) — baixo risco, revisar por último
+✅ Wiring de groupTransactionsByDate nas páginas que chamam <TransactionsPage>: /transactions, accounts/[accountId]/statement, cards/[cardId]/invoice, categories/[categoryId], payers/[payerId] (commit b278399)
+✅ Dashboard widgets: vínculo de tendências às categorias — nome da categoria no widget "Tendências de categorias" agora linka para /categories/[id], novo dashboard-widget-list-styles.ts (commit 2b8e82a)
+✅ Popovers de fatura/data: fix "corrigir seleção de faturas em popovers" — modal em Popover + type="button" em botões de formulário (commit 9a702a0)
+✅ Anexos (filtro por pessoa) — Select de pessoa na página de anexos, fetchAttachmentsForPeriod aceita payerScope opcional (commit a228369)
+✅ Import de planilhas (mapeamento automático de categoria) — coluna "Categoria" no .xlsx, match por nome com as categorias do usuário (commit 3a65b54)
+✅ Cards (destacar fatura paga) — badge "Paga" no valor da fatura atual quando currentInvoiceStatus é PAID (commit d587ff0)
+🔶 Config/infra (deps, CI, docker) — parcial:
+  - ✅ BETTER_AUTH_TRUSTED_ORIGINS documentado em .env.example/docker-compose.yml (commit 3515d8c). Nota: só documentação — nem o upstream lê essa env var em config.ts ainda, sem efeito funcional
+  - ⬜ Bump de dependências (package.json): maioria patch/minor, mas pdfjs-dist salta de ^5.7.284 para ^6.0.227 (major, usado em attachment-grid-item.tsx — checar breaking changes antes de aplicar). Lockfile precisa de pnpm install, que falha no postinstall no Windows
+  - ⬜ Workflows CI/CD (.github/workflows): upstream removeu docker-publish.yml, reescreveu release.yml e adicionou ci.yml novo. Decisão explícita: não mexer por enquanto — fork usa Railway, não Docker Hub/GitHub Releases do upstream. Revisitar só se precisar de algo específico
 
 Comandos de Sobrevivência (Tokens)
 /clear — usar ao trocar completamente de tarefa/contexto (ex: terminou o bloco de settings, vai começar dashboard)
