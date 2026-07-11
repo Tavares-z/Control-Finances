@@ -86,6 +86,12 @@ export default async function Page() {
 								showTransactionSummary={
 									userPreferences?.showTransactionSummary ?? true
 								}
+								groupTransactionsByDate={
+									userPreferences?.groupTransactionsByDate ?? true
+								}
+								hideAnticipatedInstallments={
+									userPreferences?.hideAnticipatedInstallments ?? false
+								}
 							/>
 						</div>
 					</Card>
@@ -195,7 +201,7 @@ export default async function Page() {
 							</div>
 							<Separator />
 							<AssistantForm
-								initialModel={userPreferences?.chatModel ?? "google/gemini-2.5-flash-preview"}
+								initialModel={userPreferences?.chatModel ?? "google/gemini-3.5-flash"}
 								initialPersonality={userPreferences?.chatPersonality ?? ""}
 							/>
 						</div>

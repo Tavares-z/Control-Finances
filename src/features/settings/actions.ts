@@ -41,7 +41,7 @@ const ALLOWED_MODELS = [
 	"openai/gpt-4o-mini",
 	"openai/gpt-4o",
 ] as const;
- 
+
 const updateChatSettingsSchema = z.object({
 	chatModel: z.enum(ALLOWED_MODELS),
 	chatPersonality: z.string().max(500),
@@ -82,6 +82,8 @@ const updatePreferencesSchema = z.object({
 	transactionsColumnOrder: z.array(z.string()).nullable(),
 	attachmentMaxSizeMb: z.number().int().min(1).max(100),
 	showTransactionSummary: z.boolean(),
+	groupTransactionsByDate: z.boolean(),
+	hideAnticipatedInstallments: z.boolean(),
 });
 
 type ResettableUser = {
@@ -597,6 +599,8 @@ export async function updatePreferencesAction(
 					transactionsColumnOrder: validated.transactionsColumnOrder,
 					attachmentMaxSizeMb: validated.attachmentMaxSizeMb,
 					showTransactionSummary: validated.showTransactionSummary,
+					groupTransactionsByDate: validated.groupTransactionsByDate,
+					hideAnticipatedInstallments: validated.hideAnticipatedInstallments,
 					updatedAt: new Date(),
 				})
 				.where(eq(schema.userPreferences.userId, session.user.id));
@@ -608,6 +612,8 @@ export async function updatePreferencesAction(
 				transactionsColumnOrder: validated.transactionsColumnOrder,
 				attachmentMaxSizeMb: validated.attachmentMaxSizeMb,
 				showTransactionSummary: validated.showTransactionSummary,
+				groupTransactionsByDate: validated.groupTransactionsByDate,
+				hideAnticipatedInstallments: validated.hideAnticipatedInstallments,
 			});
 		}
 
@@ -794,40 +800,40 @@ export async function updateChatSettings(
 		if (!session?.user?.id) {
 			return { success: false, error: "Não autenticado" };
 		}
- 
-const validated = updateChatSettingsSchema.parse(data);
 
-const existing = await db
-    .select()
-    .from(schema.userPreferences)
-    .where(eq(schema.userPreferences.userId, session.user.id))
-    .limit(1);
+		const validated = updateChatSettingsSchema.parse(data);
 
-// Limpa histórico apenas se o modelo mudou
-const currentModel = existing[0]?.chatModel;
-if (currentModel && currentModel !== validated.chatModel) {
-    await db
-        .delete(schema.chatMessages)
-        .where(eq(schema.chatMessages.userId, session.user.id));
-}
+		const existing = await db
+			.select()
+			.from(schema.userPreferences)
+			.where(eq(schema.userPreferences.userId, session.user.id))
+			.limit(1);
 
-if (existing[0]) {
-    await db
-        .update(schema.userPreferences)
-        .set({
-            chatModel: validated.chatModel,
-            chatPersonality: validated.chatPersonality,
-            updatedAt: new Date(),
-        })
-        .where(eq(schema.userPreferences.userId, session.user.id));
-} else {
-    await db.insert(schema.userPreferences).values({
-        userId: session.user.id,
-        chatModel: validated.chatModel,
-        chatPersonality: validated.chatPersonality,
-    });
-}
- 
+		// Limpa histórico apenas se o modelo mudou
+		const currentModel = existing[0]?.chatModel;
+		if (currentModel && currentModel !== validated.chatModel) {
+			await db
+				.delete(schema.chatMessages)
+				.where(eq(schema.chatMessages.userId, session.user.id));
+		}
+
+		if (existing[0]) {
+			await db
+				.update(schema.userPreferences)
+				.set({
+					chatModel: validated.chatModel,
+					chatPersonality: validated.chatPersonality,
+					updatedAt: new Date(),
+				})
+				.where(eq(schema.userPreferences.userId, session.user.id));
+		} else {
+			await db.insert(schema.userPreferences).values({
+				userId: session.user.id,
+				chatModel: validated.chatModel,
+				chatPersonality: validated.chatPersonality,
+			});
+		}
+
 		revalidatePath("/", "layout");
 		return { success: true, message: "Configurações salvas com sucesso" };
 	} catch (error) {

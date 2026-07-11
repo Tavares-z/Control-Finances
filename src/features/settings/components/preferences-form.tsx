@@ -43,6 +43,8 @@ interface PreferencesFormProps {
 	transactionsColumnOrder: string[] | null;
 	attachmentMaxSizeMb: number;
 	showTransactionSummary: boolean;
+	groupTransactionsByDate: boolean;
+	hideAnticipatedInstallments: boolean;
 }
 
 function SortableColumnItem({ id }: { id: string }) {
@@ -87,6 +89,8 @@ export function PreferencesForm({
 	transactionsColumnOrder: initialColumnOrder,
 	attachmentMaxSizeMb: initialAttachmentMaxSizeMb,
 	showTransactionSummary: initialShowTransactionSummary,
+	groupTransactionsByDate: initialGroupTransactionsByDate,
+	hideAnticipatedInstallments: initialHideAnticipatedInstallments,
 }: PreferencesFormProps) {
 	const router = useRouter();
 	const [isPending, startTransition] = useTransition();
@@ -109,6 +113,11 @@ export function PreferencesForm({
 	const [showTransactionSummary, setShowTransactionSummary] = useState(
 		initialShowTransactionSummary,
 	);
+	const [groupTransactionsByDate, setGroupTransactionsByDate] = useState(
+		initialGroupTransactionsByDate,
+	);
+	const [hideAnticipatedInstallments, setHideAnticipatedInstallments] =
+		useState(initialHideAnticipatedInstallments);
 
 	const sensors = useSensors(
 		useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -135,6 +144,8 @@ export function PreferencesForm({
 				transactionsColumnOrder: columnOrder,
 				attachmentMaxSizeMb,
 				showTransactionSummary,
+				groupTransactionsByDate,
+				hideAnticipatedInstallments,
 			});
 
 			if (result.success) {
@@ -192,6 +203,46 @@ export function PreferencesForm({
 						id="show-transaction-summary"
 						checked={showTransactionSummary}
 						onCheckedChange={setShowTransactionSummary}
+						disabled={isPending}
+					/>
+				</section>
+
+				<Separator />
+
+				<section className="flex items-center justify-between max-w-md gap-4">
+					<div className="space-y-2">
+						<Label htmlFor="group-transactions-by-date" className="text-sm">
+							Agrupar por data
+						</Label>
+						<p className="text-sm text-muted-foreground">
+							Mostra uma barra de data acima dos lançamentos daquele dia. Quando
+							desativado, a data volta a aparecer em cada lançamento.
+						</p>
+					</div>
+					<Switch
+						id="group-transactions-by-date"
+						checked={groupTransactionsByDate}
+						onCheckedChange={setGroupTransactionsByDate}
+						disabled={isPending}
+					/>
+				</section>
+
+				<Separator />
+
+				<section className="flex items-center justify-between max-w-md gap-4">
+					<div className="space-y-2">
+						<Label htmlFor="hide-anticipated-installments" className="text-sm">
+							Ocultar parcelas antecipadas
+						</Label>
+						<p className="text-sm text-muted-foreground">
+							Quando ativo, parcelas já antecipadas não aparecem na tabela de
+							lançamentos.
+						</p>
+					</div>
+					<Switch
+						id="hide-anticipated-installments"
+						checked={hideAnticipatedInstallments}
+						onCheckedChange={setHideAnticipatedInstallments}
 						disabled={isPending}
 					/>
 				</section>

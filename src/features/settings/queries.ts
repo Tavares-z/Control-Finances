@@ -9,6 +9,8 @@ interface UserPreferences {
 	chatModel: string | null;
 	chatPersonality: string | null;
 	showTransactionSummary: boolean;
+	groupTransactionsByDate: boolean;
+	hideAnticipatedInstallments: boolean;
 }
 
 interface ApiToken {
@@ -40,6 +42,9 @@ export async function fetchUserPreferences(
 			chatModel: schema.userPreferences.chatModel,
 			chatPersonality: schema.userPreferences.chatPersonality,
 			showTransactionSummary: schema.userPreferences.showTransactionSummary,
+			groupTransactionsByDate: schema.userPreferences.groupTransactionsByDate,
+			hideAnticipatedInstallments:
+				schema.userPreferences.hideAnticipatedInstallments,
 		})
 		.from(schema.userPreferences)
 		.where(eq(schema.userPreferences.userId, userId))
