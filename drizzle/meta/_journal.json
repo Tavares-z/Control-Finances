@@ -218,6 +218,13 @@
       "when": 1780838589238,
       "tag": "0031_chilly_miek",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1783693803745,
+      "tag": "0032_premium_jack_power",
+      "breakpoints": true
     }
   ]
 }
