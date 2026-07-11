@@ -6,20 +6,26 @@ import {
 	RiHistoryLine,
 	RiLineChartLine,
 } from "@remixicon/react";
+import Link from "next/link";
 import type { DashboardCategoryBreakdownItem } from "@/features/dashboard/categories/category-breakdown-helpers";
+import { dashboardWidgetListStyles as styles } from "@/features/dashboard/components/dashboard-widget-list-styles";
 import { PercentageChangeIndicator } from "@/features/dashboard/components/percentage-change-indicator";
 import { CategoryIconBadge } from "@/shared/components/entity-avatar";
 import MoneyValues from "@/shared/components/money-values";
 import { WidgetEmptyState } from "@/shared/components/widgets/widget-empty-state";
 import { formatPercentage } from "@/shared/utils/percentage";
+import { formatPeriodForUrl } from "@/shared/utils/period";
 
 type CategoryTrendsWidgetProps = {
 	categories: DashboardCategoryBreakdownItem[];
+	period: string;
 };
 
 export function CategoryTrendsWidget({
 	categories,
+	period,
 }: CategoryTrendsWidgetProps) {
+	const periodParam = formatPeriodForUrl(period);
 	const trending = categories
 		.filter((c) => c.percentageChange !== null && c.previousAmount > 0)
 		.sort(
@@ -45,17 +51,20 @@ export function CategoryTrendsWidget({
 
 				return (
 					<li key={category.categoryId}>
-						<div className="-mx-2 flex items-center gap-3 rounded-md p-2">
+						<div className={styles.row}>
 							<CategoryIconBadge
 								icon={category.categoryIcon}
 								name={category.categoryName}
 								size="md"
 							/>
-							<div className="min-w-0 flex-1">
-								<p className="truncate text-sm font-medium text-foreground">
-									{category.categoryName}
-								</p>
-								<p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+							<div className={styles.textStack}>
+								<Link
+									href={`/categories/${category.categoryId}?periodo=${periodParam}`}
+									className={styles.titleLink}
+								>
+									<span className="truncate">{category.categoryName}</span>
+								</Link>
+								<p className={styles.meta}>
 									<span
 										className="inline-flex items-center gap-1"
 										title="Mês anterior"
@@ -81,17 +90,22 @@ export function CategoryTrendsWidget({
 									</span>
 								</p>
 							</div>
-							<PercentageChangeIndicator
-								value={change}
-								label={formatPercentage(change, {
-									absolute: true,
-									minimumFractionDigits: 0,
-									maximumFractionDigits: 0,
-								})}
-								positiveTrend="down"
-								className="shrink-0 text-sm font-semibold"
-								iconClassName="size-3.5"
-							/>
+							<span
+								className={`${styles.trailingMeta} min-w-[5.75rem] justify-end text-muted-foreground`}
+							>
+								<PercentageChangeIndicator
+									value={change}
+									label={formatPercentage(change, {
+										absolute: true,
+										minimumFractionDigits: 0,
+										maximumFractionDigits: 0,
+									})}
+									positiveTrend="down"
+									className="text-sm font-semibold"
+									iconClassName="size-3.5"
+								/>
+								<span>vs. mês ant.</span>
+							</span>
 						</div>
 					</li>
 				);
