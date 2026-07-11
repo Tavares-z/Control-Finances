@@ -221,7 +221,7 @@ export function InboxWidget({
 										<span className="truncate">{item.sourceAppName}</span>
 									)}
 									<span className="text-muted-foreground/60">
-										{relativeTime(item.notificationTimestamp)}
+										{relativeTime(item.createdAt)}
 									</span>
 								</div>
 							</div>

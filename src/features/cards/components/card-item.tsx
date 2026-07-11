@@ -10,6 +10,7 @@ import {
 } from "@remixicon/react";
 import Image from "next/image";
 import MoneyValues from "@/shared/components/money-values";
+import { Badge } from "@/shared/components/ui/badge";
 import {
 	Card,
 	CardContent,
@@ -23,6 +24,10 @@ import {
 	TooltipTrigger,
 } from "@/shared/components/ui/tooltip";
 import { resolveCardBrandAsset } from "@/shared/lib/cards/brand-assets";
+import {
+	INVOICE_PAYMENT_STATUS,
+	type InvoicePaymentStatus,
+} from "@/shared/lib/invoices";
 import { resolveLogoSrc } from "@/shared/lib/logo";
 import { cn } from "@/shared/utils/ui";
 
@@ -37,6 +42,7 @@ interface CardItemProps {
 	limitAvailable?: number;
 	currentInvoiceAmount: number;
 	currentInvoiceLabel: string;
+	currentInvoiceStatus: InvoicePaymentStatus | null;
 	accountName: string;
 	logo?: string | null;
 	note?: string | null;
@@ -58,6 +64,7 @@ export function CardItem({
 	limitAvailable,
 	currentInvoiceAmount,
 	currentInvoiceLabel,
+	currentInvoiceStatus,
 	accountName: _accountName,
 	logo,
 	note,
@@ -80,6 +87,8 @@ export function CardItem({
 	const logoPath = resolveLogoSrc(logo);
 	const brandAsset = resolveCardBrandAsset(brand);
 	const isInactive = status?.toLowerCase() === "inativo";
+	const isCurrentInvoicePaid =
+		currentInvoiceStatus === INVOICE_PAYMENT_STATUS.PAID;
 
 	return (
 		<Card className="flex flex-col p-6 w-full">
@@ -175,10 +184,17 @@ export function CardItem({
 					<span className="text-xs text-muted-foreground">
 						{currentInvoiceLabel}
 					</span>
-					<MoneyValues
-						amount={currentInvoiceAmount}
-						className="text-xl font-semibold text-info"
-					/>
+					<div className="flex flex-wrap items-center gap-2">
+						<MoneyValues
+							amount={currentInvoiceAmount}
+							className="text-xl font-semibold text-info"
+						/>
+						{isCurrentInvoicePaid ? (
+							<Badge variant="success" className="text-xs">
+								Paga
+							</Badge>
+						) : null}
+					</div>
 				</div>
 
 				<div className="flex gap-2 justify-between w-full">

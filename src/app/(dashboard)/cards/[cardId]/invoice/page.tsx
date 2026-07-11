@@ -136,6 +136,7 @@ export default async function Page({ params, searchParams }: PageProps) {
 		limitAvailable: limitAmount,
 		currentInvoiceAmount: 0,
 		currentInvoiceLabel: "",
+		currentInvoiceStatus: null,
 	};
 
 	const { totalAmount, invoiceStatus, paymentDate } = invoiceData;

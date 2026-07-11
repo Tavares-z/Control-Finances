@@ -144,6 +144,7 @@ export function CardsPage({
 						limitAvailable={card.limitAvailable ?? card.limit ?? null}
 						currentInvoiceAmount={card.currentInvoiceAmount}
 						currentInvoiceLabel={card.currentInvoiceLabel}
+						currentInvoiceStatus={card.currentInvoiceStatus}
 						accountName={card.accountName}
 						logo={card.logo}
 						note={card.note}
