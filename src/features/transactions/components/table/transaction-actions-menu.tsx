@@ -11,6 +11,7 @@ import {
 	RiRefundLine,
 	RiTimeLine,
 } from "@remixicon/react";
+import { CREDIT_CARD_PAYMENT_METHOD } from "@/features/transactions/lib/constants";
 import { Button } from "@/shared/components/ui/button";
 import {
 	DropdownMenu,
@@ -20,6 +21,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
 import { REFUND_NOTE_PREFIX } from "@/shared/lib/accounts/constants";
+import { getConditionIcon } from "@/shared/utils/icons";
 import type { TransactionItem } from "../types";
 
 type TransactionActionsMenuProps = {
@@ -33,6 +35,8 @@ type TransactionActionsMenuProps = {
 	onRefund?: (item: TransactionItem) => void;
 	onAnticipate?: (item: TransactionItem) => void;
 	onViewAnticipationHistory?: (item: TransactionItem) => void;
+	onConvertToInstallment?: (item: TransactionItem) => void;
+	onConvertToRecurring?: (item: TransactionItem) => void;
 };
 
 export function TransactionActionsMenu({
@@ -46,6 +50,8 @@ export function TransactionActionsMenu({
 	onRefund,
 	onAnticipate,
 	onViewAnticipationHistory,
+	onConvertToInstallment,
+	onConvertToRecurring,
 }: TransactionActionsMenuProps) {
 	const isOwnData = item.userId === currentUserId;
 	const canRefund =
@@ -55,8 +61,26 @@ export function TransactionActionsMenu({
 		!item.splitGroupId &&
 		!item.readonly &&
 		!item.note?.startsWith(REFUND_NOTE_PREFIX);
+
 	const showInstallmentActions =
 		isOwnData && item.condition === "Parcelado" && item.seriesId;
+
+	const canConvertToInstallment =
+		isOwnData &&
+		item.paymentMethod === CREDIT_CARD_PAYMENT_METHOD &&
+		item.condition === "À vista" &&
+		!item.splitGroupId &&
+		!item.isDivided &&
+		!item.readonly &&
+		Boolean(onConvertToInstallment);
+
+	const canConvertToRecurring =
+		isOwnData &&
+		item.condition === "À vista" &&
+		!item.splitGroupId &&
+		!item.isDivided &&
+		!item.readonly &&
+		Boolean(onConvertToRecurring);
 
 	return (
 		<DropdownMenu>
@@ -92,7 +116,7 @@ export function TransactionActionsMenu({
 					</DropdownMenuItem>
 				) : null}
 
-				{!item.readonly && !isOwnData ? (
+				{!isOwnData ? (
 					<DropdownMenuItem
 						onSelect={() => onImport?.(item)}
 						disabled={!onImport}
@@ -109,6 +133,20 @@ export function TransactionActionsMenu({
 					>
 						<RiRefundLine className="size-4" aria-hidden />
 						Reembolso
+					</DropdownMenuItem>
+				) : null}
+
+				{canConvertToInstallment ? (
+					<DropdownMenuItem onSelect={() => onConvertToInstallment?.(item)}>
+						{getConditionIcon("Parcelado")}
+						Converter em Parcelamento
+					</DropdownMenuItem>
+				) : null}
+
+				{canConvertToRecurring ? (
+					<DropdownMenuItem onSelect={() => onConvertToRecurring?.(item)}>
+						{getConditionIcon("Recorrente")}
+						Converter em Recorrente
 					</DropdownMenuItem>
 				) : null}
 

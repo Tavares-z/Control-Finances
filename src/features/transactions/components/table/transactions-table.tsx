@@ -9,13 +9,14 @@ import {
 	getCoreRowModel,
 	getPaginationRowModel,
 	getSortedRowModel,
+	type Row,
 	type RowSelectionState,
 	type SortingState,
 	useReactTable,
 	type VisibilityState,
 } from "@tanstack/react-table";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { type ReactNode, useMemo, useState } from "react";
+import { Fragment, type ReactNode, useMemo, useState } from "react";
 import type {
 	TransactionsExportContext,
 	TransactionsPaginationState,
@@ -37,6 +38,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/shared/components/ui/tooltip";
+import { formatDateGroupLabel } from "@/shared/utils/date";
 import { cn } from "@/shared/utils/ui";
 import { TransactionsExport } from "../transactions-export";
 import type {
@@ -71,12 +73,15 @@ type TransactionsTableProps = {
 	onBulkImport?: (items: TransactionItem[]) => void;
 	onViewDetails?: (item: TransactionItem) => void;
 	onRefund?: (item: TransactionItem) => void;
+	onConvertToInstallment?: (item: TransactionItem) => void;
+	onConvertToRecurring?: (item: TransactionItem) => void;
 	onToggleSettlement?: (item: TransactionItem) => void;
 	onAnticipate?: (item: TransactionItem) => void;
 	onViewAnticipationHistory?: (item: TransactionItem) => void;
 	isSettlementLoading?: (id: string) => boolean;
 	showActions?: boolean;
 	showFilters?: boolean;
+	groupTransactionsByDate?: boolean;
 };
 
 export function TransactionsTable({
@@ -100,12 +105,15 @@ export function TransactionsTable({
 	onBulkImport,
 	onViewDetails,
 	onRefund,
+	onConvertToInstallment,
+	onConvertToRecurring,
 	onToggleSettlement,
 	onAnticipate,
 	onViewAnticipationHistory,
 	isSettlementLoading,
 	showActions = true,
 	showFilters = true,
+	groupTransactionsByDate = true,
 }: TransactionsTableProps) {
 	const router = useRouter();
 	const pathname = usePathname();
@@ -134,23 +142,29 @@ export function TransactionsTable({
 				onConfirmDelete,
 				onViewDetails,
 				onRefund,
+				onConvertToInstallment,
+				onConvertToRecurring,
 				onToggleSettlement,
 				onAnticipate,
 				onViewAnticipationHistory,
 				isSettlementLoading: isSettlementLoading ?? (() => false),
 				showActions,
+				showDateGroups: groupTransactionsByDate,
 				columnOrder: columnOrderPreference,
 			}),
 		[
 			currentUserId,
 			noteAsColumn,
 			columnOrderPreference,
+			groupTransactionsByDate,
 			onEdit,
 			onCopy,
 			onImport,
 			onConfirmDelete,
 			onViewDetails,
 			onRefund,
+			onConvertToInstallment,
+			onConvertToRecurring,
 			onToggleSettlement,
 			onAnticipate,
 			onViewAnticipationHistory,
@@ -175,17 +189,48 @@ export function TransactionsTable({
 			: getPaginationRowModel(),
 		manualPagination: isServerPaginated,
 		pageCount: serverPagination?.totalPages,
-		enableRowSelection: (row) => !row.original.readonly,
+		enableRowSelection: (row) =>
+			row.original.userId === currentUserId
+				? !row.original.readonly
+				: Boolean(onBulkImport),
 	});
 
 	const rowModel = table.getRowModel();
 	const hasRows = rowModel.rows.length > 0;
+	const groupedRows = rowModel.rows.reduce<
+		Array<{ date: string; label: string; rows: Row<TransactionItem>[] }>
+	>((acc, row) => {
+		const date = row.original.purchaseDate?.slice(0, 10) ?? "";
+		const existingGroup = acc.find((group) => group.date === date);
+		if (existingGroup) {
+			existingGroup.rows.push(row);
+			return acc;
+		}
+
+		acc.push({
+			date,
+			label: formatDateGroupLabel(row.original.purchaseDate),
+			rows: [row],
+		});
+		return acc;
+	}, []);
+	const visibleColumnCount = table.getVisibleLeafColumns().length;
 	const totalRows = isServerPaginated
 		? (serverPagination?.totalItems ?? 0)
 		: table.getCoreRowModel().rows.length;
 	const selectedRows = table.getFilteredSelectedRowModel().rows;
+	const selectedOwnRows = selectedRows.filter(
+		(row) => row.original.userId === currentUserId,
+	);
+	const selectedImportRows = selectedRows.filter(
+		(row) => row.original.userId !== currentUserId,
+	);
 	const selectedCount = selectedRows.length;
 	const selectedTotal = selectedRows.reduce(
+		(total, row) => total + (row.original.amount ?? 0),
+		0,
+	);
+	const selectedImportTotal = selectedImportRows.reduce(
 		(total, row) => total + (row.original.amount ?? 0),
 		0,
 	);
@@ -211,8 +256,8 @@ export function TransactionsTable({
 	};
 
 	const handleBulkImport = () => {
-		if (onBulkImport && selectedCount > 0) {
-			onBulkImport(selectedRows.map((row) => row.original));
+		if (onBulkImport && selectedImportRows.length > 0) {
+			onBulkImport(selectedImportRows.map((row) => row.original));
 			setRowSelection({});
 		}
 	};
@@ -254,6 +299,25 @@ export function TransactionsTable({
 
 	const showTopControls =
 		Boolean(createSlot) || Boolean(onMassAdd) || showFilters;
+	const renderTransactionRow = (row: Row<TransactionItem>) => (
+		<TableRow
+			key={row.id}
+			className={cn(
+				row.original.paymentMethod === "Boleto" &&
+					row.original.dueDate &&
+					!row.original.isSettled &&
+					new Date(row.original.dueDate) < new Date()
+					? "bg-destructive/3 hover:bg-destructive/5"
+					: undefined,
+			)}
+		>
+			{row.getVisibleCells().map((cell) => (
+				<TableCell key={cell.id}>
+					{flexRender(cell.column.columnDef.cell, cell.getContext())}
+				</TableCell>
+			))}
+		</TableRow>
+	);
 
 	return (
 		<TooltipProvider>
@@ -326,7 +390,7 @@ export function TransactionsTable({
 
 			{selectedCount > 0 &&
 			onBulkDelete &&
-			selectedRows.every((row) => row.original.userId === currentUserId) ? (
+			selectedOwnRows.length === selectedCount ? (
 				<TransactionsBulkBar
 					selectedCount={selectedCount}
 					selectedTotal={selectedTotal}
@@ -335,19 +399,17 @@ export function TransactionsTable({
 				/>
 			) : null}
 
-			{selectedCount > 0 &&
-			onBulkImport &&
-			selectedRows.some((row) => row.original.userId !== currentUserId) ? (
+			{selectedCount > 0 && onBulkImport && selectedImportRows.length > 0 ? (
 				<TransactionsBulkBar
-					selectedCount={selectedCount}
-					selectedTotal={selectedTotal}
+					selectedCount={selectedImportRows.length}
+					selectedTotal={selectedImportTotal}
 					mode="import"
 					onAction={handleBulkImport}
 				/>
 			) : null}
 
 			<Card className="py-2">
-				<CardContent className="px-2 py-4 sm:px-4">
+				<CardContent className="px-2 sm:px-4">
 					{hasRows ? (
 						<>
 							<TransactionsMobileList
@@ -364,6 +426,7 @@ export function TransactionsTable({
 								onViewAnticipationHistory={onViewAnticipationHistory}
 								isSettlementLoading={isSettlementLoading ?? (() => false)}
 								showActions={showActions}
+								showDateGroups={groupTransactionsByDate}
 							/>
 
 							<div className="hidden overflow-x-auto md:block">
@@ -388,28 +451,23 @@ export function TransactionsTable({
 										))}
 									</TableHeader>
 									<TableBody>
-										{rowModel.rows.map((row) => (
-											<TableRow
-												key={row.id}
-												className={cn(
-													row.original.paymentMethod === "Boleto" &&
-														row.original.dueDate &&
-														!row.original.isSettled &&
-														new Date(row.original.dueDate) < new Date()
-														? "bg-destructive/3 hover:bg-destructive/5"
-														: undefined,
-												)}
-											>
-												{row.getVisibleCells().map((cell) => (
-													<TableCell key={cell.id}>
-														{flexRender(
-															cell.column.columnDef.cell,
-															cell.getContext(),
-														)}
-													</TableCell>
-												))}
-											</TableRow>
-										))}
+										{groupTransactionsByDate
+											? groupedRows.map((group, groupIndex) => (
+													<Fragment
+														key={`${group.date || group.label}-${groupIndex}`}
+													>
+														<TableRow className="border-y bg-muted/40 hover:bg-muted/60">
+															<TableCell
+																colSpan={visibleColumnCount}
+																className="h-9 px-3 py-2 text-xs font-semibold text-muted-foreground"
+															>
+																{group.label}
+															</TableCell>
+														</TableRow>
+														{group.rows.map(renderTransactionRow)}
+													</Fragment>
+												))
+											: rowModel.rows.map(renderTransactionRow)}
 									</TableBody>
 								</Table>
 							</div>

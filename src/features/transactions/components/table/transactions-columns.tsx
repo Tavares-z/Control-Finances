@@ -47,8 +47,11 @@ type BuildColumnsArgs = {
 	onToggleSettlement?: (item: TransactionItem) => void;
 	onAnticipate?: (item: TransactionItem) => void;
 	onViewAnticipationHistory?: (item: TransactionItem) => void;
+	onConvertToInstallment?: (item: TransactionItem) => void;
+	onConvertToRecurring?: (item: TransactionItem) => void;
 	isSettlementLoading: (id: string) => boolean;
 	showActions: boolean;
+	showDateGroups: boolean;
 	columnOrder?: string[] | null;
 };
 
@@ -109,8 +112,11 @@ function buildColumns({
 	onToggleSettlement,
 	onAnticipate,
 	onViewAnticipationHistory,
+	onConvertToInstallment,
+	onConvertToRecurring,
 	isSettlementLoading,
 	showActions,
+	showDateGroups,
 }: BuildColumnsArgs): ColumnDef<TransactionItem>[] {
 	const noop = () => undefined;
 	const handleEdit = onEdit ?? noop;
@@ -122,6 +128,8 @@ function buildColumns({
 	const handleToggleSettlement = onToggleSettlement ?? noop;
 	const handleAnticipate = onAnticipate ?? noop;
 	const handleViewAnticipationHistory = onViewAnticipationHistory ?? noop;
+	const handleConvertToInstallment = onConvertToInstallment ?? noop;
+	const handleConvertToRecurring = onConvertToRecurring ?? noop;
 
 	const columns: ColumnDef<TransactionItem>[] = [
 		{
@@ -139,6 +147,7 @@ function buildColumns({
 			cell: ({ row }) => (
 				<Checkbox
 					checked={row.getIsSelected()}
+					disabled={!row.getCanSelect()}
 					onCheckedChange={(value) => row.toggleSelected(!!value)}
 					aria-label="Selecionar linha"
 				/>
@@ -187,12 +196,14 @@ function buildColumns({
 					<span className="flex items-center gap-2">
 						<EstablishmentLogo name={name} size={32} />
 						<span className="flex flex-col py-0.5">
-							<span className="text-xs text-muted-foreground flex items-center gap-2">
-								{formatDate(purchaseDate)}
-								{dueDateLabel ? (
-									<span className="text-primary">{dueDateLabel}</span>
-								) : null}
-							</span>
+							{showDateGroups ? null : (
+								<span className="text-xs text-muted-foreground flex items-center gap-2">
+									{formatDate(purchaseDate)}
+									{dueDateLabel ? (
+										<span className="text-primary">{dueDateLabel}</span>
+									) : null}
+								</span>
+							)}
 							<span className="flex items-center gap-1">
 								<Tooltip>
 									<TooltipTrigger asChild>
@@ -244,6 +255,15 @@ function buildColumns({
 								{installmentBadge ? (
 									<Badge variant="outline" className="px-2 text-xs">
 										{installmentBadge}
+									</Badge>
+								) : null}
+
+								{showDateGroups && dueDateLabel ? (
+									<Badge
+										variant="outline"
+										className="px-2 text-xs text-primary"
+									>
+										{dueDateLabel}
 									</Badge>
 								) : null}
 
@@ -544,6 +564,12 @@ function buildColumns({
 						onRefund={handleRefund}
 						onAnticipate={handleAnticipate}
 						onViewAnticipationHistory={handleViewAnticipationHistory}
+						onConvertToInstallment={
+							onConvertToInstallment ? handleConvertToInstallment : undefined
+						}
+						onConvertToRecurring={
+							onConvertToRecurring ? handleConvertToRecurring : undefined
+						}
 					/>
 				</div>
 			),

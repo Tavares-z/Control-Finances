@@ -4,6 +4,8 @@ import { RiAddFill } from "@remixicon/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
+	convertTransactionToInstallmentAction,
+	convertTransactionToRecurringAction,
 	createMassTransactionsAction,
 	deleteMultipleTransactionsAction,
 	deleteTransactionAction,
@@ -18,8 +20,20 @@ import {
 	detachAttachmentBulkAction,
 	getPresignedUploadUrlAction,
 } from "@/features/transactions/actions/attachments";
+import { detectInstallmentFromName } from "@/features/transactions/lib/installment-detection";
 import { ConfirmActionDialog } from "@/shared/components/confirm-action-dialog";
 import { Button } from "@/shared/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/shared/components/ui/dialog";
+import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
+import { formatCurrency } from "@/shared/utils/currency";
 import type {
 	TransactionsExportContext,
 	TransactionsPaginationState,
@@ -68,6 +82,7 @@ interface TransactionsPageProps {
 	allowCreate?: boolean;
 	noteAsColumn?: boolean;
 	columnOrder?: string[] | null;
+	groupTransactionsByDate?: boolean;
 	defaultCardId?: string | null;
 	defaultPaymentMethod?: string | null;
 	lockCardSelection?: boolean;
@@ -83,6 +98,9 @@ interface TransactionsPageProps {
 	importCardOptions?: SelectOption[];
 	importCategoryOptions?: SelectOption[];
 }
+
+const pluralize = (count: number, singular: string, plural: string) =>
+	count === 1 ? singular : plural;
 
 export function TransactionsPage({
 	currentUserId,
@@ -102,6 +120,7 @@ export function TransactionsPage({
 	allowCreate = true,
 	noteAsColumn = false,
 	columnOrder = null,
+	groupTransactionsByDate = true,
 	defaultCardId,
 	defaultPaymentMethod,
 	lockCardSelection,
@@ -190,6 +209,16 @@ export function TransactionsPage({
 	const [refundOpen, setRefundOpen] = useState(false);
 	const [transactionToRefund, setTransactionToRefund] =
 		useState<TransactionItem | null>(null);
+	const [convertInstallmentOpen, setConvertInstallmentOpen] = useState(false);
+	const [transactionToConvert, setTransactionToConvert] =
+		useState<TransactionItem | null>(null);
+	const [installmentCount, setInstallmentCount] = useState("2");
+	const [installmentPending, setInstallmentPending] = useState(false);
+	const [convertRecurringOpen, setConvertRecurringOpen] = useState(false);
+	const [transactionToConvertRecurring, setTransactionToConvertRecurring] =
+		useState<TransactionItem | null>(null);
+	const [recurrenceCount, setRecurrenceCount] = useState("12");
+	const [recurrencePending, setRecurrencePending] = useState(false);
 
 	const handleToggleSettlement = async (item: TransactionItem) => {
 		if (item.paymentMethod === "Cartão de crédito") {
@@ -542,6 +571,112 @@ export function TransactionsPage({
 		setRefundOpen(true);
 	};
 
+	const handleConvertToInstallment = (item: TransactionItem) => {
+		const detectedInstallment = detectInstallmentFromName(item.name);
+		setTransactionToConvert(item);
+		setInstallmentCount(String(detectedInstallment?.installmentCount ?? 2));
+		setConvertInstallmentOpen(true);
+	};
+
+	const confirmConvertToInstallment = async () => {
+		if (!transactionToConvert) {
+			return;
+		}
+
+		const count = Number(installmentCount);
+		if (!Number.isInteger(count) || count < 2 || count > 60) {
+			toast.error("Informe um parcelamento entre 2 e 60 parcelas.");
+			return;
+		}
+
+		try {
+			setInstallmentPending(true);
+			const result = await convertTransactionToInstallmentAction({
+				id: transactionToConvert.id,
+				installmentCount: count,
+			});
+
+			if (!result.success) {
+				toast.error(result.error);
+				return;
+			}
+
+			toast.success(result.message);
+			setConvertInstallmentOpen(false);
+			setTransactionToConvert(null);
+		} finally {
+			setInstallmentPending(false);
+		}
+	};
+
+	const handleConvertToRecurring = (item: TransactionItem) => {
+		setTransactionToConvertRecurring(item);
+		setRecurrenceCount("12");
+		setConvertRecurringOpen(true);
+	};
+
+	const confirmConvertToRecurring = async () => {
+		if (!transactionToConvertRecurring) {
+			return;
+		}
+
+		const count = Number(recurrenceCount);
+		if (!Number.isInteger(count) || count < 2 || count > 60) {
+			toast.error("Informe uma recorrência entre 2 e 60 meses.");
+			return;
+		}
+
+		try {
+			setRecurrencePending(true);
+			const result = await convertTransactionToRecurringAction({
+				id: transactionToConvertRecurring.id,
+				recurrenceCount: count,
+			});
+
+			if (!result.success) {
+				toast.error(result.error);
+				return;
+			}
+
+			toast.success(result.message);
+			setConvertRecurringOpen(false);
+			setTransactionToConvertRecurring(null);
+		} finally {
+			setRecurrencePending(false);
+		}
+	};
+
+	const parsedInstallmentCount = Number(installmentCount);
+	const installmentSummary =
+		transactionToConvert &&
+		Number.isInteger(parsedInstallmentCount) &&
+		parsedInstallmentCount >= 2 &&
+		parsedInstallmentCount <= 60
+			? {
+					total: formatCurrency(Math.abs(transactionToConvert.amount)),
+					installmentValue: formatCurrency(
+						Math.abs(transactionToConvert.amount) / parsedInstallmentCount,
+					),
+					count: parsedInstallmentCount,
+					createdCount: parsedInstallmentCount - 1,
+				}
+			: null;
+
+	const parsedRecurrenceCount = Number(recurrenceCount);
+	const recurringSummary =
+		transactionToConvertRecurring &&
+		Number.isInteger(parsedRecurrenceCount) &&
+		parsedRecurrenceCount >= 2 &&
+		parsedRecurrenceCount <= 60
+			? {
+					amount: formatCurrency(
+						Math.abs(transactionToConvertRecurring.amount),
+					),
+					count: parsedRecurrenceCount,
+					createdCount: parsedRecurrenceCount - 1,
+				}
+			: null;
+
 	const handleAnticipate = (item: TransactionItem) => {
 		setSelectedForAnticipation(item);
 		setAnticipateOpen(true);
@@ -612,6 +747,7 @@ export function TransactionsPage({
 				currentUserId={currentUserId}
 				noteAsColumn={noteAsColumn}
 				columnOrder={columnOrder}
+				groupTransactionsByDate={groupTransactionsByDate}
 				payerFilterOptions={payerFilterOptions}
 				categoryFilterOptions={categoryFilterOptions}
 				accountCardFilterOptions={accountCardFilterOptions}
@@ -628,6 +764,8 @@ export function TransactionsPage({
 				onBulkImport={handleBulkImport}
 				onViewDetails={handleViewDetails}
 				onRefund={handleRefund}
+				onConvertToInstallment={handleConvertToInstallment}
+				onConvertToRecurring={handleConvertToRecurring}
 				onToggleSettlement={handleToggleSettlement}
 				onAnticipate={handleAnticipate}
 				onViewAnticipationHistory={handleViewAnticipationHistory}
@@ -748,6 +886,138 @@ export function TransactionsPage({
 				onConfirm={handleDelete}
 				disabled={!transactionToDelete}
 			/>
+
+			<Dialog
+				open={convertInstallmentOpen && !!transactionToConvert}
+				onOpenChange={(open) => {
+					setConvertInstallmentOpen(open);
+					if (!open) {
+						setTransactionToConvert(null);
+					}
+				}}
+			>
+				<DialogContent className="sm:max-w-md">
+					<DialogHeader>
+						<DialogTitle>Converter em parcelamento?</DialogTitle>
+						<DialogDescription>
+							O lançamento atual será mantido como a primeira parcela e os
+							próximos meses serão criados automaticamente.
+						</DialogDescription>
+					</DialogHeader>
+
+					<div className="space-y-2">
+						<Label htmlFor="installmentCount">Parcelar em</Label>
+						<Input
+							id="installmentCount"
+							type="number"
+							min={2}
+							max={60}
+							value={installmentCount}
+							onChange={(event) => setInstallmentCount(event.target.value)}
+						/>
+						<p className="text-muted-foreground text-sm">
+							Use o total de parcelas da série, incluindo este lançamento.
+						</p>
+						{installmentSummary ? (
+							<p className="rounded-md border bg-muted/40 px-3 py-2 text-muted-foreground text-sm">
+								Resumo: {installmentSummary.total} será dividido em{" "}
+								{installmentSummary.count} parcelas de aproximadamente{" "}
+								{installmentSummary.installmentValue}. Este lançamento vira a
+								primeira parcela e {installmentSummary.createdCount}{" "}
+								{pluralize(
+									installmentSummary.createdCount,
+									"nova parcela será criada",
+									"novas parcelas serão criadas",
+								)}
+								.
+							</p>
+						) : null}
+					</div>
+
+					<DialogFooter>
+						<Button
+							type="button"
+							variant="outline"
+							onClick={() => setConvertInstallmentOpen(false)}
+							disabled={installmentPending}
+						>
+							Cancelar
+						</Button>
+						<Button
+							type="button"
+							onClick={confirmConvertToInstallment}
+							disabled={installmentPending}
+						>
+							{installmentPending ? "Convertendo..." : "Converter"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog
+				open={convertRecurringOpen && !!transactionToConvertRecurring}
+				onOpenChange={(open) => {
+					setConvertRecurringOpen(open);
+					if (!open) {
+						setTransactionToConvertRecurring(null);
+					}
+				}}
+			>
+				<DialogContent className="sm:max-w-md">
+					<DialogHeader>
+						<DialogTitle>Converter em recorrente?</DialogTitle>
+						<DialogDescription>
+							O lançamento atual será mantido como a primeira recorrência e os
+							próximos meses serão criados automaticamente.
+						</DialogDescription>
+					</DialogHeader>
+
+					<div className="space-y-2">
+						<Label htmlFor="recurrenceCount">Repetir por</Label>
+						<Input
+							id="recurrenceCount"
+							type="number"
+							min={2}
+							max={60}
+							value={recurrenceCount}
+							onChange={(event) => setRecurrenceCount(event.target.value)}
+						/>
+						<p className="text-muted-foreground text-sm">
+							Use o total de meses da série, incluindo este lançamento.
+						</p>
+						{recurringSummary ? (
+							<p className="rounded-md border bg-muted/40 px-3 py-2 text-muted-foreground text-sm">
+								Resumo: este lançamento vira a primeira recorrência e{" "}
+								{recurringSummary.createdCount}{" "}
+								{pluralize(
+									recurringSummary.createdCount,
+									"novo lançamento mensal será criado",
+									"novos lançamentos mensais serão criados",
+								)}{" "}
+								com valor de {recurringSummary.amount}.
+							</p>
+						) : null}
+					</div>
+
+					<DialogFooter>
+						<Button
+							type="button"
+							variant="outline"
+							onClick={() => setConvertRecurringOpen(false)}
+							disabled={recurrencePending}
+						>
+							Cancelar
+						</Button>
+						<Button
+							type="button"
+							onClick={confirmConvertToRecurring}
+							disabled={recurrencePending}
+						>
+							{recurrencePending ? "Convertendo..." : "Converter"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 
 			<BulkActionDialog
 				open={bulkDeleteOpen && !!pendingDeleteData}
