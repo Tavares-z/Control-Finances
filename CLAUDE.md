@@ -59,7 +59,8 @@ Estado do Sync (v2.7.2 → v2.7.12)
 ✅ Cards (destacar fatura paga) — badge "Paga" no valor da fatura atual quando currentInvoiceStatus é PAID (commit d587ff0)
 🔶 Config/infra (deps, CI, docker) — parcial:
   - ✅ BETTER_AUTH_TRUSTED_ORIGINS documentado em .env.example/docker-compose.yml (commit 3515d8c). Nota: só documentação — nem o upstream lê essa env var em config.ts ainda, sem efeito funcional
-  - ⬜ Bump de dependências (package.json): maioria patch/minor, mas pdfjs-dist salta de ^5.7.284 para ^6.0.227 (major, usado em attachment-grid-item.tsx — checar breaking changes antes de aplicar). Lockfile precisa de pnpm install, que falha no postinstall no Windows
+  - ✅ pdfjs-dist ^5.7.284 → ^6.0.227 (major) — único breaking change [api-major] relevante era getDocument(url) exigir getDocument({ url }), corrigido em attachment-grid-item.tsx. Lockfile regenerado via `pnpm install --ignore-scripts` (contorna o postinstall com `cp`, que falha no cmd.exe do Windows — o Dockerfile roda o postinstall de verdade dentro do container Linux) e public/pdf.worker.min.mjs atualizado manualmente. Testado e validado no build do Railway (commits e377781, bd0a781)
+  - ⬜ Resto do bump de dependências (package.json): Next, React, better-auth, AI SDK, radix-ui, etc. — todos patch/minor, risco bem menor que o major do pdfjs-dist já validado. Mesma ressalva de lockfile (usar `pnpm install --ignore-scripts` no Windows, não o `pnpm install` puro)
   - ⬜ Workflows CI/CD (.github/workflows): upstream removeu docker-publish.yml, reescreveu release.yml e adicionou ci.yml novo. Decisão explícita: não mexer por enquanto — fork usa Railway, não Docker Hub/GitHub Releases do upstream. Revisitar só se precisar de algo específico
 
 Comandos de Sobrevivência (Tokens)
