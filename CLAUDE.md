@@ -33,6 +33,8 @@ Inbox Process Type: modal "Como deseja registrar?" (Despesa/Receita/Transferênc
 
 validatePayerOwnership em core.ts — existe no fork, não existe no upstream atual (divergência antiga, não mexer sem investigar)
 
+Companion (device auth): /api/auth/device/verify retorna expiresAt (campo que o app Android Companion sempre esperou mas nunca recebia) — divergência do upstream, preservar ao sincronizar essa rota. Fork privado do Companion em github.com/Tavares-z/openmonetis-companion (Kotlin/Android, repo separado) com fixes de confiabilidade: recuperação de notificação travada em SYNCING, aviso de expiração de token na tela de Ajustes.
+
 Stack Técnica
 Next.js 16 App Router, PostgreSQL + Drizzle ORM, pnpm, Railway, OpenRouter, AI SDK ^6.0.191 (Zod v4 interno)
 
