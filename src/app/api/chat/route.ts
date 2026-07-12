@@ -1,8 +1,9 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { streamText, stepCountIs } from "ai";
+import { stepCountIs, streamText } from "ai";
 import { asc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { chatMessages, userPreferences } from "@/db/schema";
+import { fetchBudgetsForUser } from "@/features/budgets/queries";
 import { buildChatContext } from "@/features/chat/lib/build-chat-context";
 import {
   fetchMonthlySummaryForChat,
@@ -13,6 +14,7 @@ import { fetchGoalsForUser } from "@/features/goals/queries";
 import { fetchSubscriptionsForUser } from "@/features/subscriptions/queries";
 import { getUserId } from "@/shared/lib/auth/server";
 import { db } from "@/shared/lib/db";
+import { dateToPeriod } from "@/shared/utils/period";
 
 const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY,
@@ -36,6 +38,7 @@ Suas capacidades:
 - Consultar resumo mensal e listar transações em tempo real via ferramentas
 - Consultar metas financeiras e acompanhar progresso via ferramenta
 - Consultar assinaturas e despesas fixas via ferramenta
+- Consultar orçamentos e progresso de gastos por categoria via ferramenta
 
 Regras gerais:
 - NUNCA invente números ou dados — use apenas o contexto financeiro fornecido ou as ferramentas de consulta
@@ -67,7 +70,11 @@ Sobre metas financeiras (ferramenta consultar_metas):
 
 Sobre assinaturas (ferramenta consultar_assinaturas):
 - Use consultar_assinaturas para perguntas como "quais minhas assinaturas", "quanto gasto de assinatura por mês", "quando vence minha assinatura de X"
-- Assinaturas geram pré-lançamentos automáticos no Inbox quando vencem — o usuário ainda precisa confirmar o lançamento lá`;
+- Assinaturas geram pré-lançamentos automáticos no Inbox quando vencem — o usuário ainda precisa confirmar o lançamento lá
+
+Sobre orçamentos (ferramenta consultar_orcamento):
+- Use consultar_orcamento para perguntas como "como estão meus orçamentos", "estou estourando algum limite", "quanto ainda posso gastar em X"
+- Alerte com atenção quando um orçamento estiver perto ou acima de 100% do limite`;
 
 const registrarSchema = z.object({
   name: z.string().describe("Nome do estabelecimento ou descrição"),
@@ -321,6 +328,29 @@ export async function POST(req: Request) {
             accountName: s.accountName,
             cardName: s.cardName,
             categoryName: s.categoryName,
+          }));
+        },
+      },
+      consultar_orcamento: {
+        description:
+          "Consulta os orçamentos do usuário no mês atual (ou período informado): limite por categoria, quanto já foi gasto e quanto falta. Use para responder 'como estão meus orçamentos', 'estou estourando algum limite', 'quanto ainda posso gastar em X'.",
+        inputSchema: z.object({
+          period: z
+            .string()
+            .regex(/^\d{4}-(0[1-9]|1[0-2])$/)
+            .nullable()
+            .describe("Período no formato YYYY-MM. Null = mês atual."),
+        }),
+        execute: async ({ period }: { period: string | null }) => {
+          const resolvedPeriod = period ?? dateToPeriod(new Date());
+          const { budgets } = await fetchBudgetsForUser(userId, resolvedPeriod);
+          return budgets.map((b) => ({
+            category: b.category?.name ?? "Sem categoria",
+            limit: b.amount,
+            spent: b.spent,
+            remaining: Math.max(b.amount - b.spent, 0),
+            usedPercentage:
+              b.amount > 0 ? Number(((b.spent / b.amount) * 100).toFixed(1)) : 0,
           }));
         },
       },
