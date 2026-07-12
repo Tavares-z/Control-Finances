@@ -1,6 +1,6 @@
 import { fetchSubscriptionsForUser } from "@/features/subscriptions/queries";
 
-export type SubscriptionProjectionItem = {
+type SubscriptionProjectionItem = {
 	id: string;
 	name: string;
 	icon: string | null;
@@ -10,7 +10,7 @@ export type SubscriptionProjectionItem = {
 	projectedTotal: number;
 };
 
-export type SubscriptionCategoryTotal = {
+type SubscriptionCategoryTotal = {
 	categoryName: string;
 	total: number;
 };
