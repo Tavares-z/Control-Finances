@@ -2,7 +2,7 @@
  * Resolves the billing date for a given year/month, clamping the day to the
  * last day of that month (e.g. billingDay=31 in February → Feb 28/29).
  */
-export function getBillingDateForMonth(
+function getBillingDateForMonth(
 	year: number,
 	month: number,
 	billingDay: number,

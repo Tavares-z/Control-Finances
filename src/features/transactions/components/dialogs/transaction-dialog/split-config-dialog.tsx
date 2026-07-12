@@ -137,24 +137,6 @@ export function getSplitSummaryData(
 	};
 }
 
-export function getSplitSummaryLabel(
-	formState: FormState,
-	payerOptions: SplitSummaryPayerOption[],
-	totalAmount: number,
-) {
-	const summary = getSplitSummaryData(formState, payerOptions, totalAmount);
-
-	if (summary.type === "text") return summary.label;
-
-	const namesLabel = summary.participants
-		.map((participant) => participant.firstName)
-		.join(" ");
-	const remainingLabel =
-		summary.remainingCount > 0 ? ` +${summary.remainingCount}` : "";
-
-	return `${summary.count} pessoas: ${namesLabel}${remainingLabel} · ${summary.totalLabel}`;
-}
-
 export function SplitConfigDialog({
 	open,
 	onOpenChange,
