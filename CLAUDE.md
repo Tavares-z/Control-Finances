@@ -4,7 +4,7 @@
 - **Projeto:** Control-Finances — fork pessoal do OpenMonetis, deployado no Railway
 - **Upstream:** https://github.com/felipegcoutinho/openmonetis (versionamento semver, releases por tag)
 - **Fork local:** `C:\OpenMonetis-dev` (Windows, PowerShell + VS Code) — preencher URL do remote `origin` aqui: https://github.com/Tavares-z/Control-Finances
-- **Sync atual:** upstream v2.7.2 → v2.7.12 (quase completo — falta só parte de Config/infra, ver "Estado do Sync" abaixo)
+- **Sync atual:** upstream v2.7.2 → v2.7.12 (completo — falta só os workflows de CI/CD, deixados de fora por decisão, ver "Estado do Sync" abaixo)
 
 ## Contexto de Fork e Atualizações — REGRAS OBRIGATÓRIAS
 1. **NUNCA sugerir merge automático** de uma nova versão do upstream sem antes verificar conflitos com as customizações abaixo.
@@ -57,11 +57,13 @@ Estado do Sync (v2.7.2 → v2.7.12)
 ✅ Anexos (filtro por pessoa) — Select de pessoa na página de anexos, fetchAttachmentsForPeriod aceita payerScope opcional (commit a228369)
 ✅ Import de planilhas (mapeamento automático de categoria) — coluna "Categoria" no .xlsx, match por nome com as categorias do usuário (commit 3a65b54)
 ✅ Cards (destacar fatura paga) — badge "Paga" no valor da fatura atual quando currentInvoiceStatus é PAID (commit d587ff0)
-🔶 Config/infra (deps, CI, docker) — parcial:
-  - ✅ BETTER_AUTH_TRUSTED_ORIGINS documentado em .env.example/docker-compose.yml (commit 3515d8c). Nota: só documentação — nem o upstream lê essa env var em config.ts ainda, sem efeito funcional
-  - ✅ pdfjs-dist ^5.7.284 → ^6.0.227 (major) — único breaking change [api-major] relevante era getDocument(url) exigir getDocument({ url }), corrigido em attachment-grid-item.tsx. Lockfile regenerado via `pnpm install --ignore-scripts` (contorna o postinstall com `cp`, que falha no cmd.exe do Windows — o Dockerfile roda o postinstall de verdade dentro do container Linux) e public/pdf.worker.min.mjs atualizado manualmente. Testado e validado no build do Railway (commits e377781, bd0a781)
-  - ⬜ Resto do bump de dependências (package.json): Next, React, better-auth, AI SDK, radix-ui, etc. — todos patch/minor, risco bem menor que o major do pdfjs-dist já validado. Mesma ressalva de lockfile (usar `pnpm install --ignore-scripts` no Windows, não o `pnpm install` puro)
-  - ⬜ Workflows CI/CD (.github/workflows): upstream removeu docker-publish.yml, reescreveu release.yml e adicionou ci.yml novo. Decisão explícita: não mexer por enquanto — fork usa Railway, não Docker Hub/GitHub Releases do upstream. Revisitar só se precisar de algo específico
+✅ Config/infra (deps, docker) — completo, exceto CI/CD (decisão explícita de não mexer, ver abaixo):
+  - BETTER_AUTH_TRUSTED_ORIGINS documentado em .env.example/docker-compose.yml (commit 3515d8c). Nota: só documentação — nem o upstream lê essa env var em config.ts ainda, sem efeito funcional
+  - pdfjs-dist ^5.7.284 → ^6.0.227 (major) — único breaking change [api-major] relevante era getDocument(url) exigir getDocument({ url }), corrigido em attachment-grid-item.tsx (commits e377781, bd0a781)
+  - Resto do bump de dependências (package.json → versão 2.7.12): Next 16.2.7, React/React DOM 19.2.7, AI SDK (@ai-sdk/*, ai, @openrouter/ai-sdk-provider), @better-auth/passkey, @aws-sdk/*, @radix-ui/react-* (hover-card, navigation-menu, popover, radio-group, slider), @tanstack/react-query e react-virtual, date-fns, resend, @biomejs/biome, @types/react, knip, tsx (commit 14562f6). better-auth pinado em 1.6.23 (não 1.6.22 como o upstream) para satisfazer peer dependency de @better-auth/passkey@1.6.23 — rodar `pnpm peers check` depois de bumps futuros
+  - Lockfile no Windows: usar sempre `pnpm install --ignore-scripts` (nunca `pnpm install` puro) — contorna o postinstall com `cp`, que falha no cmd.exe. O Dockerfile roda o postinstall de verdade dentro do container Linux; public/pdf.worker.min.mjs precisa ser copiado manualmente depois (`Copy-Item node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf.worker.min.mjs`) já que fica desatualizado no repo com scripts ignorados
+  - Validado com typecheck, biome check, `next build` local completo (45 rotas) e build real do Railway, todos sem erro
+  - ⬜ Workflows CI/CD (.github/workflows): upstream removeu docker-publish.yml, reescreveu release.yml e adicionou ci.yml novo. Decisão explícita: não mexer — fork usa Railway, não Docker Hub/GitHub Releases do upstream. Revisitar só se precisar de algo específico
 
 Comandos de Sobrevivência (Tokens)
 /clear — usar ao trocar completamente de tarefa/contexto (ex: terminou o bloco de settings, vai começar dashboard)
