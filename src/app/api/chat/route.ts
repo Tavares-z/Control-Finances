@@ -1,17 +1,18 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { streamText, stepCountIs } from "ai";
+import { asc, eq } from "drizzle-orm";
 import { z } from "zod";
-import { getUserId } from "@/shared/lib/auth/server";
-import { db } from "@/shared/lib/db";
 import { chatMessages, userPreferences } from "@/db/schema";
-import { eq, asc } from "drizzle-orm";
 import { buildChatContext } from "@/features/chat/lib/build-chat-context";
-import { executeRegisterTransaction } from "@/features/chat/lib/execute-chat-tool";
 import {
   fetchMonthlySummaryForChat,
   fetchTransactionsForChat,
 } from "@/features/chat/lib/execute-chat-queries";
+import { executeRegisterTransaction } from "@/features/chat/lib/execute-chat-tool";
 import { fetchGoalsForUser } from "@/features/goals/queries";
+import { fetchSubscriptionsForUser } from "@/features/subscriptions/queries";
+import { getUserId } from "@/shared/lib/auth/server";
+import { db } from "@/shared/lib/db";
 
 const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY,
@@ -34,6 +35,7 @@ Suas capacidades:
 - Registrar transações diretamente no sistema via ferramenta
 - Consultar resumo mensal e listar transações em tempo real via ferramentas
 - Consultar metas financeiras e acompanhar progresso via ferramenta
+- Consultar assinaturas e despesas fixas via ferramenta
 
 Regras gerais:
 - NUNCA invente números ou dados — use apenas o contexto financeiro fornecido ou as ferramentas de consulta
@@ -61,7 +63,11 @@ Sobre consulta de dados (ferramentas consultar_resumo_mensal e listar_transacoes
 Sobre metas financeiras (ferramenta consultar_metas):
 - Use consultar_metas para perguntas como "como estão minhas metas", "quanto falta para minha meta de X", "estou batendo minhas metas?"
 - Comemore metas concluídas com entusiasmo 🎉
-- Para metas com prazo próximo e progresso baixo, alerte com carinho`;
+- Para metas com prazo próximo e progresso baixo, alerte com carinho
+
+Sobre assinaturas (ferramenta consultar_assinaturas):
+- Use consultar_assinaturas para perguntas como "quais minhas assinaturas", "quanto gasto de assinatura por mês", "quando vence minha assinatura de X"
+- Assinaturas geram pré-lançamentos automáticos no Inbox quando vencem — o usuário ainda precisa confirmar o lançamento lá`;
 
 const registrarSchema = z.object({
   name: z.string().describe("Nome do estabelecimento ou descrição"),
@@ -297,6 +303,24 @@ export async function POST(req: Request) {
               ? g.deadline.toISOString().slice(0, 10)
               : null,
             accountName: g.accountName,
+          }));
+        },
+      },
+      consultar_assinaturas: {
+        description:
+          "Consulta as assinaturas e despesas fixas ativas do usuário. Use para responder 'quais minhas assinaturas', 'quanto gasto de assinatura por mês', 'quando vence minha assinatura de X'.",
+        inputSchema: z.object({}),
+        execute: async () => {
+          const subscriptions = await fetchSubscriptionsForUser(userId, "ativa");
+          return subscriptions.map((s) => ({
+            id: s.id,
+            name: s.name,
+            amount: s.amount,
+            billingDay: s.billingDay,
+            paymentMethod: s.paymentMethod,
+            accountName: s.accountName,
+            cardName: s.cardName,
+            categoryName: s.categoryName,
           }));
         },
       },

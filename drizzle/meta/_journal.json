@@ -225,6 +225,13 @@
       "when": 1783693803745,
       "tag": "0032_premium_jack_power",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1783820755910,
+      "tag": "0033_petite_killmonger",
+      "breakpoints": true
     }
   ]
 }

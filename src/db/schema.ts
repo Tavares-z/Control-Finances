@@ -446,6 +446,58 @@ export const goals = pgTable(
 	}),
 );
 
+// ===================== ASSINATURAS =====================
+
+export const subscriptions = pgTable(
+	"assinaturas",
+	{
+		id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+		name: text("nome").notNull(),
+		amount: numeric("valor", { precision: 12, scale: 2 }).notNull(),
+		paymentMethod: text("forma_pagamento").notNull(),
+		billingDay: integer("dia_cobranca").notNull(),
+		startDate: date("data_inicio", { mode: "date" }).notNull(),
+		endDate: date("data_fim", { mode: "date" }),
+		status: text("status").notNull().default("ativa"), // ativa | pausada | cancelada
+		lastGeneratedPeriod: text("ultimo_periodo_gerado"), // "YYYY-MM"
+		icon: text("icone"),
+		note: text("anotacao"),
+		accountId: uuid("conta_id").references(() => financialAccounts.id, {
+			onDelete: "set null",
+		}),
+		cardId: uuid("cartao_id").references(() => cards.id, {
+			onDelete: "set null",
+		}),
+		categoryId: uuid("categoria_id").references(() => categories.id, {
+			onDelete: "set null",
+		}),
+		payerId: uuid("pagador_id").references(() => payers.id, {
+			onDelete: "set null",
+		}),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		createdAt: timestamp("created_at", {
+			mode: "date",
+			withTimezone: true,
+		})
+			.notNull()
+			.defaultNow(),
+		updatedAt: timestamp("updated_at", {
+			mode: "date",
+			withTimezone: true,
+		})
+			.notNull()
+			.defaultNow(),
+	},
+	(table) => ({
+		userIdStatusIdx: index("assinaturas_user_id_status_idx").on(
+			table.userId,
+			table.status,
+		),
+	}),
+);
+
 export const notes = pgTable(
 	"anotacoes",
 	{
@@ -583,6 +635,11 @@ export const inboxItems = pgTable(
 			onDelete: "set null",
 		}),
 
+		// Referência à assinatura que gerou este pré-lançamento (se aplicável)
+		subscriptionId: uuid("assinatura_id").references(() => subscriptions.id, {
+			onDelete: "set null",
+		}),
+
 		// Metadados de processamento
 		processedAt: timestamp("processed_at", {
 			mode: "date",
@@ -612,6 +669,9 @@ export const inboxItems = pgTable(
 		),
 		transactionIdIdx: index("pre_lancamentos_lancamento_id_idx").on(
 			table.transactionId,
+		),
+		subscriptionIdIdx: index("pre_lancamentos_assinatura_id_idx").on(
+			table.subscriptionId,
 		),
 	}),
 );
@@ -922,6 +982,29 @@ export const goalsRelations = relations(goals, ({ one }) => ({
 	}),
 }));
 
+export const subscriptionsRelations = relations(subscriptions, ({ one }) => ({
+	user: one(user, {
+		fields: [subscriptions.userId],
+		references: [user.id],
+	}),
+	financialAccount: one(financialAccounts, {
+		fields: [subscriptions.accountId],
+		references: [financialAccounts.id],
+	}),
+	card: one(cards, {
+		fields: [subscriptions.cardId],
+		references: [cards.id],
+	}),
+	category: one(categories, {
+		fields: [subscriptions.categoryId],
+		references: [categories.id],
+	}),
+	payer: one(payers, {
+		fields: [subscriptions.payerId],
+		references: [payers.id],
+	}),
+}));
+
 export const notesRelations = relations(notes, ({ one, many }) => ({
 	user: one(user, {
 		fields: [notes.userId],
@@ -952,6 +1035,10 @@ export const inboxItemsRelations = relations(inboxItems, ({ one }) => ({
 	transaction: one(transactions, {
 		fields: [inboxItems.transactionId],
 		references: [transactions.id],
+	}),
+	subscription: one(subscriptions, {
+		fields: [inboxItems.subscriptionId],
+		references: [subscriptions.id],
 	}),
 }));
 
@@ -1123,6 +1210,8 @@ export type Invoice = typeof invoices.$inferSelect;
 export type Budget = typeof budgets.$inferSelect;
 export type Goal = typeof goals.$inferSelect;
 export type NewGoal = typeof goals.$inferInsert;
+export type Subscription = typeof subscriptions.$inferSelect;
+export type NewSubscription = typeof subscriptions.$inferInsert;
 export type Note = typeof notes.$inferSelect;
 export type SavedInsight = typeof savedInsights.$inferSelect;
 export type Transaction = typeof transactions.$inferSelect;

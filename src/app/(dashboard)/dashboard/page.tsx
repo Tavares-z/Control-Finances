@@ -4,6 +4,7 @@ import { DashboardMetricsCards } from "@/features/dashboard/components/dashboard
 import { DashboardWelcome } from "@/features/dashboard/components/dashboard-welcome";
 import { extractDashboardLogoNames } from "@/features/dashboard/lib/extract-logo-names";
 import { fetchDashboardPageData } from "@/features/dashboard/page-data-queries";
+import { ensureDueSubscriptionsGenerated } from "@/features/subscriptions/generate-due-inbox-items";
 import { getSingleParam } from "@/features/transactions/lib/page-helpers";
 import { LogoPrefetchProvider } from "@/shared/components/entity-avatar";
 import MonthNavigation from "@/shared/components/month-picker/month-navigation";
@@ -23,6 +24,12 @@ export default async function Page({ searchParams }: PageProps) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const periodoParam = getSingleParam(resolvedSearchParams, "periodo");
   const { period: selectedPeriod } = parsePeriodParam(periodoParam);
+
+  try {
+    await ensureDueSubscriptionsGenerated(user.id);
+  } catch (error) {
+    console.error("[ensureDueSubscriptionsGenerated]", error);
+  }
 
   const { dashboardData, preferences, quickActionOptions } =
     await fetchDashboardPageData(user.id, selectedPeriod);

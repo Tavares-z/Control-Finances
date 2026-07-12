@@ -12,6 +12,7 @@ import {
 	RiNumbersLine,
 	RiPieChartLine,
 	RiRefreshLine,
+	RiRepeatLine,
 	RiSaveLine,
 	RiStore3Line,
 	RiTodoLine,
@@ -38,6 +39,7 @@ import { PaymentStatusWidget } from "@/features/dashboard/components/widgets/pay
 import { PurchasesByCategoryWidget } from "@/features/dashboard/components/widgets/purchases-by-category-widget";
 import { RecurringExpensesWidget } from "@/features/dashboard/components/widgets/recurring-expenses-widget";
 import { SpendingOverviewWidget } from "@/features/dashboard/components/widgets/spending-overview-widget";
+import { UpcomingSubscriptionsWidget } from "@/features/dashboard/components/widgets/upcoming-subscriptions-widget";
 import type { WidgetPreferences } from "@/features/dashboard/widget-registry/widget-actions";
 import type { SelectOption } from "@/features/transactions/components/types";
 import type { DashboardData } from "../fetch-dashboard-data";
@@ -180,6 +182,24 @@ export const widgetsConfig: WidgetConfig[] = [
 		action: (
 			<Link
 				href="/metas"
+				className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors inline-flex items-center gap-1"
+			>
+				Ver todas
+				<RiArrowRightLine className="size-4" />
+			</Link>
+		),
+	},
+	{
+		id: "upcoming-subscriptions",
+		title: "Assinaturas",
+		subtitle: "Próximas cobranças recorrentes",
+		icon: <RiRepeatLine className="size-4" />,
+		component: ({ data }) => (
+			<UpcomingSubscriptionsWidget subscriptions={data.subscriptionsData} />
+		),
+		action: (
+			<Link
+				href="/assinaturas"
 				className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors inline-flex items-center gap-1"
 			>
 				Ver todas
