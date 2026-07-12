@@ -180,6 +180,13 @@ export const NAV_SECTIONS: NavSection[] = [
 				icon: <RiStore2Line className="size-4" />,
 				iconClass: "text-primary",
 			},
+			{
+				href: "/reports/subscriptions",
+				label: "Assinaturas",
+				description: "Projeção anual de gastos fixos",
+				icon: <RiRepeatLine className="size-4" />,
+				iconClass: "text-primary",
+			},
 		],
 	},
 ];

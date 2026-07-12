@@ -13,6 +13,7 @@ import { db } from "@/shared/lib/db";
 import {
 	dayOfMonthSchema,
 	noteSchema,
+	requiredDecimalSchema,
 	uuidSchema,
 } from "@/shared/lib/schemas/common";
 
@@ -239,6 +240,42 @@ export async function deleteSubscriptionAction(
 		revalidateForEntity("subscriptions", user.id);
 
 		return { success: true, message: "Assinatura removida com sucesso." };
+	} catch (error) {
+		return handleActionError(error);
+	}
+}
+
+const syncAmountSchema = z.object({
+	id: uuidSchema("Assinatura"),
+	amount: requiredDecimalSchema("valor"),
+});
+
+/**
+ * Updates a subscription's expected amount, used when the confirmed
+ * transaction amount differs from what was cadastrado (price change).
+ */
+export async function syncSubscriptionAmountAction(
+	input: z.input<typeof syncAmountSchema>,
+): Promise<ActionResult> {
+	try {
+		const user = await getUser();
+		const data = syncAmountSchema.parse(input);
+
+		const [updated] = await db
+			.update(subscriptions)
+			.set({ amount: String(data.amount), updatedAt: new Date() })
+			.where(
+				and(eq(subscriptions.id, data.id), eq(subscriptions.userId, user.id)),
+			)
+			.returning({ id: subscriptions.id });
+
+		if (!updated) {
+			return { success: false, error: "Assinatura não encontrada." };
+		}
+
+		revalidateForEntity("subscriptions", user.id);
+
+		return { success: true, message: "Valor da assinatura atualizado." };
 	} catch (error) {
 		return handleActionError(error);
 	}

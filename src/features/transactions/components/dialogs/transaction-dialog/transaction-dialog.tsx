@@ -409,7 +409,7 @@ export function TransactionDialog({
 						}
 					}
 					toast.success(result.message);
-					onSuccess?.();
+					onSuccess?.({ amount: sanitizedAmount });
 					setDialogOpen(false);
 					return;
 				}

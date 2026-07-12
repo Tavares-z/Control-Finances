@@ -19,6 +19,7 @@ import {
 	restoreDiscardedInboxItemAction,
 } from "@/features/inbox/actions";
 import { INBOX_DEFAULT_PAGE_SIZE } from "@/features/inbox/page-helpers";
+import { syncSubscriptionAmountAction } from "@/features/subscriptions/actions";
 import { TransactionDialog } from "@/features/transactions/components/dialogs/transaction-dialog/transaction-dialog";
 import { InboxProcessTypeDialog, type InboxProcessType } from "./inbox-process-type-dialog";
 import { InboxTransferDialog } from "./inbox-transfer-dialog";
@@ -363,15 +364,30 @@ export function InboxPage({
 		throw new Error(result.error);
 	};
 
-	const handleLancamentoSuccess = async () => {
+	const handleLancamentoSuccess = async (result?: { amount: number }) => {
 		if (!itemToProcess) return;
-		const result = await markInboxAsProcessedAction({
+		const markResult = await markInboxAsProcessedAction({
 			inboxItemId: itemToProcess.id,
 		});
-		if (result.success) {
-			toast.success("Notificação processada!");
-		} else {
-			toast.error(result.error);
+		if (!markResult.success) {
+			toast.error(markResult.error);
+			return;
+		}
+		toast.success("Notificação processada!");
+
+		if (itemToProcess.subscriptionId && result?.amount) {
+			const original = Math.abs(Number(itemToProcess.parsedAmount ?? 0));
+			if (Math.abs(result.amount - original) > 0.001) {
+				const syncResult = await syncSubscriptionAmountAction({
+					id: itemToProcess.subscriptionId,
+					amount: result.amount,
+				});
+				if (syncResult.success) {
+					toast.info(
+						`Assinatura "${itemToProcess.sourceAppName}" atualizada para o novo valor.`,
+					);
+				}
+			}
 		}
 	};
 
