@@ -62,6 +62,7 @@ export async function POST(request: Request) {
 			userId: tokenRecord.userId,
 			tokenId: tokenRecord.id,
 			tokenName: tokenRecord.name,
+			expiresAt: tokenRecord.expiresAt,
 		});
 	} catch (error) {
 		console.error("[API] Error verifying device token:", error);
