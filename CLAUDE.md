@@ -22,6 +22,14 @@ Migrations com numeração conflitante (upstream reusa número já usado localme
 
 Caminhos com parênteses no PowerShell ((dashboard)) exigem aspas no comando inteiro, não só no nome do arquivo de saída.
 
+## Regra de Verificação (qualquer contexto, não só upstream)
+Essa regra vale para TODA conversa neste projeto, não só merge de upstream — inclusive brainstorming, avaliação de features, e análise de viabilidade.
+
+- NUNCA afirme que algo existe/não existe, é fácil/difícil, ou precisa/não precisa de mudança (migration, refactor, nova dependência) sem antes ler o arquivo real que comprova isso.
+- Proibido usar "provavelmente", "assumo que", "acho que", "deve ser" quando o arquivo está disponível para leitura — nesses casos, leia primeiro e afirme com certeza, ou não afirme.
+- Se delegar pesquisa a um subagente (Explore, general-purpose, etc.), trate o retorno dele como HIPÓTESE, não fato. Antes de repassar a conclusão ao usuário como certeza — especialmente se ela vai embasar uma recomendação tipo "vale a pena implementar" ou "não precisa migration" — confirme com leitura direta (Read/Grep) do(s) arquivo(s) citado(s) pelo subagente.
+- Se não for possível verificar (arquivo não encontrado, ambíguo, etc.), diga isso explicitamente em vez de hedgear.
+
 Minhas Customizações (preservar sempre)
 Metas Financeiras: tabela metas, migration local (era 0031, ver histórico de migrations), CRUD completo, página /metas (abas Ativas/Concluídas/Arquivadas), widget top-3 no dashboard, tool consultar_metas na IA
 
