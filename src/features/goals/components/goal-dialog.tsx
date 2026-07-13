@@ -4,6 +4,7 @@ import * as RemixIcons from "@remixicon/react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { createGoalAction, updateGoalAction } from "@/features/goals/actions";
+import { GoalCoverUpload } from "@/features/goals/components/goal-cover-upload";
 import type { GoalData } from "@/features/goals/queries";
 import type { AccountData } from "@/features/accounts/queries";
 import { Button } from "@/shared/components/ui/button";
@@ -70,27 +71,27 @@ export function GoalDialog({
 	);
 	const [accountId, setAccountId] = useState(goal?.accountId ?? "none");
 	const [deadline, setDeadline] = useState(
-		goal?.deadline
-			? goal.deadline.toISOString().slice(0, 10)
-			: "",
+		goal?.deadline ? goal.deadline.toISOString().slice(0, 10) : "",
 	);
 	const [selectedIcon, setSelectedIcon] = useState(
 		goal?.icon ?? GOAL_ICONS[0].name,
 	);
 	const [note, setNote] = useState(goal?.note ?? "");
+	const [coverAttachmentId, setCoverAttachmentId] = useState(
+		goal?.coverAttachmentId ?? null,
+	);
 
 	const handleOpenChange = (next: boolean) => {
 		if (!next) {
 			setName(goal?.name ?? "");
-			setTargetAmount(
-				goal ? String(goal.targetAmount).replace(".", ",") : "",
-			);
+			setTargetAmount(goal ? String(goal.targetAmount).replace(".", ",") : "");
 			setAccountId(goal?.accountId ?? "none");
 			setDeadline(
 				goal?.deadline ? goal.deadline.toISOString().slice(0, 10) : "",
 			);
 			setSelectedIcon(goal?.icon ?? GOAL_ICONS[0].name);
 			setNote(goal?.note ?? "");
+			setCoverAttachmentId(goal?.coverAttachmentId ?? null);
 			setErrorMessage(null);
 		}
 		onOpenChange(next);
@@ -121,9 +122,10 @@ export function GoalDialog({
 				note: note.trim() || null,
 			};
 
-			const result = isEditing && goal
-				? await updateGoalAction({ id: goal.id, ...payload })
-				: await createGoalAction(payload);
+			const result =
+				isEditing && goal
+					? await updateGoalAction({ id: goal.id, ...payload })
+					: await createGoalAction(payload);
 
 			if (result.success) {
 				toast.success(result.message);
@@ -180,6 +182,32 @@ export function GoalDialog({
 								);
 							})}
 						</div>
+					</div>
+
+					{/* Imagem de capa */}
+					<div className="flex flex-col gap-2">
+						<Label>
+							Imagem de capa{" "}
+							<span className="text-muted-foreground font-normal">
+								(opcional)
+							</span>
+						</Label>
+						<GoalCoverUpload
+							goalId={goal?.id ?? null}
+							coverAttachmentId={coverAttachmentId}
+							onUploaded={() => {
+								onSuccess?.();
+							}}
+							onRemoved={() => {
+								setCoverAttachmentId(null);
+								onSuccess?.();
+							}}
+						/>
+						{!isEditing && (
+							<p className="text-xs text-muted-foreground">
+								Salve a meta para poder adicionar uma imagem de capa.
+							</p>
+						)}
 					</div>
 
 					{/* Nome */}

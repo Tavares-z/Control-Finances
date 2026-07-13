@@ -20,6 +20,7 @@ export type GoalData = {
 	status: string;
 	accountId: string | null;
 	accountName: string | null;
+	coverAttachmentId: string | null;
 	createdAt: Date;
 	updatedAt: Date;
 };
@@ -41,6 +42,7 @@ export async function fetchGoalsForUser(
 			status: goals.status,
 			accountId: goals.accountId,
 			accountName: financialAccounts.name,
+			coverAttachmentId: goals.coverAttachmentId,
 			initialBalance: financialAccounts.initialBalance,
 			createdAt: goals.createdAt,
 			updatedAt: goals.updatedAt,
@@ -77,6 +79,7 @@ export async function fetchGoalsForUser(
 			goals.note,
 			goals.status,
 			goals.accountId,
+			goals.coverAttachmentId,
 			goals.createdAt,
 			goals.updatedAt,
 			financialAccounts.name,
@@ -108,6 +111,7 @@ export async function fetchGoalsForUser(
 			status: row.status,
 			accountId: row.accountId,
 			accountName: row.accountName ?? null,
+			coverAttachmentId: row.coverAttachmentId,
 			createdAt: row.createdAt,
 			updatedAt: row.updatedAt,
 		};

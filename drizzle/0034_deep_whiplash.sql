@@ -1,0 +1,2 @@
+ALTER TABLE "metas" ADD COLUMN "capa_anexo_id" uuid;--> statement-breakpoint
+ALTER TABLE "metas" ADD CONSTRAINT "metas_capa_anexo_id_anexos_id_fk" FOREIGN KEY ("capa_anexo_id") REFERENCES "public"."anexos"("id") ON DELETE set null ON UPDATE no action;

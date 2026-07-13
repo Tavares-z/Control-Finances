@@ -421,6 +421,10 @@ export const goals = pgTable(
 		accountId: uuid("conta_id").references(() => financialAccounts.id, {
 			onDelete: "set null",
 		}),
+		coverAttachmentId: uuid("capa_anexo_id").references(
+			(): AnyPgColumn => attachments.id,
+			{ onDelete: "set null" },
+		),
 		userId: text("user_id")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
@@ -979,6 +983,10 @@ export const goalsRelations = relations(goals, ({ one }) => ({
 	financialAccount: one(financialAccounts, {
 		fields: [goals.accountId],
 		references: [financialAccounts.id],
+	}),
+	coverAttachment: one(attachments, {
+		fields: [goals.coverAttachmentId],
+		references: [attachments.id],
 	}),
 }));
 
