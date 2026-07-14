@@ -213,6 +213,13 @@ export function SubscriptionCard({
 					{subscription.categoryName}
 				</div>
 			)}
+
+			{subscription.cardId && (
+				<div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+					<RemixIcons.RiInformationLine className="size-3.5" aria-hidden />
+					Cobrada na fatura do cartão — não gera item no Inbox
+				</div>
+			)}
 		</div>
 	);
 }

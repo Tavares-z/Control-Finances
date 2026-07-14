@@ -11,6 +11,12 @@ import { db } from "@/shared/lib/db";
  * billing cycle is due and hasn't been generated yet. Safe to call on every
  * dashboard load — `lastGeneratedPeriod` prevents duplicate generation within
  * the same month.
+ *
+ * Subscriptions billed to a card (`cardId` set) are skipped: that charge will
+ * already land in the invoice once the user imports/reconciles it from the
+ * bank, so generating an Inbox item too would double-count the expense.
+ * `lastGeneratedPeriod` is still stamped so a later cardId removal doesn't
+ * retroactively generate past periods.
  */
 export async function ensureDueSubscriptionsGenerated(
 	userId: string,
@@ -27,6 +33,14 @@ export async function ensureDueSubscriptionsGenerated(
 
 	for (const subscription of activeSubscriptions) {
 		if (subscription.lastGeneratedPeriod === currentPeriod) continue;
+
+		if (subscription.cardId) {
+			await db
+				.update(subscriptions)
+				.set({ lastGeneratedPeriod: currentPeriod, updatedAt: new Date() })
+				.where(eq(subscriptions.id, subscription.id));
+			continue;
+		}
 
 		const dueDate = getCurrentCycleBillingDate(subscription.billingDay, today);
 		if (dueDate > today) continue;
