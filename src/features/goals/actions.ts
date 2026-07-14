@@ -5,16 +5,16 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { attachments, goals } from "@/db/schema";
 import {
+	GOAL_COVER_MAX_SIZE_BYTES,
+	GOAL_COVER_MAX_SIZE_MB,
+} from "@/features/goals/lib/goal-cover-config";
+import {
 	type ActionResult,
 	handleActionError,
 	revalidateForEntity,
 } from "@/shared/lib/actions/helpers";
 import { getUser } from "@/shared/lib/auth/server";
 import { db } from "@/shared/lib/db";
-import {
-	GOAL_COVER_MAX_SIZE_BYTES,
-	GOAL_COVER_MAX_SIZE_MB,
-} from "@/features/goals/lib/goal-cover-config";
 import { noteSchema, uuidSchema } from "@/shared/lib/schemas/common";
 import {
 	createPresignedPutUrl,
@@ -201,10 +201,25 @@ export async function deleteGoalAction(
 		const [deleted] = await db
 			.delete(goals)
 			.where(and(eq(goals.id, data.id), eq(goals.userId, user.id)))
-			.returning({ id: goals.id });
+			.returning({ id: goals.id, coverAttachmentId: goals.coverAttachmentId });
 
 		if (!deleted) {
 			return { success: false, error: "Meta não encontrada." };
+		}
+
+		if (deleted.coverAttachmentId) {
+			const [attachment] = await db
+				.select({ fileKey: attachments.fileKey })
+				.from(attachments)
+				.where(eq(attachments.id, deleted.coverAttachmentId));
+
+			await db
+				.delete(attachments)
+				.where(eq(attachments.id, deleted.coverAttachmentId));
+
+			if (attachment) {
+				await deleteS3Object(attachment.fileKey);
+			}
 		}
 
 		revalidateForEntity("goals", user.id);

@@ -73,8 +73,8 @@ async function fetchCardsByStatus(
 		cardRows,
 		accountRows,
 		logoOptions,
-		usageRows,
-		invoiceRows,
+		limitUsageRows,
+		invoiceTotalRows,
 		invoiceStatusRows,
 	] = await Promise.all([
 		db.query.cards.findMany({
@@ -159,15 +159,17 @@ async function fetchCardsByStatus(
 	]);
 
 	const usageMap = new Map<string, number>();
-	usageRows.forEach((row: { cardId: string | null; total: number | null }) => {
-		if (!row.cardId) return;
-		usageMap.set(row.cardId, Number(row.total ?? 0));
-	});
-	const invoiceMap = new Map<string, number>();
-	invoiceRows.forEach(
+	limitUsageRows.forEach(
 		(row: { cardId: string | null; total: number | null }) => {
 			if (!row.cardId) return;
-			invoiceMap.set(row.cardId, Math.abs(Number(row.total ?? 0)));
+			usageMap.set(row.cardId, Number(row.total ?? 0));
+		},
+	);
+	const invoiceTotalMap = new Map<string, number>();
+	invoiceTotalRows.forEach(
+		(row: { cardId: string | null; total: number | null }) => {
+			if (!row.cardId) return;
+			invoiceTotalMap.set(row.cardId, Math.abs(Number(row.total ?? 0)));
 		},
 	);
 	const invoiceStatusMap = new Map<string, InvoicePaymentStatus>();
@@ -197,7 +199,7 @@ async function fetchCardsByStatus(
 			const inUse = Math.abs(total);
 			return Math.max(Number(card.limit) - inUse, 0);
 		})(),
-		currentInvoiceAmount: invoiceMap.get(card.id) ?? 0,
+		currentInvoiceAmount: invoiceTotalMap.get(card.id) ?? 0,
 		currentInvoiceLabel,
 		currentInvoiceStatus: invoiceStatusMap.get(card.id) ?? null,
 		accountId: card.accountId,
