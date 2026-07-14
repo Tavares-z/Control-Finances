@@ -265,12 +265,16 @@ export async function syncSubscriptionAmountAction(
 			.update(subscriptions)
 			.set({ amount: String(data.amount), updatedAt: new Date() })
 			.where(
-				and(eq(subscriptions.id, data.id), eq(subscriptions.userId, user.id)),
+				and(
+					eq(subscriptions.id, data.id),
+					eq(subscriptions.userId, user.id),
+					eq(subscriptions.status, "ativa"),
+				),
 			)
 			.returning({ id: subscriptions.id });
 
 		if (!updated) {
-			return { success: false, error: "Assinatura não encontrada." };
+			return { success: false, error: "Assinatura não encontrada ou inativa." };
 		}
 
 		revalidateForEntity("subscriptions", user.id);

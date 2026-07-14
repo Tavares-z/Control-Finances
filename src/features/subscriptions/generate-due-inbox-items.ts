@@ -49,18 +49,27 @@ export async function ensureDueSubscriptionsGenerated(
 			continue;
 		}
 
-		await db.insert(inboxItems).values({
-			userId,
-			sourceApp: "assinatura",
-			sourceAppName: subscription.name,
-			originalTitle: subscription.name,
-			originalText: subscription.note ?? subscription.name,
-			notificationTimestamp: dueDate,
-			parsedName: subscription.name,
-			parsedAmount: subscription.amount,
-			status: "pending",
-			subscriptionId: subscription.id,
-		});
+		const [inserted] = await db
+			.insert(inboxItems)
+			.values({
+				userId,
+				sourceApp: "assinatura",
+				sourceAppName: subscription.name,
+				originalTitle: subscription.name,
+				originalText: subscription.note ?? subscription.name,
+				notificationTimestamp: dueDate,
+				parsedName: subscription.name,
+				parsedAmount: subscription.amount,
+				status: "pending",
+				subscriptionId: subscription.id,
+				subscriptionPeriod: currentPeriod,
+			})
+			.onConflictDoNothing({
+				target: [inboxItems.subscriptionId, inboxItems.subscriptionPeriod],
+			})
+			.returning({ id: inboxItems.id });
+
+		if (!inserted) continue;
 
 		await db
 			.update(subscriptions)

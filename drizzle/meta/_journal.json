@@ -239,6 +239,13 @@
       "when": 1783910018462,
       "tag": "0034_deep_whiplash",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1783996525014,
+      "tag": "0035_steady_tiger_shark",
+      "breakpoints": true
     }
   ]
 }

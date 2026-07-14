@@ -643,6 +643,9 @@ export const inboxItems = pgTable(
 		subscriptionId: uuid("assinatura_id").references(() => subscriptions.id, {
 			onDelete: "set null",
 		}),
+		// Período (YYYY-MM) do ciclo de cobrança que gerou este item, usado
+		// junto com subscriptionId para impedir geração duplicada sob concorrência
+		subscriptionPeriod: text("assinatura_periodo"),
 
 		// Metadados de processamento
 		processedAt: timestamp("processed_at", {
@@ -677,6 +680,11 @@ export const inboxItems = pgTable(
 		subscriptionIdIdx: index("pre_lancamentos_assinatura_id_idx").on(
 			table.subscriptionId,
 		),
+		subscriptionIdPeriodUnique: uniqueIndex(
+			"pre_lancamentos_assinatura_id_periodo_key",
+		)
+			.on(table.subscriptionId, table.subscriptionPeriod)
+			.where(sql`assinatura_id IS NOT NULL`),
 	}),
 );
 

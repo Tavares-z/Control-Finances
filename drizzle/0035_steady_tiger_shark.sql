@@ -1,0 +1,2 @@
+ALTER TABLE "pre_lancamentos" ADD COLUMN "assinatura_periodo" text;--> statement-breakpoint
+CREATE UNIQUE INDEX "pre_lancamentos_assinatura_id_periodo_key" ON "pre_lancamentos" USING btree ("assinatura_id","assinatura_periodo") WHERE assinatura_id IS NOT NULL;
