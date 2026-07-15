@@ -7,6 +7,7 @@ import {
 	RiBarcodeLine,
 	RiBillLine,
 	RiExchangeLine,
+	RiFundsLine,
 	RiGroupLine,
 	RiLineChartLine,
 	RiNumbersLine,
@@ -22,6 +23,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { AttachmentsWidget } from "@/features/dashboard/components/widgets/attachments-widget";
 import { BillWidget } from "@/features/dashboard/components/widgets/bill-widget";
+import { CashFlowWidget } from "@/features/dashboard/components/widgets/cash-flow-widget";
 import { CategoryTrendsWidget } from "@/features/dashboard/components/widgets/category-trends-widget";
 import { ExpensesByCategoryWidgetWithChart } from "@/features/dashboard/components/widgets/expenses-by-category-widget-with-chart";
 import { GoalsProgressWidget } from "@/features/dashboard/components/widgets/goals-progress-widget";
@@ -154,6 +156,13 @@ export const widgetsConfig: WidgetConfig[] = [
 		component: ({ data }) => (
 			<IncomeExpenseBalanceWidget data={data.incomeExpenseBalanceData} />
 		),
+	},
+	{
+		id: "cash-flow",
+		title: "Fluxo de caixa projetado",
+		subtitle: "Saldo estimado em 30/60/90 dias",
+		icon: <RiFundsLine className="size-4" />,
+		component: ({ data }) => <CashFlowWidget data={data.cashFlowSnapshot} />,
 	},
 	{
 		id: "goals-progress",

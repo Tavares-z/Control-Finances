@@ -475,6 +475,24 @@ export function isDateOnlyWithinDays(
 	return targetDate <= limitDate;
 }
 
+export function addDaysToDateOnly(
+	value: string | Date | null | undefined,
+	days: number,
+): string | null {
+	const dateValue = toDateOnlyString(value);
+	if (!dateValue) {
+		return null;
+	}
+
+	const parsedDate = parseUtcDateString(dateValue);
+	if (!parsedDate) {
+		return null;
+	}
+
+	parsedDate.setUTCDate(parsedDate.getUTCDate() + days);
+	return toDateOnlyString(parsedDate);
+}
+
 export function buildDateOnlyStringFromPeriodDay(
 	period: string,
 	dayValue: string | number,

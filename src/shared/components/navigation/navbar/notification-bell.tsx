@@ -27,6 +27,7 @@ export function NotificationBell(props: NotificationBellProps) {
 		hasVisibleItems,
 		displayedInboxPendingCount,
 		displayedBudgetNotifications,
+		displayedAnomalyNotifications,
 		invoiceNotifications,
 		boletoNotifications,
 		handleInboxNavigate,
@@ -64,6 +65,7 @@ export function NotificationBell(props: NotificationBellProps) {
 					<NotificationBellContent
 						displayedInboxPendingCount={displayedInboxPendingCount}
 						displayedBudgetNotifications={displayedBudgetNotifications}
+						displayedAnomalyNotifications={displayedAnomalyNotifications}
 						invoiceNotifications={invoiceNotifications}
 						boletoNotifications={boletoNotifications}
 						onInboxNavigate={handleInboxNavigate}

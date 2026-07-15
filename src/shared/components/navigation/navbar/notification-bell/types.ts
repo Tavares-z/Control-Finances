@@ -1,6 +1,7 @@
 import type {
 	BudgetNotification,
 	DashboardNotification,
+	SpendingAnomalyNotification,
 } from "@/shared/lib/types/notifications";
 
 export type StatefulNotification = {
@@ -29,10 +30,16 @@ export type ResolvedBudgetNotification = BudgetNotification & {
 	isBusy: boolean;
 };
 
+export type ResolvedSpendingAnomalyNotification =
+	SpendingAnomalyNotification & {
+		isBusy: boolean;
+	};
+
 export type NotificationBellProps = {
 	notifications: DashboardNotification[];
 	unreadCount: number;
 	visibleCount: number;
 	budgetNotifications: BudgetNotification[];
+	anomalyNotifications: SpendingAnomalyNotification[];
 	inboxPendingCount?: number;
 };

@@ -16,6 +16,7 @@ import type {
 	BudgetNotification,
 	DashboardNotification,
 	DashboardNotificationsSnapshot,
+	SpendingAnomalyNotification,
 } from "@/shared/lib/types/notifications";
 import {
 	buildDateOnlyStringFromPeriodDay,
@@ -35,6 +36,11 @@ export type { DashboardNotificationsSnapshot } from "@/shared/lib/types/notifica
 
 const PAYMENT_METHOD_BOLETO = "Boleto";
 const BUDGET_CRITICAL_THRESHOLD = 80;
+const ANOMALY_PERCENT_THRESHOLD = 40;
+const ANOMALY_SEVERE_THRESHOLD = 100;
+const ANOMALY_MIN_AMOUNT = 100;
+const ANOMALY_MIN_HISTORY_MONTHS = 2;
+const ANOMALY_HISTORY_MONTHS = 3;
 
 type PersistedNotificationState = {
 	notificationKey: string;
@@ -54,6 +60,97 @@ const buildBudgetNotificationKey = (
 	budgetId: string,
 	period: string,
 ) => (categoryId ? `budget-${categoryId}-${period}` : `budget-${budgetId}`);
+
+const buildAnomalyNotificationKey = (categoryId: string, period: string) =>
+	`anomaly-${categoryId}-${period}`;
+
+type AnomalyCandidate = {
+	categoryId: string;
+	categoryName: string;
+	currentAmount: number;
+	averageAmount: number;
+	percentageAboveAverage: number;
+};
+
+async function fetchSpendingAnomalyCandidates(
+	userId: string,
+	currentPeriod: string,
+	adminPayerId: string | null,
+): Promise<AnomalyCandidate[]> {
+	const previousPeriods = Array.from(
+		{ length: ANOMALY_HISTORY_MONTHS },
+		(_, index) => addMonthsToPeriod(currentPeriod, -(index + 1)),
+	);
+
+	const conditions = [
+		eq(transactions.userId, userId),
+		inArray(transactions.period, [currentPeriod, ...previousPeriods]),
+		eq(transactions.transactionType, "Despesa"),
+		ne(transactions.condition, "cancelado"),
+	];
+	if (adminPayerId) {
+		conditions.push(eq(transactions.payerId, adminPayerId));
+	}
+
+	const rows = await db
+		.select({
+			categoryId: transactions.categoryId,
+			categoryName: categories.name,
+			period: transactions.period,
+			totalAmount: sql<number>`COALESCE(SUM(ABS(${transactions.amount})), 0)`,
+		})
+		.from(transactions)
+		.innerJoin(categories, eq(transactions.categoryId, categories.id))
+		.where(and(...conditions))
+		.groupBy(transactions.categoryId, categories.name, transactions.period);
+
+	const byCategory = new Map<
+		string,
+		{ name: string; current: number; history: number[] }
+	>();
+
+	for (const row of rows) {
+		if (!row.categoryId) continue;
+		const entry = byCategory.get(row.categoryId) ?? {
+			name: row.categoryName,
+			current: 0,
+			history: [] as number[],
+		};
+		const amount = toNumber(row.totalAmount);
+		if (row.period === currentPeriod) {
+			entry.current = amount;
+		} else {
+			entry.history.push(amount);
+		}
+		byCategory.set(row.categoryId, entry);
+	}
+
+	const candidates: AnomalyCandidate[] = [];
+	for (const [categoryId, entry] of byCategory) {
+		const monthsWithSpend = entry.history.filter((value) => value > 0).length;
+		if (monthsWithSpend < ANOMALY_MIN_HISTORY_MONTHS) continue;
+		if (entry.current < ANOMALY_MIN_AMOUNT) continue;
+
+		const averageAmount =
+			entry.history.reduce((sum, value) => sum + value, 0) /
+			entry.history.length;
+		if (averageAmount <= 0) continue;
+
+		const percentageAboveAverage =
+			((entry.current - averageAmount) / averageAmount) * 100;
+		if (percentageAboveAverage < ANOMALY_PERCENT_THRESHOLD) continue;
+
+		candidates.push({
+			categoryId,
+			categoryName: entry.name,
+			currentAmount: entry.current,
+			averageAmount,
+			percentageAboveAverage,
+		});
+	}
+
+	return candidates;
+}
 
 function mergeNotificationState<
 	T extends {
@@ -167,13 +264,14 @@ export async function fetchDashboardNotifications(
 				invoices.paymentStatus,
 			);
 
-	// --- All 5 queries are independent — run in parallel ---
+	// --- All 6 queries are independent — run in parallel ---
 	const [
 		overdueInvoices,
 		currentInvoices,
 		nextPeriodInvoices,
 		boletosRows,
 		budgetRows,
+		anomalyCandidates,
 	] = await Promise.all([
 		// Faturas atrasadas (períodos anteriores)
 		db
@@ -242,6 +340,8 @@ export async function fetchDashboardNotifications(
 			.leftJoin(transactions, and(...budgetJoinConditions))
 			.where(and(eq(budgets.userId, userId), eq(budgets.period, currentPeriod)))
 			.groupBy(budgets.id, budgets.amount, categories.name),
+		// Anomalias de gastos por categoria
+		fetchSpendingAnomalyCandidates(userId, currentPeriod, adminPayerId),
 	]);
 
 	// =====================
@@ -504,9 +604,45 @@ export async function fetchDashboardNotifications(
 		return b.usedPercentage - a.usedPercentage;
 	});
 
+	// Anomalias de gastos por categoria
+	const anomalyNotifications: SpendingAnomalyNotification[] =
+		anomalyCandidates.map((candidate) => {
+			const status =
+				candidate.percentageAboveAverage >= ANOMALY_SEVERE_THRESHOLD
+					? "severe"
+					: "moderate";
+			const notificationKey = buildAnomalyNotificationKey(
+				candidate.categoryId,
+				currentPeriod,
+			);
+
+			return {
+				categoryName: candidate.categoryName,
+				currentAmount: candidate.currentAmount,
+				averageAmount: candidate.averageAmount,
+				percentageAboveAverage: candidate.percentageAboveAverage,
+				status,
+				notificationKey,
+				fingerprint: status,
+				href: `/transactions?periodo=${formatPeriodForUrl(currentPeriod)}`,
+				isRead: false,
+				isArchived: false,
+				readAt: null,
+				archivedAt: null,
+			};
+		});
+
+	// Severas primeiro, depois por percentual decrescente
+	anomalyNotifications.sort((a, b) => {
+		if (a.status === "severe" && b.status !== "severe") return -1;
+		if (a.status !== "severe" && b.status === "severe") return 1;
+		return b.percentageAboveAverage - a.percentageAboveAverage;
+	});
+
 	const notificationKeys = [
 		...notifications.map((notification) => notification.notificationKey),
 		...budgetNotifications.map((notification) => notification.notificationKey),
+		...anomalyNotifications.map((notification) => notification.notificationKey),
 	];
 
 	let persistedStates: PersistedNotificationState[] = [];
@@ -550,22 +686,33 @@ export async function fetchDashboardNotifications(
 		budgetNotifications,
 		stateByKey,
 	);
+	const mergedAnomalyNotifications = mergeNotificationState(
+		anomalyNotifications,
+		stateByKey,
+	);
 	const visibleNotifications = mergedNotifications.filter(
 		(notification) => !notification.isArchived,
 	);
 	const visibleBudgetNotifications = mergedBudgetNotifications.filter(
 		(notification) => !notification.isArchived,
 	);
+	const visibleAnomalyNotifications = mergedAnomalyNotifications.filter(
+		(notification) => !notification.isArchived,
+	);
 	const unreadCount = [
 		...visibleNotifications,
 		...visibleBudgetNotifications,
+		...visibleAnomalyNotifications,
 	].filter((notification) => !notification.isRead).length;
 
 	return {
 		notifications: mergedNotifications,
 		budgetNotifications: mergedBudgetNotifications,
+		anomalyNotifications: mergedAnomalyNotifications,
 		unreadCount,
 		visibleCount:
-			visibleNotifications.length + visibleBudgetNotifications.length,
+			visibleNotifications.length +
+			visibleBudgetNotifications.length +
+			visibleAnomalyNotifications.length,
 	};
 }

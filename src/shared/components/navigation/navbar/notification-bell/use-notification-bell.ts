@@ -15,6 +15,7 @@ import type {
 	NotificationViewMode,
 	ResolvedBudgetNotification,
 	ResolvedDashboardNotification,
+	ResolvedSpendingAnomalyNotification,
 	StatefulNotification,
 } from "./types";
 
@@ -35,6 +36,7 @@ type UseNotificationBellReturn = {
 	hasVisibleItems: boolean;
 	displayedInboxPendingCount: number;
 	displayedBudgetNotifications: ResolvedBudgetNotification[];
+	displayedAnomalyNotifications: ResolvedSpendingAnomalyNotification[];
 	invoiceNotifications: ResolvedDashboardNotification[];
 	boletoNotifications: ResolvedDashboardNotification[];
 	handleInboxNavigate: () => void;
@@ -82,6 +84,7 @@ export function useNotificationBell({
 	unreadCount: initialUnreadCount,
 	visibleCount: initialVisibleCount,
 	budgetNotifications,
+	anomalyNotifications,
 	inboxPendingCount = 0,
 }: NotificationBellProps): UseNotificationBellReturn {
 	const [open, setOpen] = useState(false);
@@ -95,17 +98,20 @@ export function useNotificationBell({
 	// Limpar estado otimista quando o server retorna dados novos (via router.refresh)
 	const prevNotificationsRef = useRef(notifications);
 	const prevBudgetRef = useRef(budgetNotifications);
+	const prevAnomalyRef = useRef(anomalyNotifications);
 
 	useEffect(() => {
 		if (
 			prevNotificationsRef.current !== notifications ||
-			prevBudgetRef.current !== budgetNotifications
+			prevBudgetRef.current !== budgetNotifications ||
+			prevAnomalyRef.current !== anomalyNotifications
 		) {
 			prevNotificationsRef.current = notifications;
 			prevBudgetRef.current = budgetNotifications;
+			prevAnomalyRef.current = anomalyNotifications;
 			setNotificationActions({});
 		}
-	}, [notifications, budgetNotifications]);
+	}, [notifications, budgetNotifications, anomalyNotifications]);
 
 	const resolveNotificationState = <T extends StatefulNotification>(
 		notification: T,
@@ -130,10 +136,16 @@ export function useNotificationBell({
 	const allResolvedBudgetNotifications = budgetNotifications.map(
 		(notification) => resolveNotificationState(notification),
 	);
+	const allResolvedAnomalyNotifications = anomalyNotifications.map(
+		(notification) => resolveNotificationState(notification),
+	);
 	const activeNotifications = allResolvedNotifications.filter(
 		(notification) => !notification.isArchived,
 	);
 	const activeBudgetNotifications = allResolvedBudgetNotifications.filter(
+		(notification) => !notification.isArchived,
+	);
+	const activeAnomalyNotifications = allResolvedAnomalyNotifications.filter(
 		(notification) => !notification.isArchived,
 	);
 	const archivedNotifications = allResolvedNotifications.filter(
@@ -142,12 +154,18 @@ export function useNotificationBell({
 	const archivedBudgetNotifications = allResolvedBudgetNotifications.filter(
 		(notification) => notification.isArchived,
 	);
+	const archivedAnomalyNotifications = allResolvedAnomalyNotifications.filter(
+		(notification) => notification.isArchived,
+	);
 	const displayedNotifications = showArchived
 		? archivedNotifications
 		: activeNotifications;
 	const displayedBudgetNotifications = showArchived
 		? archivedBudgetNotifications
 		: activeBudgetNotifications;
+	const displayedAnomalyNotifications = showArchived
+		? archivedAnomalyNotifications
+		: activeAnomalyNotifications;
 	const invoiceNotifications = displayedNotifications.filter(
 		(notification) => notification.type === "invoice",
 	);
@@ -157,17 +175,25 @@ export function useNotificationBell({
 	const unreadDashboardCount = [
 		...activeNotifications,
 		...activeBudgetNotifications,
+		...activeAnomalyNotifications,
 	].filter((notification) => !notification.isRead).length;
 	const activeDashboardCountFromItems =
-		activeNotifications.length + activeBudgetNotifications.length;
+		activeNotifications.length +
+		activeBudgetNotifications.length +
+		activeAnomalyNotifications.length;
 	const displayedDashboardCountFromItems =
-		displayedNotifications.length + displayedBudgetNotifications.length;
+		displayedNotifications.length +
+		displayedBudgetNotifications.length +
+		displayedAnomalyNotifications.length;
 	const archivedDashboardCount =
 		allResolvedNotifications.length +
-		allResolvedBudgetNotifications.length -
+		allResolvedBudgetNotifications.length +
+		allResolvedAnomalyNotifications.length -
 		activeDashboardCountFromItems;
 	const dashboardNotificationCount =
-		allResolvedNotifications.length + allResolvedBudgetNotifications.length;
+		allResolvedNotifications.length +
+		allResolvedBudgetNotifications.length +
+		allResolvedAnomalyNotifications.length;
 	const hasOptimisticState = Object.keys(notificationActions).length > 0;
 	const unreadDashboardCountValue = hasOptimisticState
 		? unreadDashboardCount
@@ -190,6 +216,7 @@ export function useNotificationBell({
 	const hasAnySourceItems =
 		allResolvedNotifications.length +
 			allResolvedBudgetNotifications.length +
+			allResolvedAnomalyNotifications.length +
 			inboxPendingCount >
 		0;
 	const headerCountLabel = `${effectiveUnreadCount} ${effectiveUnreadCount === 1 ? "pendente" : "pendentes"}`;
@@ -308,6 +335,7 @@ export function useNotificationBell({
 		hasVisibleItems,
 		displayedInboxPendingCount,
 		displayedBudgetNotifications,
+		displayedAnomalyNotifications,
 		invoiceNotifications,
 		boletoNotifications,
 		handleInboxNavigate,

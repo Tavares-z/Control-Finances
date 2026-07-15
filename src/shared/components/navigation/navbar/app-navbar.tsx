@@ -39,6 +39,7 @@ export async function AppNavbar({
 					unreadCount={notificationsSnapshot.unreadCount}
 					visibleCount={notificationsSnapshot.visibleCount}
 					budgetNotifications={notificationsSnapshot.budgetNotifications}
+					anomalyNotifications={notificationsSnapshot.anomalyNotifications}
 					inboxPendingCount={inboxPendingCount}
 				/>
 				<RefreshPageButton variant="navbar" />

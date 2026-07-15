@@ -2,6 +2,7 @@ import { cacheLife, cacheTag } from "next/cache";
 import { fetchAttachmentsForPeriod } from "@/features/attachments/queries";
 import { fetchGoalsForUser } from "@/features/goals/queries";
 import { fetchSubscriptionsForUser } from "@/features/subscriptions/queries";
+import { fetchDashboardCashFlow } from "./cash-flow/cash-flow-queries";
 import { fetchDashboardCategoryOverview } from "./categories/category-overview-queries";
 import { fetchDashboardInvoices } from "./invoices/invoices-queries";
 import { fetchDashboardAccounts } from "./lib/accounts-queries";
@@ -24,6 +25,7 @@ async function fetchDashboardDataInternal(userId: string, period: string) {
 		inboxSnapshot,
 		goalsData,
 		subscriptionsData,
+		cashFlowSnapshot,
 	] = await Promise.all([
 		fetchDashboardPeriodOverview(userId, period),
 		fetchDashboardAccounts(userId),
@@ -36,6 +38,7 @@ async function fetchDashboardDataInternal(userId: string, period: string) {
 		fetchDashboardInboxSnapshot(userId),
 		fetchGoalsForUser(userId, "ativa"),
 		fetchSubscriptionsForUser(userId, "ativa"),
+		fetchDashboardCashFlow(userId),
 	]);
 
 	const attachmentsSnapshot = allAttachments.reduce(
@@ -78,6 +81,7 @@ async function fetchDashboardDataInternal(userId: string, period: string) {
 		expensesByCategoryData: categoryOverview.expensesByCategoryData,
 		attachmentsSnapshot,
 		inboxSnapshot,
+		cashFlowSnapshot,
 	};
 }
 

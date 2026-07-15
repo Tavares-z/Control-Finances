@@ -2,6 +2,8 @@ type NotificationType = "overdue" | "due_soon";
 
 type BudgetStatus = "exceeded" | "critical";
 
+type AnomalySeverity = "severe" | "moderate";
+
 type DashboardNotificationStateFields = {
 	notificationKey: string;
 	fingerprint: string;
@@ -31,9 +33,18 @@ export type BudgetNotification = {
 	status: BudgetStatus;
 } & DashboardNotificationStateFields;
 
+export type SpendingAnomalyNotification = {
+	categoryName: string;
+	currentAmount: number;
+	averageAmount: number;
+	percentageAboveAverage: number;
+	status: AnomalySeverity;
+} & DashboardNotificationStateFields;
+
 export type DashboardNotificationsSnapshot = {
 	notifications: DashboardNotification[];
 	budgetNotifications: BudgetNotification[];
+	anomalyNotifications: SpendingAnomalyNotification[];
 	unreadCount: number;
 	visibleCount: number;
 };

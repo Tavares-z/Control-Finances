@@ -11,6 +11,7 @@ import {
 	RiErrorWarningLine,
 	RiFileListLine,
 	RiInboxUnarchiveLine,
+	RiLineChartLine,
 	RiTimeLine,
 } from "@remixicon/react";
 import Image from "next/image";
@@ -29,12 +30,14 @@ import { cn } from "@/shared/utils/ui";
 import type {
 	ResolvedBudgetNotification,
 	ResolvedDashboardNotification,
+	ResolvedSpendingAnomalyNotification,
 	StatefulNotification,
 } from "./types";
 
 type NotificationBellContentProps = {
 	displayedInboxPendingCount: number;
 	displayedBudgetNotifications: ResolvedBudgetNotification[];
+	displayedAnomalyNotifications: ResolvedSpendingAnomalyNotification[];
 	invoiceNotifications: ResolvedDashboardNotification[];
 	boletoNotifications: ResolvedDashboardNotification[];
 	onInboxNavigate: () => void;
@@ -363,6 +366,7 @@ function formatDueDateDetail(
 export function NotificationBellContent({
 	displayedInboxPendingCount,
 	displayedBudgetNotifications,
+	displayedAnomalyNotifications,
 	invoiceNotifications,
 	boletoNotifications,
 	onInboxNavigate,
@@ -410,6 +414,28 @@ export function NotificationBellContent({
 					n.status === "exceeded"
 						? `Excedido — ${formatCurrency(n.spentAmount)} de ${formatCurrency(n.budgetAmount)} (${formatPercentage(n.usedPercentage, { maximumFractionDigits: 0, minimumFractionDigits: 0 })})`
 						: `${formatPercentage(n.usedPercentage, { maximumFractionDigits: 0, minimumFractionDigits: 0 })} utilizado — ${formatCurrency(n.spentAmount)} de ${formatCurrency(n.budgetAmount)}`
+				}
+				onNavigate={(n) => onNotificationNavigate(n)}
+				onToggleRead={(n) => onToggleRead(n)}
+				onToggleArchive={(n) => onToggleArchive(n)}
+			/>
+
+			<NotificationSection
+				icon={<RiLineChartLine className="size-3" />}
+				title="Anomalias de gastos"
+				items={displayedAnomalyNotifications}
+				isOverdue={(n) => n.status === "severe"}
+				showUnreadIndicator
+				renderIcon={(n) =>
+					n.status === "severe" ? (
+						<RiAlertFill className="size-5 text-destructive" />
+					) : (
+						<RiErrorWarningLine className="size-5 text-amber-500" />
+					)
+				}
+				renderTitle={(n) => n.categoryName}
+				renderDetail={(n) =>
+					`${formatPercentage(n.percentageAboveAverage, { maximumFractionDigits: 0, minimumFractionDigits: 0 })} acima da média — ${formatCurrency(n.currentAmount)} vs. média ${formatCurrency(n.averageAmount)}`
 				}
 				onNavigate={(n) => onNotificationNavigate(n)}
 				onToggleRead={(n) => onToggleRead(n)}
