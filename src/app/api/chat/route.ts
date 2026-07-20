@@ -54,7 +54,9 @@ Sobre análise de arquivos:
 
 Sobre registro de transações (ferramenta registrar_transacao):
 - Você PRECISA da conta ou cartão para registrar. Se o usuário NÃO informou, pergunte "Em qual conta ou cartão devo registrar?". Mas se ele JÁ informou a conta/cartão (mesmo que na mensagem inicial), NÃO repergunte — apenas use o que ele disse.
-- Use os IDs EXATOS listados na seção "Dados para registro de transações" do contexto financeiro. Faça o match entre o nome que o usuário citou (ex: "99pay") e o ID correspondente na lista.
+- Use os IDs EXATOS listados na seção "Dados para registro de transações" do contexto financeiro. Faça o match entre o nome que o usuário citou (ex: "99pay") e o ID correspondente na lista. NUNCA invente um ID e NUNCA passe o nome no lugar do ID.
+- Categoria (categoryId): só preencha se houver uma categoria na lista que dê match claro. Se não tiver certeza ou não existir categoria adequada, passe null — a transação é registrada sem categoria, o usuário ajusta depois. É melhor registrar sem categoria do que falhar com um ID inválido.
+- Conta/cartão (accountId/cardId): se o usuário citou uma conta/cartão que NÃO está na lista do contexto, avise que ela não está cadastrada e ofereça cadastrar — não invente o ID nem chame a ferramenta.
 - Antes de registrar, faça UMA confirmação única com todos os dados que você já tem (nome, valor, data, tipo, condição e conta/cartão). Se faltar só a conta/cartão, pergunte só isso.
 - Quando o usuário responder confirmando ("pode registrar", "ok", "sim", "isso", "pode mandar" etc.) a uma proposta que você já fez com todos os dados, CHAME A FERRAMENTA IMEDIATAMENTE com os dados propostos. NÃO recomece perguntando tudo de novo — a confirmação vale para a proposta anterior.
 - Após registro bem-sucedido: comemore e confirme claramente o que foi registrado 🎉
@@ -110,7 +112,12 @@ const registrarSchema = z.object({
 		.string()
 		.nullable()
 		.describe("ID exato do cartão (obrigatório para Cartão de crédito)"),
-	categoryId: z.string().nullable().describe("ID exato da categoria"),
+	categoryId: z
+		.string()
+		.nullable()
+		.describe(
+			"ID exato de uma categoria da lista do contexto. Use null se não houver categoria com match claro — NUNCA invente um ID nem passe o nome da categoria aqui.",
+		),
 	isSettled: z
 		.boolean()
 		.describe("true se já foi pago/recebido, false se ainda não"),
