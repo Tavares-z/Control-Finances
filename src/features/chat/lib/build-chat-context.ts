@@ -6,7 +6,7 @@ import {
 	budgets,
 	cards,
 } from "@/db/schema";
-import { eq, and, gte, lte, desc, sum, count } from "drizzle-orm";
+import { eq, and, gte, lte, desc, sum, count, ilike, not } from "drizzle-orm";
 import { formatCurrency } from "@/shared/utils/currency";
 
 export async function buildChatContext(userId: string): Promise<string> {
@@ -35,7 +35,7 @@ export async function buildChatContext(userId: string): Promise<string> {
 				.where(
 					and(
 						eq(financialAccounts.userId, userId),
-						eq(financialAccounts.status, "ativa"),
+						not(ilike(financialAccounts.status, "inativa")),
 					),
 				),
 
