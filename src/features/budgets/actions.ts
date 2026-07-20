@@ -5,7 +5,9 @@ import { z } from "zod";
 import { budgets, categories } from "@/db/schema";
 import {
 	type CategoryBudgetSummary,
+	type CategorySpendingSuggestion,
 	fetchCategoryBudgetSummary,
+	fetchCategorySpendingSuggestion,
 } from "@/features/budgets/queries";
 import {
 	handleActionError,
@@ -233,6 +235,34 @@ export async function getCategoryBudgetSummaryAction(
 		return handleActionError(
 			error,
 		) as ActionResult<CategoryBudgetSummary | null>;
+	}
+}
+
+const getCategorySpendingSuggestionSchema = z.object({
+	categoryId: uuidSchema("Category"),
+	period: periodSchema,
+});
+
+type GetCategorySpendingSuggestionInput = z.input<
+	typeof getCategorySpendingSuggestionSchema
+>;
+
+export async function getCategorySpendingSuggestionAction(
+	input: GetCategorySpendingSuggestionInput,
+): Promise<ActionResult<CategorySpendingSuggestion | null>> {
+	try {
+		const user = await getUser();
+		const data = getCategorySpendingSuggestionSchema.parse(input);
+		const suggestion = await fetchCategorySpendingSuggestion(
+			user.id,
+			data.categoryId,
+			data.period,
+		);
+		return { success: true, message: "ok", data: suggestion };
+	} catch (error) {
+		return handleActionError(
+			error,
+		) as ActionResult<CategorySpendingSuggestion | null>;
 	}
 }
 

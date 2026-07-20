@@ -4,8 +4,10 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
 	createBudgetAction,
+	getCategorySpendingSuggestionAction,
 	updateBudgetAction,
 } from "@/features/budgets/actions";
+import type { CategorySpendingSuggestion } from "@/features/budgets/queries";
 import { CategoryIcon } from "@/features/categories/components/category-icon";
 import { PeriodPicker } from "@/shared/components/period-picker";
 import { Button } from "@/shared/components/ui/button";
@@ -66,6 +68,9 @@ export function BudgetDialog({
 }: BudgetDialogProps) {
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const [isPending, startTransition] = useTransition();
+	const [suggestion, setSuggestion] =
+		useState<CategorySpendingSuggestion | null>(null);
+	const [isSuggestionPending, startSuggestionTransition] = useTransition();
 
 	// Use controlled state hook for dialog open state
 	const [dialogOpen, setDialogOpen] = useControlledState(
@@ -101,6 +106,22 @@ export function BudgetDialog({
 			setErrorMessage(null);
 		}
 	}, [dialogOpen]);
+
+	// Buscar histórico de gastos para sugerir um valor de limite
+	useEffect(() => {
+		if (!dialogOpen || !formState.categoryId || !formState.period) {
+			setSuggestion(null);
+			return;
+		}
+
+		startSuggestionTransition(async () => {
+			const result = await getCategorySpendingSuggestionAction({
+				categoryId: formState.categoryId,
+				period: formState.period,
+			});
+			setSuggestion(result.success ? (result.data ?? null) : null);
+		});
+	}, [dialogOpen, formState.categoryId, formState.period]);
 
 	const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
@@ -237,6 +258,32 @@ export function BudgetDialog({
 									className="w-full"
 								/>
 							</div>
+
+							{suggestion ? (
+								<div className="flex items-center justify-between gap-2 rounded-md border border-dashed bg-muted/10 px-3 py-2 text-xs">
+									<span className="text-muted-foreground">
+										Média dos últimos 3 meses:{" "}
+										<span className="font-medium text-foreground">
+											{formatCurrency(suggestion.average)}
+										</span>
+									</span>
+									<Button
+										type="button"
+										variant="ghost"
+										size="sm"
+										className="h-6 px-2 text-xs"
+										onClick={() =>
+											updateField("amount", suggestion.average.toFixed(2))
+										}
+									>
+										Usar sugestão
+									</Button>
+								</div>
+							) : isSuggestionPending ? (
+								<p className="text-xs text-muted-foreground">
+									Calculando média dos últimos meses...
+								</p>
+							) : null}
 
 							<div className="space-y-2">
 								<Label htmlFor="budget-amount">Valor limite</Label>

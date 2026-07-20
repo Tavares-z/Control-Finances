@@ -9,6 +9,7 @@ import { ACCOUNT_AUTO_INVOICE_NOTE_PREFIX } from "@/shared/lib/accounts/constant
 import { excludeTransactionsFromExcludedAccounts } from "@/shared/lib/accounts/query-filters";
 import { db } from "@/shared/lib/db";
 import { getAdminPayerId } from "@/shared/lib/payers/get-admin-id";
+import { getPreviousPeriod } from "@/shared/utils/period";
 
 const toNumber = (value: string | number | null | undefined) => {
 	if (typeof value === "number") return value;
@@ -191,4 +192,66 @@ export async function fetchCategoryBudgetSummary(
 		amount: toNumber(budget.amount),
 		spent: Math.abs(toNumber(totals[0]?.totalAmount ?? 0)),
 	};
+}
+
+export type CategorySpendingSuggestion = {
+	average: number;
+	months: { period: string; spent: number }[];
+};
+
+export async function fetchCategorySpendingSuggestion(
+	userId: string,
+	categoryId: string,
+	period: string,
+): Promise<CategorySpendingSuggestion | null> {
+	const adminPayerId = await getAdminPayerId(userId);
+	if (!adminPayerId) return null;
+
+	const previousPeriod = getPreviousPeriod(period);
+	const twoMonthsAgo = getPreviousPeriod(previousPeriod);
+	const threeMonthsAgo = getPreviousPeriod(twoMonthsAgo);
+	const historyPeriods = [threeMonthsAgo, twoMonthsAgo, previousPeriod];
+
+	const totals = await db
+		.select({
+			period: transactions.period,
+			totalAmount: sum(transactions.amount).as("totalAmount"),
+		})
+		.from(transactions)
+		.leftJoin(
+			financialAccounts,
+			eq(transactions.accountId, financialAccounts.id),
+		)
+		.where(
+			and(
+				eq(transactions.userId, userId),
+				eq(transactions.transactionType, "Despesa"),
+				eq(transactions.payerId, adminPayerId),
+				eq(transactions.categoryId, categoryId),
+				inArray(transactions.period, historyPeriods),
+				or(
+					isNull(transactions.note),
+					sql`${transactions.note} NOT LIKE ${`${ACCOUNT_AUTO_INVOICE_NOTE_PREFIX}%`}`,
+				),
+				excludeTransactionsFromExcludedAccounts(),
+			),
+		)
+		.groupBy(transactions.period);
+
+	const spentByPeriod = new Map(
+		totals.map((row) => [row.period, Math.abs(toNumber(row.totalAmount))]),
+	);
+
+	const months = historyPeriods.map((historyPeriod) => ({
+		period: historyPeriod,
+		spent: spentByPeriod.get(historyPeriod) ?? 0,
+	}));
+
+	if (months.every((month) => month.spent === 0)) {
+		return null;
+	}
+
+	const average = months.reduce((sum, month) => sum + month.spent, 0) / 3;
+
+	return { average, months };
 }
