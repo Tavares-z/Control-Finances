@@ -47,8 +47,10 @@ export function SubscriptionCard({
 
 	const chargedFrom =
 		subscription.cardId && subscription.cardName
-			? subscription.cardName
-			: subscription.accountName;
+			? `Cartão · ${subscription.cardName}`
+			: subscription.accountName
+				? `Conta · ${subscription.accountName}`
+				: null;
 
 	const handlePause = () => {
 		startTransition(async () => {
@@ -214,10 +216,22 @@ export function SubscriptionCard({
 				</div>
 			)}
 
+			{subscription.note && (
+				<div className="flex items-start gap-1.5 text-xs text-muted-foreground">
+					<RemixIcons.RiStickyNoteLine
+						className="size-3.5 shrink-0 mt-0.5"
+						aria-hidden
+					/>
+					<span className="whitespace-pre-wrap break-words">
+						{subscription.note}
+					</span>
+				</div>
+			)}
+
 			{subscription.cardId && (
 				<div className="flex items-center gap-1.5 text-xs text-muted-foreground">
 					<RemixIcons.RiInformationLine className="size-3.5" aria-hidden />
-					Cobrada na fatura do cartão — não gera item no Inbox
+					Não gera item no Inbox (vai na fatura)
 				</div>
 			)}
 		</div>
