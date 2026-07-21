@@ -20,7 +20,6 @@ import { Bot, Sparkles, CalendarDays, Database, Search, Shield } from "lucide-re
 export const MODELS = [
 	{ value: "google/gemini-3.5-flash", label: "Gemini 3.5 Flash" },
 	{ value: "anthropic/claude-3-5-haiku", label: "Claude 3.5 Haiku" },
-	{ value: "openai/gpt-4o-mini", label: "GPT-4o Mini" },
 	{ value: "openai/gpt-4o", label: "GPT-4o" },
 ] as const;
 

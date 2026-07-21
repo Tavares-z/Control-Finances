@@ -38,7 +38,6 @@ const updateNameSchema = z.object({
 const ALLOWED_MODELS = [
 	"google/gemini-3.5-flash",
 	"anthropic/claude-3-5-haiku",
-	"openai/gpt-4o-mini",
 	"openai/gpt-4o",
 ] as const;
 
