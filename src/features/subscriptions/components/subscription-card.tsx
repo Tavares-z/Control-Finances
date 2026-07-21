@@ -209,13 +209,6 @@ export function SubscriptionCard({
 				</span>
 			</div>
 
-			{subscription.categoryName && (
-				<div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-					<RemixIcons.RiPriceTag3Line className="size-3.5" aria-hidden />
-					{subscription.categoryName}
-				</div>
-			)}
-
 			{subscription.note && (
 				<div className="flex items-start gap-1.5 text-xs text-muted-foreground">
 					<RemixIcons.RiStickyNoteLine
