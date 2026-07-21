@@ -14,6 +14,7 @@ import {
 	RiPieChartLine,
 	RiRefreshLine,
 	RiRepeatLine,
+	RiRestaurantLine,
 	RiSaveLine,
 	RiStore3Line,
 	RiTodoLine,
@@ -42,6 +43,7 @@ import { PurchasesByCategoryWidget } from "@/features/dashboard/components/widge
 import { RecurringExpensesWidget } from "@/features/dashboard/components/widgets/recurring-expenses-widget";
 import { SpendingOverviewWidget } from "@/features/dashboard/components/widgets/spending-overview-widget";
 import { UpcomingSubscriptionsWidget } from "@/features/dashboard/components/widgets/upcoming-subscriptions-widget";
+import { VrBalanceWidget } from "@/features/dashboard/components/widgets/vr-balance-widget";
 import type { WidgetPreferences } from "@/features/dashboard/widget-registry/widget-actions";
 import type { SelectOption } from "@/features/transactions/components/types";
 import type { DashboardData } from "../fetch-dashboard-data";
@@ -163,6 +165,13 @@ export const widgetsConfig: WidgetConfig[] = [
 		subtitle: "Saldo estimado em 30/60/90 dias",
 		icon: <RiFundsLine className="size-4" />,
 		component: ({ data }) => <CashFlowWidget data={data.cashFlowSnapshot} />,
+	},
+	{
+		id: "vr-balance",
+		title: "Saldo VR/VA",
+		subtitle: "Ritmo de consumo até a próxima recarga",
+		icon: <RiRestaurantLine className="size-4" />,
+		component: ({ data }) => <VrBalanceWidget data={data.vrBalanceSnapshot} />,
 	},
 	{
 		id: "goals-progress",

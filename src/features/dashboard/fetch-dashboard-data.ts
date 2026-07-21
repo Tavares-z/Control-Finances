@@ -11,6 +11,7 @@ import { fetchDashboardPayers } from "./lib/payers-queries";
 import { fetchDashboardNotes } from "./notes/notes-queries";
 import { fetchDashboardCurrentPeriodOverview } from "./overview/current-period-overview-queries";
 import { fetchDashboardPeriodOverview } from "./overview/period-overview-queries";
+import { fetchDashboardVrBalance } from "./vr/vr-balance-queries";
 
 async function fetchDashboardDataInternal(userId: string, period: string) {
 	const [
@@ -26,6 +27,7 @@ async function fetchDashboardDataInternal(userId: string, period: string) {
 		goalsData,
 		subscriptionsData,
 		cashFlowSnapshot,
+		vrBalanceSnapshot,
 	] = await Promise.all([
 		fetchDashboardPeriodOverview(userId, period),
 		fetchDashboardAccounts(userId),
@@ -39,6 +41,7 @@ async function fetchDashboardDataInternal(userId: string, period: string) {
 		fetchGoalsForUser(userId, "ativa"),
 		fetchSubscriptionsForUser(userId, "ativa"),
 		fetchDashboardCashFlow(userId),
+		fetchDashboardVrBalance(userId),
 	]);
 
 	const attachmentsSnapshot = allAttachments.reduce(
@@ -82,6 +85,7 @@ async function fetchDashboardDataInternal(userId: string, period: string) {
 		attachmentsSnapshot,
 		inboxSnapshot,
 		cashFlowSnapshot,
+		vrBalanceSnapshot,
 	};
 }
 
