@@ -26,6 +26,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/shared/components/ui/tooltip";
+import { hasNoRealPaymentMethod } from "@/shared/lib/accounts/constants";
 import { resolveLogoSrc } from "@/shared/lib/logo";
 import { getAvatarSrc } from "@/shared/lib/payers/utils";
 import { formatDate } from "@/shared/utils/date";
@@ -382,6 +383,9 @@ function buildColumns({
 			accessorKey: "paymentMethod",
 			header: "Forma de Pagamento",
 			cell: ({ row }) => {
+				if (hasNoRealPaymentMethod(row.original)) {
+					return <span className="text-muted-foreground">—</span>;
+				}
 				const method = row.original.paymentMethod;
 				const icon = getPaymentMethodIcon(method);
 				return (

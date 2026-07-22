@@ -20,6 +20,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/shared/components/ui/tooltip";
+import { hasNoRealPaymentMethod } from "@/shared/lib/accounts/constants";
 import { formatDate, formatDateGroupLabel } from "@/shared/utils/date";
 import { getConditionIcon, getPaymentMethodIcon } from "@/shared/utils/icons";
 import { cn } from "@/shared/utils/ui";
@@ -254,9 +255,11 @@ function TransactionMobileCard({
 							>
 								{getTransactionTypeIcon(type)}
 							</IconBadge>
-							<IconBadge label={paymentMethodLabel} compact>
-								{getPaymentMethodIcon(item.paymentMethod)}
-							</IconBadge>
+							{hasNoRealPaymentMethod(item) ? null : (
+								<IconBadge label={paymentMethodLabel} compact>
+									{getPaymentMethodIcon(item.paymentMethod)}
+								</IconBadge>
+							)}
 							<IconBadge label={item.condition} compact>
 								{getConditionIcon(item.condition)}
 							</IconBadge>
