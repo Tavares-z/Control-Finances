@@ -34,3 +34,15 @@ export const isRefundNote = (note: string | null | undefined) =>
 
 export const isAccountInactive = (status: string | null | undefined) =>
 	status?.toLowerCase() === "inativa";
+
+/**
+ * Lançamentos técnicos criados pelo sistema (saldo inicial / ajuste de saldo)
+ * não têm forma de pagamento real — o `paymentMethod` é apenas um carimbo
+ * default ("Pix"). Usado para ocultar o rótulo na tabela de lançamentos.
+ */
+export const hasNoRealPaymentMethod = (item: {
+	name?: string | null;
+	categoriaName?: string | null;
+}) =>
+	item.name === ACCOUNT_BALANCE_ADJUSTMENT_NAME ||
+	item.categoriaName === INITIAL_BALANCE_CATEGORY_NAME;
