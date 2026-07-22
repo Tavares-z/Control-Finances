@@ -279,7 +279,6 @@ export function AccountDialog({
 							accountTypes={accountTypes}
 							accountStatuses={accountStatuses}
 							onChange={updateField}
-							showInitialBalance={mode === "create"}
 						/>
 
 						{errorMessage && (

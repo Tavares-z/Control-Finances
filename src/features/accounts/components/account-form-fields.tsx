@@ -103,6 +103,10 @@ export function AccountFormFields({
 						onValueChange={(value) => onChange("initialBalance", value)}
 						placeholder="R$ 0,00"
 					/>
+					<p className="text-xs text-muted-foreground">
+						Alterar o saldo inicial ajusta o lançamento correspondente no
+						extrato da conta.
+					</p>
 				</div>
 			) : null}
 

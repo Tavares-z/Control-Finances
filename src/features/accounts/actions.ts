@@ -98,6 +98,103 @@ type AccountCreateInput = z.infer<typeof createAccountSchema>;
 type AccountUpdateInput = z.infer<typeof updateAccountSchema>;
 type AccountDeleteInput = z.infer<typeof deleteAccountSchema>;
 
+/**
+ * Sincroniza o lançamento oficial de saldo inicial de uma conta com o valor
+ * gravado em `contas.saldo_inicial`. Mantém o invariante: a coluna é a fonte
+ * de verdade dos cálculos, e o lançamento (nota `INITIAL_BALANCE_NOTE`) existe
+ * só para aparecer como linha no extrato — os dois precisam bater.
+ *
+ * Idempotente (upsert):
+ * - valor > 0 e lançamento existe → atualiza amount (e name, se a conta foi renomeada)
+ * - valor > 0 e não existe        → cria o lançamento
+ * - valor == 0 e existe           → remove o lançamento (sem linha órfã)
+ *
+ * Deve rodar dentro de uma `db.transaction` junto com o UPDATE/INSERT da conta.
+ */
+async function syncInitialBalanceTransaction(
+	tx: typeof db,
+	{
+		userId,
+		accountId,
+		accountName,
+		amount,
+	}: {
+		userId: string;
+		accountId: string;
+		accountName: string;
+		amount: number;
+	},
+): Promise<void> {
+	const normalizedAmount = Math.abs(amount);
+	const hasInitialBalance = normalizedAmount > 0;
+
+	const existing = await tx.query.transactions.findFirst({
+		columns: { id: true },
+		where: and(
+			eq(transactions.userId, userId),
+			eq(transactions.accountId, accountId),
+			eq(transactions.note, INITIAL_BALANCE_NOTE),
+		),
+	});
+
+	if (!hasInitialBalance) {
+		if (existing) {
+			await tx.delete(transactions).where(eq(transactions.id, existing.id));
+		}
+		return;
+	}
+
+	if (existing) {
+		await tx
+			.update(transactions)
+			.set({
+				name: `Saldo inicial - ${accountName}`,
+				amount: formatDecimalForDbRequired(normalizedAmount),
+			})
+			.where(eq(transactions.id, existing.id));
+		return;
+	}
+
+	const adminPayerId = await getAdminPayerId(userId);
+	if (!adminPayerId) {
+		throw new Error(
+			"Pessoa com papel administrador não encontrada. Crie uma pessoa admin antes de definir um saldo inicial.",
+		);
+	}
+
+	const category = await tx.query.categories.findFirst({
+		columns: { id: true },
+		where: and(
+			eq(categories.userId, userId),
+			eq(categories.name, INITIAL_BALANCE_CATEGORY_NAME),
+		),
+	});
+
+	if (!category) {
+		throw new Error(
+			'Category "Saldo inicial" não encontrada. Crie-a antes de definir um saldo inicial.',
+		);
+	}
+
+	const { date, period } = getTodayInfo();
+
+	await tx.insert(transactions).values({
+		condition: INITIAL_BALANCE_CONDITION,
+		name: `Saldo inicial - ${accountName}`,
+		paymentMethod: INITIAL_BALANCE_PAYMENT_METHOD,
+		note: INITIAL_BALANCE_NOTE,
+		amount: formatDecimalForDbRequired(normalizedAmount),
+		purchaseDate: date,
+		transactionType: INITIAL_BALANCE_TRANSACTION_TYPE,
+		period,
+		isSettled: true,
+		userId,
+		accountId,
+		categoryId: category.id,
+		payerId: adminPayerId,
+	});
+}
+
 export async function createAccountAction(
 	input: AccountCreateInput,
 ): Promise<ActionResult> {
@@ -106,18 +203,6 @@ export async function createAccountAction(
 		const data = createAccountSchema.parse(input);
 
 		const logoFile = normalizeFilePath(data.logo);
-
-		const normalizedInitialBalance = Math.abs(data.initialBalance);
-		const hasInitialBalance = normalizedInitialBalance > 0;
-		const adminPayerId = hasInitialBalance
-			? await getAdminPayerId(user.id)
-			: null;
-
-		if (hasInitialBalance && !adminPayerId) {
-			throw new Error(
-				"Pessoa com papel administrador não encontrada. Crie uma pessoa admin antes de definir um saldo inicial.",
-			);
-		}
 
 		await db.transaction(async (tx: typeof db) => {
 			const [createdAccount] = await tx
@@ -139,42 +224,11 @@ export async function createAccountAction(
 				throw new Error("Não foi possível criar a conta.");
 			}
 
-			if (!hasInitialBalance) {
-				return;
-			}
-
-			const [category] = await Promise.all([
-				tx.query.categories.findFirst({
-					columns: { id: true },
-					where: and(
-						eq(categories.userId, user.id),
-						eq(categories.name, INITIAL_BALANCE_CATEGORY_NAME),
-					),
-				}),
-			]);
-
-			if (!category) {
-				throw new Error(
-					'Category "Saldo inicial" não encontrada. Crie-a antes de definir um saldo inicial.',
-				);
-			}
-
-			const { date, period } = getTodayInfo();
-
-			await tx.insert(transactions).values({
-				condition: INITIAL_BALANCE_CONDITION,
-				name: `Saldo inicial - ${createdAccount.name}`,
-				paymentMethod: INITIAL_BALANCE_PAYMENT_METHOD,
-				note: INITIAL_BALANCE_NOTE,
-				amount: formatDecimalForDbRequired(normalizedInitialBalance),
-				purchaseDate: date,
-				transactionType: INITIAL_BALANCE_TRANSACTION_TYPE,
-				period,
-				isSettled: true,
+			await syncInitialBalanceTransaction(tx, {
 				userId: user.id,
 				accountId: createdAccount.id,
-				categoryId: category.id,
-				payerId: adminPayerId,
+				accountName: createdAccount.name,
+				amount: data.initialBalance,
 			});
 		});
 
@@ -198,25 +252,40 @@ export async function updateAccountAction(
 
 		const logoFile = normalizeFilePath(data.logo);
 
-		const [updated] = await db
-			.update(financialAccounts)
-			.set({
-				name: data.name,
-				accountType: data.accountType,
-				status: data.status,
-				note: data.note ?? null,
-				logo: logoFile,
-				initialBalance: formatDecimalForDbRequired(data.initialBalance),
-				excludeFromBalance: data.excludeFromBalance,
-				excludeInitialBalanceFromIncome: data.excludeInitialBalanceFromIncome,
-			})
-			.where(
-				and(
-					eq(financialAccounts.id, data.id),
-					eq(financialAccounts.userId, user.id),
-				),
-			)
-			.returning();
+		const updated = await db.transaction(async (tx: typeof db) => {
+			const [row] = await tx
+				.update(financialAccounts)
+				.set({
+					name: data.name,
+					accountType: data.accountType,
+					status: data.status,
+					note: data.note ?? null,
+					logo: logoFile,
+					initialBalance: formatDecimalForDbRequired(data.initialBalance),
+					excludeFromBalance: data.excludeFromBalance,
+					excludeInitialBalanceFromIncome: data.excludeInitialBalanceFromIncome,
+				})
+				.where(
+					and(
+						eq(financialAccounts.id, data.id),
+						eq(financialAccounts.userId, user.id),
+					),
+				)
+				.returning();
+
+			if (!row) {
+				return null;
+			}
+
+			await syncInitialBalanceTransaction(tx, {
+				userId: user.id,
+				accountId: row.id,
+				accountName: row.name,
+				amount: data.initialBalance,
+			});
+
+			return row;
+		});
 
 		if (!updated) {
 			return {
