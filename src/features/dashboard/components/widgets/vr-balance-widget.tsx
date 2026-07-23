@@ -24,8 +24,8 @@ const VERDICT_LABEL: Record<VrPaceVerdict, string> = {
 };
 
 const VERDICT_CLASS: Record<VrPaceVerdict, string> = {
-	fecha: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-	aperta: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+	fecha: "bg-success/10 text-success",
+	aperta: "bg-warning/10 text-warning",
 	"nao-fecha": "bg-destructive/10 text-destructive",
 	impreciso: "bg-muted text-muted-foreground",
 };

@@ -3,13 +3,13 @@
 import * as RemixIcons from "@remixicon/react";
 import { useTransition } from "react";
 import { toast } from "sonner";
+import { useAttachmentUrlQuery } from "@/features/attachments/hooks/use-attachment-url";
 import {
 	archiveGoalAction,
 	completeGoalAction,
 	deleteGoalAction,
 	reactivateGoalAction,
 } from "@/features/goals/actions";
-import { useAttachmentUrlQuery } from "@/features/attachments/hooks/use-attachment-url";
 import type { GoalData } from "@/features/goals/queries";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -134,7 +134,7 @@ export function GoalCard({ goal, onEdit }: GoalCardProps) {
 
 					<div className="flex items-center gap-1 shrink-0">
 						{isCompleted && (
-							<span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+							<span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
 								<RemixIcons.RiCheckLine className="size-3" aria-hidden />
 								Concluída
 							</span>
@@ -232,7 +232,7 @@ export function GoalCard({ goal, onEdit }: GoalCardProps) {
 				<div className="flex flex-col gap-2">
 					<Progress
 						value={goal.usedPercentage}
-						className={cn("h-2", isCompleted && "[&>div]:bg-emerald-500")}
+						className={cn("h-2", isCompleted && "[&>div]:bg-success")}
 					/>
 					<div className="flex items-center justify-between text-xs text-muted-foreground">
 						<span>{formatCurrency(goal.currentAmount)}</span>
@@ -254,9 +254,7 @@ export function GoalCard({ goal, onEdit }: GoalCardProps) {
 						</span>
 					)}
 					{isCompleted && (
-						<span className="text-emerald-600 dark:text-emerald-400 font-medium">
-							Meta atingida!
-						</span>
+						<span className="text-success font-medium">Meta atingida!</span>
 					)}
 					<span
 						className={cn(
