@@ -66,6 +66,7 @@ Sobre consulta de dados (ferramentas consultar_resumo_mensal e listar_transacoes
 - Sempre use as ferramentas antes de dizer que não tem acesso a um dado financeiro
 - IMPORTANTE — realizado x agendado: quando a pergunta for sobre o que JÁ aconteceu ("quanto gastei ATÉ AGORA", "quanto já gastei", "o que gastei até hoje"), chame a ferramenta com apenasRealizado=true, para NÃO contar lançamentos com data futura (agendados) como se já tivessem sido gastos. Quando a pergunta for sobre o mês inteiro ou projeção ("quanto vou gastar esse mês", "total do mês"), use apenasRealizado=false. Na dúvida entre os dois, prefira apenasRealizado=true e deixe claro na resposta que está considerando só o realizado até hoje.
 - Nunca some lançamentos com data posterior à data de hoje (informada no contexto) ao responder "quanto já gastei" — isso infla o valor com gastos que ainda não ocorreram.
+- IMPORTANTE — filtro por conta: quando a pergunta se refere a uma conta específica ("quanto gastei DO VR/VA", "quanto sobrou no meu VR", "gastos NA 99pay", "saldo da conta X"), passe o accountId daquela conta na ferramenta. Para VR/VA, use o ID da conta com accountType "Pré-Pago | VR/VA" listada no contexto. NUNCA decida "no olho" quais lançamentos pertencem a uma conta pelo nome do estabelecimento — um gasto só é da conta VR se estiver lançado NAQUELA conta. Sem o accountId você mistura contas diferentes e conta gasto de outra conta como se fosse do VR.
 
 Sobre metas financeiras (ferramenta consultar_metas):
 - Use consultar_metas para perguntas como "como estão minhas metas", "quanto falta para minha meta de X", "estou batendo minhas metas?"
@@ -262,16 +263,26 @@ export async function POST(req: Request) {
 						.describe(
 							"true = soma só lançamentos com data até hoje (para 'quanto gastei até agora'). false/null = mês inteiro, incluindo agendados futuros (para 'quanto vou gastar esse mês').",
 						),
+					accountId: z
+						.string()
+						.uuid()
+						.nullable()
+						.describe(
+							"ID exato da conta para isolar o gasto (ex: 'quanto gastei do VR/VA' → conta de accountType 'Pré-Pago | VR/VA'; 'na 99pay' → conta 99pay). Null = todas as contas. Use os IDs da seção 'Dados para registro de transações' do contexto.",
+						),
 				}),
 				execute: async ({
 					period,
 					apenasRealizado,
+					accountId,
 				}: {
 					period: string | null;
 					apenasRealizado: boolean | null;
+					accountId: string | null;
 				}) => {
 					return await fetchMonthlySummaryForChat(userId, period ?? undefined, {
 						untilToday: apenasRealizado ?? false,
+						accountId: accountId ?? undefined,
 					});
 				},
 			},
@@ -302,23 +313,33 @@ export async function POST(req: Request) {
 						.describe(
 							"true = só lançamentos com data até hoje (para 'o que já gastei até agora'). false/null = todos do período, incluindo agendados futuros.",
 						),
+					accountId: z
+						.string()
+						.uuid()
+						.nullable()
+						.describe(
+							"ID exato da conta para isolar os lançamentos (ex: 'do VR/VA' → conta de accountType 'Pré-Pago | VR/VA'; 'na 99pay' → conta 99pay). Null = todas as contas. Use os IDs da seção 'Dados para registro de transações' do contexto.",
+						),
 				}),
 				execute: async ({
 					period,
 					categoryId,
 					limit,
 					apenasRealizado,
+					accountId,
 				}: {
 					period: string | null;
 					categoryId: string | null;
 					limit: number | null;
 					apenasRealizado: boolean | null;
+					accountId: string | null;
 				}) => {
 					return await fetchTransactionsForChat(userId, {
 						period: period ?? undefined,
 						categoryId: categoryId ?? undefined,
 						limit: limit ?? undefined,
 						untilToday: apenasRealizado ?? false,
+						accountId: accountId ?? undefined,
 					});
 				},
 			},

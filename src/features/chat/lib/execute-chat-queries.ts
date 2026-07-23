@@ -40,7 +40,7 @@ export type MonthlySummary = {
 export async function fetchMonthlySummaryForChat(
 	userId: string,
 	period?: string,
-	opts?: { untilToday?: boolean },
+	opts?: { untilToday?: boolean; accountId?: string },
 ): Promise<MonthlySummary> {
 	const targetPeriod = period ?? getCurrentPeriod();
 	const adminPayerId = await getAdminPayerId(userId);
@@ -63,13 +63,19 @@ export async function fetchMonthlySummaryForChat(
 			isNull(transactions.note),
 			sql`${transactions.note} NOT LIKE ${`${ACCOUNT_AUTO_INVOICE_NOTE_PREFIX}%`}`,
 		),
-		excludeTransactionsFromExcludedAccounts(),
+		// A exclusão de contas "fora do saldo" (ex: VR/VA) só vale na visão geral.
+		// Quando a IA pede uma conta específica, o usuário quer VER aquela conta
+		// mesmo que ela seja excluída do saldo — senão o VR voltaria zerado.
+		opts?.accountId ? undefined : excludeTransactionsFromExcludedAccounts(),
 		// "até agora / já gastei" → só lançamentos com data até hoje, sem contar
 		// agendados no futuro (mesmo padrão de cards/queries.ts e actions/core.ts).
 		// Coluna é date puro, então current_date (timezone da sessão) basta.
 		opts?.untilToday
 			? sql`${transactions.purchaseDate} <= current_date`
 			: undefined,
+		// "do VR", "na 99pay" → isola a conta. Sem isso a IA juntava contas
+		// diferentes no olho (contava despesa da 99pay como gasto de VR).
+		opts?.accountId ? eq(transactions.accountId, opts.accountId) : undefined,
 	);
 
 	// Totais por tipo (receita e despesa)
@@ -167,6 +173,7 @@ export async function fetchTransactionsForChat(
 		categoryId?: string;
 		limit?: number;
 		untilToday?: boolean;
+		accountId?: string;
 	},
 ): Promise<TransactionItem[]> {
 	const targetPeriod = opts.period ?? getCurrentPeriod();
@@ -206,10 +213,14 @@ export async function fetchTransactionsForChat(
 					isNull(transactions.note),
 					sql`${transactions.note} NOT LIKE ${`${ACCOUNT_AUTO_INVOICE_NOTE_PREFIX}%`}`,
 				),
-				excludeTransactionsFromExcludedAccounts(),
+				// Conta específica pedida → não aplicar a exclusão de saldo (senão
+				// VR/VA, que é fora-do-saldo, voltaria vazio). Ver comentário gêmeo
+				// em fetchMonthlySummaryForChat.
+				opts.accountId ? undefined : excludeTransactionsFromExcludedAccounts(),
 				opts.untilToday
 					? sql`${transactions.purchaseDate} <= current_date`
 					: undefined,
+				opts.accountId ? eq(transactions.accountId, opts.accountId) : undefined,
 			),
 		)
 		.orderBy(desc(transactions.purchaseDate), desc(transactions.createdAt))
