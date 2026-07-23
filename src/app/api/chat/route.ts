@@ -11,6 +11,7 @@ import {
 } from "@/features/chat/lib/execute-chat-queries";
 import { executeRegisterTransaction } from "@/features/chat/lib/execute-chat-tool";
 import { fetchDashboardCashFlow } from "@/features/dashboard/cash-flow/cash-flow-queries";
+import { fetchDashboardVrBalance } from "@/features/dashboard/vr/vr-balance-queries";
 import { fetchGoalsForUser } from "@/features/goals/queries";
 import { fetchSubscriptionsForUser } from "@/features/subscriptions/queries";
 import { getUserId } from "@/shared/lib/auth/server";
@@ -40,6 +41,7 @@ Suas capacidades:
 - Consultar metas financeiras e acompanhar progresso via ferramenta
 - Consultar assinaturas e despesas fixas via ferramenta
 - Consultar orçamentos e progresso de gastos por categoria via ferramenta
+- Consultar o saldo e o ritmo de consumo do benefício VR/VA via ferramenta
 
 Regras gerais:
 - NUNCA invente números ou dados — use apenas o contexto financeiro fornecido ou as ferramentas de consulta
@@ -80,6 +82,11 @@ Sobre assinaturas (ferramenta consultar_assinaturas):
 Sobre orçamentos (ferramenta consultar_orcamento):
 - Use consultar_orcamento para perguntas como "como estão meus orçamentos", "estou estourando algum limite", "quanto ainda posso gastar em X"
 - Alerte com atenção quando um orçamento estiver perto ou acima de 100% do limite
+
+Sobre saldo de VR/VA (ferramenta consultar_saldo_vr):
+- Use consultar_saldo_vr para QUALQUER pergunta sobre o benefício VR/VA que envolva "vai dar/fechar até a recarga", "quanto posso gastar por dia", "meu ritmo tá ok", "vou conseguir passar o mês com o VR", "quanto sobrou no VR".
+- Essa ferramenta faz o MESMO cálculo do widget de VR do dashboard (saldo, ritmo diário, dias até a recarga, disponível por dia, veredito). SEMPRE repasse o campo "vereditoTexto" como está — NÃO forme seu próprio julgamento de "saldo saudável/apertado" no olho, senão você contradiz o widget que o usuário vê. Se o veredito for "nao-fecha" ou "aperta", alerte com carinho mesmo que o saldo pareça alto — o que importa é o ritmo, não o valor absoluto.
+- Se veredito for "impreciso" (ciclo recém-começado ou sem histórico), diga que ainda é cedo pra cravar e não afirme que está tudo certo.
 
 Sobre projeção de caixa (ferramenta consultar_projecao_caixa):
 - Use consultar_projecao_caixa para perguntas como "como vai ficar meu saldo", "vou ter dinheiro pra pagar X mês que vem", "projeção de caixa", "quanto vou ter daqui 30/60/90 dias"
@@ -425,6 +432,48 @@ export async function POST(req: Request) {
 						})),
 						assinaturasConsideradas: cashFlow.subscriptionsIncluded,
 						avisos: cashFlow.warnings,
+					};
+				},
+			},
+			consultar_saldo_vr: {
+				description:
+					"Consulta o saldo do benefício VR/VA com o MESMO cálculo do widget do dashboard: saldo atual, ritmo de gasto diário, dias até a próxima recarga, quanto dá pra gastar por dia e o veredito se o saldo fecha o ciclo. Use para 'quanto sobrou no VR', 'vai dar até a recarga', 'quanto posso gastar por dia de VR', 'meu ritmo de VR tá ok'. Retorna que não há conta quando o usuário não tem VR/VA.",
+				inputSchema: z.object({}),
+				execute: async () => {
+					const vr = await fetchDashboardVrBalance(userId);
+					if (!vr) {
+						return {
+							temContaVr: false,
+							mensagem:
+								"O usuário não tem conta do tipo Pré-Pago | VR/VA cadastrada.",
+						};
+					}
+					const vereditoTexto: Record<typeof vr.verdict, string> = {
+						fecha:
+							"No ritmo atual, o saldo fecha o ciclo até a próxima recarga.",
+						aperta:
+							"No ritmo atual, o saldo aperta: cobre a maior parte do ciclo, mas com margem curta.",
+						"nao-fecha":
+							"No ritmo atual, o saldo NÃO fecha o ciclo — deve acabar antes da próxima recarga.",
+						impreciso:
+							"Ainda é cedo pra cravar um veredito (ciclo recém-começado ou sem histórico suficiente).",
+					};
+					return {
+						temContaVr: true,
+						conta: vr.accountName,
+						saldo: vr.balance,
+						gastoNoCiclo: vr.spentInCycle,
+						ritmoDiario: Number(vr.dailyPace.toFixed(2)),
+						disponivelPorDia: Number(vr.dailyAllowance.toFixed(2)),
+						diasDesdeRecarga: vr.daysElapsed,
+						diasAteProximaRecarga: vr.daysRemaining,
+						proximaRecargaInformada: vr.nextRechargeDate,
+						dataRecargaEhManual: vr.nextRechargeIsManual,
+						diasDeFolego: vr.daysOfRunway
+							? Number(vr.daysOfRunway.toFixed(1))
+							: null,
+						veredito: vr.verdict,
+						vereditoTexto: vereditoTexto[vr.verdict],
 					};
 				},
 			},
