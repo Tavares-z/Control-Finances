@@ -108,6 +108,16 @@ Lockfile no Windows: usar sempre `pnpm install --ignore-scripts` (nunca `pnpm in
 
 ⚠️ Radix duplicado: bumps de `@radix-ui/*` podem deixar duas versões de um sub-pacote compartilhado (`dismissable-layer`, `popper`, `focus-scope`) instaladas — dois contextos React, e o Dialog nunca restaura `pointer-events` pro Popover que abre dentro dele (calendário do DatePicker fica inclicável). Fix vigente: override de `@radix-ui/react-dismissable-layer` numa única versão no `pnpm-workspace.yaml`. Em bumps futuros, checar duplicidade com `Get-ChildItem node_modules/.pnpm -Filter "@radix-ui+react-<pacote>@*"`.
 
+## Versionamento do Fork
+O fork tem sua **própria linha de versão**, independente do upstream, começando em **`v3.0.0`** (primeira release do fork, base upstream v2.7.12). A escolha do `v3.x` (em vez de `v1.0.0`) foi deliberada: o repo já carrega todas as tags do upstream (`v2.1.0`…`v2.7.12`) por causa dos syncs, então uma tag `v1.0.0` afundaria no meio delas e pareceria antiga — `v3.x` continua acima do upstream e mantém um único eixo de versão no repo.
+
+Regras ao lançar uma release do fork:
+- **Um só eixo de versão** (`v3.x`). NÃO criar prefixo separado (`control-v…`, `fork-v…`) nem reusar a numeração do upstream — as tags do upstream já convivem no repo e um segundo esquema vira confusão a cada sync.
+- **Portar um fix/feature do upstream** = patch ou minor SEU, não o número do upstream. Ex: upstream lança `v2.7.13`, você porta → vira `v3.0.1` (patch) ou `v3.1.0` (minor), nunca `v2.7.13`/`v2.7.14`.
+- **Feature própria do fork** (Metas, Assinaturas, VR, Monetinha, etc.) = `minor` (`v3.1.0`); bugfix = `patch` (`v3.0.1`); breaking change estrutural = `major` (`v4.0.0`).
+- **Sempre registrar a base do upstream no corpo da release** ("baseado em / sincronizado com upstream vX.Y.Z"). É o elo entre as duas linhas — a de versão do fork e a "Sync atual" abaixo.
+- Release = **git tag anotada + GitHub Release** no `Tavares-z/Control-Finances` (não duplicar o conteúdo no `CHANGELOG.md`, que já é o diário técnico). ⚠️ O `gh` pode resolver o repo pro upstream por engano — sempre passar `--repo Tavares-z/Control-Finances` explicitamente.
+
 ## Estado do Sync
 Sync atual: upstream **v2.7.12** (de v2.7.2). Histórico detalhado de cada bloco portado está em [`CHANGELOG.md`](./CHANGELOG.md) (changelog do fork). Invariantes e gotchas que sobreviveram ao sync estão preservados nas seções acima (Stack Técnica, Minhas Customizações, Regra de Verificação), não aqui.
 
