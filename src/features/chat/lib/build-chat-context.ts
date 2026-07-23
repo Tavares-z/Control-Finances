@@ -1,13 +1,14 @@
-import { db } from "@/shared/lib/db";
+import { and, count, desc, eq, gte, ilike, lte, not, sum } from "drizzle-orm";
 import {
-	transactions,
-	financialAccounts,
-	categories,
 	budgets,
 	cards,
+	categories,
+	financialAccounts,
+	transactions,
 } from "@/db/schema";
-import { eq, and, gte, lte, desc, sum, count, ilike, not } from "drizzle-orm";
+import { db } from "@/shared/lib/db";
 import { formatCurrency } from "@/shared/utils/currency";
+import { getBusinessDateString } from "@/shared/utils/date";
 
 export async function buildChatContext(userId: string): Promise<string> {
 	try {
@@ -119,8 +120,12 @@ export async function buildChatContext(userId: string): Promise<string> {
 			data: t.purchaseDate,
 		}));
 
+		const todayString = getBusinessDateString(now);
+
 		return `
 ## Contexto financeiro do usuário — ${currentPeriod}
+
+Data de hoje: ${todayString}. Lançamentos com data posterior a hoje são agendados/futuros — ainda não foram gastos.
 
 ### Resumo do mês atual
 - Total de receitas: ${formatCurrency(totalIncome)}

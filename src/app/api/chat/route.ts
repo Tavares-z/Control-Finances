@@ -64,6 +64,8 @@ Sobre consulta de dados (ferramentas consultar_resumo_mensal e listar_transacoes
 - Use consultar_resumo_mensal para perguntas sobre totais, saldo ou gastos por categoria
 - Use listar_transacoes para perguntas sobre transações específicas ou histórico
 - Sempre use as ferramentas antes de dizer que não tem acesso a um dado financeiro
+- IMPORTANTE — realizado x agendado: quando a pergunta for sobre o que JÁ aconteceu ("quanto gastei ATÉ AGORA", "quanto já gastei", "o que gastei até hoje"), chame a ferramenta com apenasRealizado=true, para NÃO contar lançamentos com data futura (agendados) como se já tivessem sido gastos. Quando a pergunta for sobre o mês inteiro ou projeção ("quanto vou gastar esse mês", "total do mês"), use apenasRealizado=false. Na dúvida entre os dois, prefira apenasRealizado=true e deixe claro na resposta que está considerando só o realizado até hoje.
+- Nunca some lançamentos com data posterior à data de hoje (informada no contexto) ao responder "quanto já gastei" — isso infla o valor com gastos que ainda não ocorreram.
 
 Sobre metas financeiras (ferramenta consultar_metas):
 - Use consultar_metas para perguntas como "como estão minhas metas", "quanto falta para minha meta de X", "estou batendo minhas metas?"
@@ -254,9 +256,23 @@ export async function POST(req: Request) {
 						.regex(/^\d{4}-(0[1-9]|1[0-2])$/)
 						.nullable()
 						.describe("Período no formato YYYY-MM. Null = mês atual."),
+					apenasRealizado: z
+						.boolean()
+						.nullable()
+						.describe(
+							"true = soma só lançamentos com data até hoje (para 'quanto gastei até agora'). false/null = mês inteiro, incluindo agendados futuros (para 'quanto vou gastar esse mês').",
+						),
 				}),
-				execute: async ({ period }: { period: string | null }) => {
-					return await fetchMonthlySummaryForChat(userId, period ?? undefined);
+				execute: async ({
+					period,
+					apenasRealizado,
+				}: {
+					period: string | null;
+					apenasRealizado: boolean | null;
+				}) => {
+					return await fetchMonthlySummaryForChat(userId, period ?? undefined, {
+						untilToday: apenasRealizado ?? false,
+					});
 				},
 			},
 			listar_transacoes: {
@@ -280,20 +296,29 @@ export async function POST(req: Request) {
 						.max(50)
 						.nullable()
 						.describe("Máximo de transações a retornar. Padrão: 20."),
+					apenasRealizado: z
+						.boolean()
+						.nullable()
+						.describe(
+							"true = só lançamentos com data até hoje (para 'o que já gastei até agora'). false/null = todos do período, incluindo agendados futuros.",
+						),
 				}),
 				execute: async ({
 					period,
 					categoryId,
 					limit,
+					apenasRealizado,
 				}: {
 					period: string | null;
 					categoryId: string | null;
 					limit: number | null;
+					apenasRealizado: boolean | null;
 				}) => {
 					return await fetchTransactionsForChat(userId, {
 						period: period ?? undefined,
 						categoryId: categoryId ?? undefined,
 						limit: limit ?? undefined,
+						untilToday: apenasRealizado ?? false,
 					});
 				},
 			},
