@@ -105,6 +105,8 @@ Sync atual: upstream **v2.7.12** (de v2.7.2). Histórico detalhado de cada bloco
 
 Pendência conhecida: **workflows CI/CD** (`.github/workflows`) não sincronizados — o upstream removeu `docker-publish.yml`, reescreveu `release.yml` e adicionou `ci.yml`. Decisão explícita de não mexer: o fork usa Railway, não Docker Hub/GitHub Releases. Revisitar só se precisar de algo específico.
 
+⚠️ Formato do `CHANGELOG.md` diverge do upstream: no upstream, o `CHANGELOG.md` segue Keep-a-Changelog (`## [x.y.z] - data`) e é **lido por parser** em dois lugares — a aba "Changelog" em Ajustes (histórico mostrado ao usuário no app) e o workflow `release.yml` (extrai a entrada da versão pra criar a GitHub Release). No fork, o `CHANGELOG.md` virou formato próprio (changelog do fork) e o formato Keep-a-Changelog do upstream mora em `CHANGELOG.upstream.md`. Se for sincronizar a aba Changelog ou o `release.yml`, apontar o parser pra `CHANGELOG.upstream.md` — aplicar o diff cru faz o parser não casar e a tela/release quebrar em silêncio.
+
 Ao bumpar dependências no sync: `better-auth` fica pinado em **1.6.23** (não 1.6.22 do upstream) por peer dependency de `@better-auth/passkey@1.6.23` — rodar `pnpm peers check` depois de bumps.
 
 ## Comandos de Sobrevivência (Tokens)
