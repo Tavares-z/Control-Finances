@@ -246,6 +246,13 @@
       "when": 1783996525014,
       "tag": "0035_steady_tiger_shark",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1784763965159,
+      "tag": "0036_salty_secret_warriors",
+      "breakpoints": true
     }
   ]
 }

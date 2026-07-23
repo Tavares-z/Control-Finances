@@ -1,5 +1,5 @@
 import { and, desc, eq, ne, not, or, sql } from "drizzle-orm";
-import { transactions } from "@/db/schema";
+import { financialAccounts, transactions } from "@/db/schema";
 import { fetchDashboardAccounts } from "@/features/dashboard/lib/accounts-queries";
 import {
 	INITIAL_BALANCE_NOTE,
@@ -38,8 +38,15 @@ export type VrBalanceSnapshot = {
 	daysElapsed: number;
 	/** Duração estimada do ciclo, inferida do histórico de recargas. */
 	estimatedCycleDays: number;
-	/** Dias restantes até a próxima recarga estimada (nunca negativo). */
+	/** Dias restantes até a próxima recarga (nunca negativo). */
 	daysRemaining: number;
+	/** Data-alvo da próxima recarga informada pelo usuário (YYYY-MM-DD), se houver. */
+	nextRechargeDate: string | null;
+	/**
+	 * true quando `daysRemaining` veio da data informada pelo usuário (cravada),
+	 * false quando foi inferida pela média dos intervalos entre recargas.
+	 */
+	nextRechargeIsManual: boolean;
 	/** Total gasto no ciclo atual. */
 	spentInCycle: number;
 	/** Ritmo observado: gasto por dia corrido no ciclo atual. */
@@ -156,6 +163,25 @@ export async function fetchDashboardVrBalance(
 		return null;
 	}
 
+	// Data-alvo opcional da próxima recarga. `fetchDashboardAccounts` não expõe
+	// essa coluna (é VR-específica), então lemos direto aqui pela conta já
+	// identificada. Quando presente e futura, ela crava `daysRemaining` no lugar
+	// da estimativa por histórico.
+	const [rechargeConfigRow] = await db
+		.select({ nextRechargeDate: financialAccounts.nextRechargeDate })
+		.from(financialAccounts)
+		.where(
+			and(
+				eq(financialAccounts.id, vrAccount.id),
+				eq(financialAccounts.userId, userId),
+			),
+		)
+		.limit(1);
+
+	const configuredNextRecharge = toDateOnlyString(
+		rechargeConfigRow?.nextRechargeDate ?? null,
+	);
+
 	const scopeFilters = [
 		eq(transactions.userId, userId),
 		eq(transactions.accountId, vrAccount.id),
@@ -201,8 +227,19 @@ export async function fetchDashboardVrBalance(
 	const today = getBusinessDateString();
 	const { cycleDays, isEstimated } = estimateCycleDays(rechargeDates);
 
-	// Sem recarga registrada não há ciclo: mostramos só o saldo.
+	// A data informada só vale se ainda não passou — recarga vencida não deixada
+	// atualizar volta a ser ruído, então nesse caso caímos na estimativa.
+	const manualDaysRemaining =
+		configuredNextRecharge && configuredNextRecharge > today
+			? daysBetween(today, configuredNextRecharge)
+			: null;
+	const nextRechargeIsManual = manualDaysRemaining !== null;
+
+	// Sem recarga registrada não há ciclo: mostramos só o saldo. Mesmo assim, se o
+	// usuário informou a data da próxima recarga, já dá para dizer quanto sobra por
+	// dia até lá (o resto — ritmo/veredito — continua dependendo de histórico).
 	if (!lastRechargeDate) {
+		const remaining = manualDaysRemaining ?? cycleDays;
 		return {
 			accountId: vrAccount.id,
 			accountName: vrAccount.name,
@@ -211,10 +248,13 @@ export async function fetchDashboardVrBalance(
 			lastRechargeAmount: 0,
 			daysElapsed: 0,
 			estimatedCycleDays: cycleDays,
-			daysRemaining: cycleDays,
+			daysRemaining: remaining,
+			nextRechargeDate: configuredNextRecharge,
+			nextRechargeIsManual,
 			spentInCycle: 0,
 			dailyPace: 0,
-			dailyAllowance: vrAccount.balance / cycleDays,
+			dailyAllowance:
+				remaining > 0 ? vrAccount.balance / remaining : vrAccount.balance,
 			daysOfRunway: null,
 			verdict: "impreciso",
 			cycleIsEstimated: true,
@@ -249,7 +289,9 @@ export async function fetchDashboardVrBalance(
 	// Dia da recarga conta como dia 1 — evita divisão por zero e reflete que o
 	// gasto do próprio dia já consome o ciclo.
 	const daysElapsed = daysBetween(lastRechargeDate, today) + 1;
-	const daysRemaining = Math.max(0, cycleDays - (daysElapsed - 1));
+	// Data informada crava os dias restantes; sem ela, inferimos pelo ciclo.
+	const daysRemaining =
+		manualDaysRemaining ?? Math.max(0, cycleDays - (daysElapsed - 1));
 
 	const dailyPace = spentInCycle / daysElapsed;
 	const daysOfRunway = dailyPace > 0 ? vrAccount.balance / dailyPace : null;
@@ -265,6 +307,8 @@ export async function fetchDashboardVrBalance(
 		daysElapsed,
 		estimatedCycleDays: cycleDays,
 		daysRemaining,
+		nextRechargeDate: configuredNextRecharge,
+		nextRechargeIsManual,
 		spentInCycle,
 		dailyPace,
 		dailyAllowance,

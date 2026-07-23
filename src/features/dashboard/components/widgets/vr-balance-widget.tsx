@@ -57,6 +57,8 @@ export function VrBalanceWidget({ data }: VrBalanceWidgetProps) {
 		verdict,
 		cycleIsEstimated,
 		lastRechargeDate,
+		nextRechargeDate,
+		nextRechargeIsManual,
 	} = data;
 
 	const showPace = verdict !== "impreciso";
@@ -116,12 +118,23 @@ export function VrBalanceWidget({ data }: VrBalanceWidgetProps) {
 						{new Date(`${lastRechargeDate}T00:00:00`).toLocaleDateString(
 							"pt-BR",
 						)}
-						{cycleIsEstimated && " · ciclo de 30d presumido"}
+						{cycleIsEstimated &&
+							!nextRechargeIsManual &&
+							" · ciclo de 30d presumido"}
 					</p>
 				)}
 				{!lastRechargeDate && (
 					<p className="text-xs text-muted-foreground">
 						Lance a recarga como receita nesta conta para acompanhar o ritmo.
+					</p>
+				)}
+				{nextRechargeIsManual && nextRechargeDate && (
+					<p className="text-xs text-muted-foreground">
+						Próxima recarga em{" "}
+						{new Date(`${nextRechargeDate}T00:00:00`).toLocaleDateString(
+							"pt-BR",
+						)}{" "}
+						· data informada
 					</p>
 				)}
 			</div>

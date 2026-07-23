@@ -226,6 +226,7 @@ export function AccountsPage({
 						excludeFromBalance: a.excludeFromBalance ?? false,
 						excludeInitialBalanceFromIncome:
 							a.excludeInitialBalanceFromIncome ?? false,
+						nextRechargeDate: a.nextRechargeDate ?? null,
 					}))}
 					fromAccountId={transferFromAccount.id}
 					currentPeriod={getCurrentPeriod()}

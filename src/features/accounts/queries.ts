@@ -4,6 +4,7 @@ import { INITIAL_BALANCE_NOTE } from "@/shared/lib/accounts/constants";
 import { db } from "@/shared/lib/db";
 import { loadLogoOptions } from "@/shared/lib/logo/options";
 import { getAdminPayerId } from "@/shared/lib/payers/get-admin-id";
+import { toDateOnlyString } from "@/shared/utils/date";
 
 export type AccountData = {
 	id: string;
@@ -16,6 +17,7 @@ export type AccountData = {
 	balance: number;
 	excludeFromBalance: boolean;
 	excludeInitialBalanceFromIncome: boolean;
+	nextRechargeDate: string | null;
 };
 
 async function fetchAccountsByStatus(
@@ -37,6 +39,7 @@ async function fetchAccountsByStatus(
 				excludeFromBalance: financialAccounts.excludeFromBalance,
 				excludeInitialBalanceFromIncome:
 					financialAccounts.excludeInitialBalanceFromIncome,
+				nextRechargeDate: financialAccounts.nextRechargeDate,
 				balanceMovements: sql<number>`
           coalesce(
             sum(
@@ -77,6 +80,7 @@ async function fetchAccountsByStatus(
 				financialAccounts.initialBalance,
 				financialAccounts.excludeFromBalance,
 				financialAccounts.excludeInitialBalanceFromIncome,
+				financialAccounts.nextRechargeDate,
 			),
 		loadLogoOptions(),
 	]);
@@ -94,6 +98,7 @@ async function fetchAccountsByStatus(
 			Number(account.balanceMovements ?? 0),
 		excludeFromBalance: account.excludeFromBalance,
 		excludeInitialBalanceFromIncome: account.excludeInitialBalanceFromIncome,
+		nextRechargeDate: toDateOnlyString(account.nextRechargeDate),
 	}));
 
 	return { accounts, logoOptions };

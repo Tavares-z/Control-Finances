@@ -200,6 +200,12 @@ export const financialAccounts = pgTable("contas", {
 	excludeInitialBalanceFromIncome: boolean("excluir_saldo_inicial_receitas")
 		.notNull()
 		.default(false),
+	// Data-alvo opcional da próxima recarga (contas VR/VA). Quando preenchida e
+	// futura, o widget VR usa esta data para contar os dias que faltam em vez de
+	// inferir pela média dos intervalos entre recargas passadas. Vazia ou vencida
+	// → cai de volta na estimativa. Sem dia-do-mês fixo de propósito: VR não cai
+	// em dia fixo, então uma data pontual não "mente" nos meses em que varia.
+	nextRechargeDate: date("proxima_recarga", { mode: "date" }),
 	userId: text("user_id")
 		.notNull()
 		.references(() => user.id, { onDelete: "cascade" }),

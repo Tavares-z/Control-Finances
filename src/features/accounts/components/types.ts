@@ -9,6 +9,7 @@ export type Account = {
 	balance?: number | null;
 	excludeFromBalance?: boolean;
 	excludeInitialBalanceFromIncome?: boolean;
+	nextRechargeDate?: string | null;
 };
 
 export type AccountFormValues = {
@@ -20,4 +21,6 @@ export type AccountFormValues = {
 	initialBalance: string;
 	excludeFromBalance: boolean;
 	excludeInitialBalanceFromIncome: boolean;
+	/** Data-alvo da próxima recarga (YYYY-MM-DD) — só usada em contas VR/VA. */
+	nextRechargeDate: string;
 };

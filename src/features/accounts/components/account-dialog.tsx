@@ -78,6 +78,7 @@ const buildInitialValues = ({
 		excludeFromBalance: account?.excludeFromBalance ?? false,
 		excludeInitialBalanceFromIncome:
 			account?.excludeInitialBalanceFromIncome ?? false,
+		nextRechargeDate: account?.nextRechargeDate ?? "",
 	};
 };
 
@@ -185,6 +186,7 @@ export function AccountDialog({
 			excludeFromBalance: formState.excludeFromBalance,
 			excludeInitialBalanceFromIncome:
 				formState.excludeInitialBalanceFromIncome,
+			nextRechargeDate: formState.nextRechargeDate || null,
 		};
 
 		if (!payload.logo) {

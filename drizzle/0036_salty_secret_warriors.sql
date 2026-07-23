@@ -1,0 +1,1 @@
+ALTER TABLE "contas" ADD COLUMN "proxima_recarga" date;

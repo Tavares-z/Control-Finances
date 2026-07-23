@@ -19,6 +19,9 @@ import {
 
 import type { AccountFormValues } from "./types";
 
+/** Precisa bater com o accountType lido em vr-balance-queries.ts. */
+const VR_ACCOUNT_TYPE = "Pré-Pago | VR/VA";
+
 interface AccountFormFieldsProps {
 	values: AccountFormValues;
 	accountTypes: string[];
@@ -106,6 +109,25 @@ export function AccountFormFields({
 					<p className="text-xs text-muted-foreground">
 						Alterar o saldo inicial ajusta o lançamento correspondente no
 						extrato da conta.
+					</p>
+				</div>
+			) : null}
+
+			{values.accountType === VR_ACCOUNT_TYPE ? (
+				<div className="flex flex-col gap-2 sm:col-span-2">
+					<Label htmlFor="account-next-recharge">Próxima recarga</Label>
+					<Input
+						id="account-next-recharge"
+						type="date"
+						value={values.nextRechargeDate}
+						onChange={(event) =>
+							onChange("nextRechargeDate", event.target.value)
+						}
+					/>
+					<p className="text-xs text-muted-foreground">
+						Opcional. Informe quando o benefício recarrega para o painel
+						calcular com precisão quanto dá para gastar por dia até lá. Em
+						branco, a data é estimada pelo histórico de recargas.
 					</p>
 				</div>
 			) : null}

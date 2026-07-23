@@ -84,6 +84,19 @@ const accountBaseSchema = z.object({
 	excludeInitialBalanceFromIncome: z
 		.union([z.boolean(), z.string()])
 		.transform((value) => value === true || value === "true"),
+	// Data-alvo opcional da próxima recarga (VR/VA). "" ou ausente → null;
+	// caso contrário exige YYYY-MM-DD e converte para Date local.
+	nextRechargeDate: z.preprocess(
+		(value) =>
+			typeof value === "string" && value.trim().length > 0
+				? value.trim()
+				: null,
+		z
+			.string()
+			.regex(/^\d{4}-\d{2}-\d{2}$/u, "Informe uma data válida.")
+			.transform((value) => parseLocalDateString(value))
+			.nullable(),
+	),
 });
 
 const createAccountSchema = accountBaseSchema;
@@ -94,8 +107,8 @@ const deleteAccountSchema = z.object({
 	id: uuidSchema("FinancialAccount"),
 });
 
-type AccountCreateInput = z.infer<typeof createAccountSchema>;
-type AccountUpdateInput = z.infer<typeof updateAccountSchema>;
+type AccountCreateInput = z.input<typeof createAccountSchema>;
+type AccountUpdateInput = z.input<typeof updateAccountSchema>;
 type AccountDeleteInput = z.infer<typeof deleteAccountSchema>;
 
 /**
@@ -216,6 +229,7 @@ export async function createAccountAction(
 					initialBalance: formatDecimalForDbRequired(data.initialBalance),
 					excludeFromBalance: data.excludeFromBalance,
 					excludeInitialBalanceFromIncome: data.excludeInitialBalanceFromIncome,
+					nextRechargeDate: data.nextRechargeDate,
 					userId: user.id,
 				})
 				.returning({ id: financialAccounts.id, name: financialAccounts.name });
@@ -264,6 +278,7 @@ export async function updateAccountAction(
 					initialBalance: formatDecimalForDbRequired(data.initialBalance),
 					excludeFromBalance: data.excludeFromBalance,
 					excludeInitialBalanceFromIncome: data.excludeInitialBalanceFromIncome,
+					nextRechargeDate: data.nextRechargeDate,
 				})
 				.where(
 					and(
