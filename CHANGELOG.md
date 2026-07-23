@@ -18,6 +18,9 @@ As datas seguem o histórico real do git (`%cs` do commit).
   `emerald`/`amber` cruas, alinhando ao `DESIGN.md`. (2026-07-22)
 - **Documentação:** `CLAUDE.md` ganhou a "Regra de Design", apontando o `DESIGN.md`
   como fonte de verdade visual obrigatória em qualquer alteração de UI. (2026-07-22)
+- **Documentação:** o documento de instruções foi renomeado de `CLAUDE.md` para
+  `AGENTS.md` (neutro entre IAs); `CLAUDE.md` virou um stub de uma linha
+  (`@AGENTS.md`) para o Claude Code seguir carregando automaticamente. (2026-07-23)
 
 ## Customizações do fork
 
@@ -93,7 +96,7 @@ As datas seguem o histórico real do git (`%cs` do commit).
 ### 2026-07 — Sincronizado com upstream v2.7.12
 - Sync de v2.7.2 → v2.7.12 (migrations, Settings/Monetinha, transações, dashboard
   widgets, popovers de fatura, anexos por pessoa, import de planilhas, cards). Workflows
-  de CI/CD deixados de fora por decisão (fork usa Railway). Detalhes no `CLAUDE.md`,
+  de CI/CD deixados de fora por decisão (fork usa Railway). Detalhes no `AGENTS.md`,
   seção "Estado do Sync".
 
 ---
