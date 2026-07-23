@@ -30,6 +30,14 @@ Essa regra vale para TODA conversa neste projeto, não só merge de upstream —
 - Depois de editar código com duas ou mais variáveis/maps de tipo igual e fácil de confundir (ex: dois Maps construídos a partir de queries paralelas, valores com mesmo tipo mas significado diferente), releia o bloco editado inteiro e rastreie cada variável até sua origem antes de rodar typecheck/build. Typecheck não pega troca semântica entre duas variáveis do mesmo tipo — só reler o código pega (aconteceu de verdade na sessão que corrigiu `currentInvoiceAmount` em `cards/queries.ts`, quase inverteu `usageMap`/`invoiceMap`).
 - Quando perguntado sobre gaps/riscos do sistema ("tem algum gap que você identifique?"), não faça varredura módulo por módulo — simule mentalmente, ponta a ponta, os fluxos de usuário que cruzam ≥2 features customizadas (ver lista em "Minhas Customizações" abaixo: Assinaturas × Inbox × Import × Fatura, Metas × Attachments, Companion × Auth). Os bugs mais caros vivem na interação entre features que isoladamente parecem corretas, não dentro de uma única feature.
 
+## Regra de Design (DESIGN.md é fonte de verdade visual)
+O arquivo [`DESIGN.md`](./DESIGN.md) na raiz define o design system do projeto (direção visual, tokens, tipografia, componentes, layout, acessibilidade). Ele é a FONTE DE VERDADE para qualquer decisão de UI — e vale tanto para código novo quanto para sync de upstream.
+
+- SEMPRE que uma alteração tocar UI (novo widget, form, dialog, card, cor, ícone, layout, estado vazio/loading/erro), ler o DESIGN.md ANTES de escrever o componente e validar contra o "Checklist de revisão visual" (seção 9) ANTES de concluir.
+- Regras não-negociáveis do DESIGN.md: (1) reutilizar componentes de `src/shared/components/ui/` em vez de recriar; (2) usar tokens semânticos (`bg-card`, `text-muted-foreground`, `border-border`, `success`/`warning`/`info`/`destructive`, `chart-1..10`/`data-1..6`) — proibido hex ou valor arbitrário quando já existe token; (3) validar tema claro E escuro; (4) nunca comunicar estado só por cor (incluir label/ícone/tooltip); (5) foco visível com `ring`, labels associados a inputs, nome acessível em botão de ícone.
+- Toda fuga consciente do DESIGN.md (ex: `<input type="date">` nativo no account-form no lugar do `DatePicker` compartilhado, por causa do bug de Popover-em-Dialog do Radix) DEVE ser registrada com o motivo, aqui no CLAUDE.md ou em comentário no código — pra não parecer descuido numa auditoria futura.
+- Ao sincronizar upstream: se o upstream mexer em `globals.css` (tokens), `src/shared/components/ui/` ou `public/fonts/`, tratar como mudança de design system e reconciliar com o DESIGN.md, não só aplicar o diff cru.
+
 ## Minhas Customizações (preservar sempre)
 
 ### Metas Financeiras
