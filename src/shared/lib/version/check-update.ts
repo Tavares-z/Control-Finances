@@ -1,6 +1,10 @@
 import { version as currentVersion } from "@/package.json";
 
-const GITHUB_REPO = "felipegcoutinho/openmonetis";
+// Fork: o verificador de update aponta para ESTE repo (Control-Finances), nao
+// para o upstream — a linha de versao do fork e propria (v3.x), e checar contra
+// felipegcoutinho/openmonetis faria o app nunca detectar as releases do fork.
+// A landing page publica continua creditando o upstream de proposito (nao mexer).
+const GITHUB_REPO = "Tavares-z/Control-Finances";
 const RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases`;
 
 export type UpdateCheckResult = {
