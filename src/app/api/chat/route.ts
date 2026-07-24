@@ -1,6 +1,6 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { stepCountIs, streamText } from "ai";
-import { asc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { chatMessages, userPreferences } from "@/db/schema";
 import { fetchBudgetsForUser } from "@/features/budgets/queries";
@@ -207,8 +207,8 @@ export async function POST(req: Request) {
 	const [history, financialContext, prefs] = await Promise.all([
 		db.query.chatMessages.findMany({
 			where: eq(chatMessages.userId, userId),
-			orderBy: [asc(chatMessages.createdAt)],
-			limit: 20,
+			orderBy: [desc(chatMessages.createdAt)],
+			limit: 10,
 		}),
 		buildChatContext(userId),
 		db.query.userPreferences.findFirst({
@@ -237,10 +237,15 @@ export async function POST(req: Request) {
 			.filter(Boolean)
 			.join("\n\n"),
 		messages: [
-			...history.map((m) => ({
-				role: m.role as "user" | "assistant",
-				content: m.content,
-			})),
+			// history vem em desc (mais recente primeiro) para pegar as 10 ÚLTIMAS
+			// mensagens; reverter aqui restaura a ordem cronológica que o modelo espera.
+			...history
+				.slice()
+				.reverse()
+				.map((m) => ({
+					role: m.role as "user" | "assistant",
+					content: m.content,
+				})),
 			{
 				role: "user" as const,
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
