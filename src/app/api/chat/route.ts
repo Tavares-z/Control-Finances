@@ -109,6 +109,7 @@ const registrarSchema = z.object({
 			"Boleto",
 			"Pré-Pago | VR/VA",
 			"Transferência bancária",
+			"Saldo em conta",
 		])
 		.describe("Forma de pagamento"),
 	purchaseDate: z.string().describe("Data no formato YYYY-MM-DD"),

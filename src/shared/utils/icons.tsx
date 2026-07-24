@@ -83,6 +83,9 @@ export const getPaymentMethodIcon = (paymentMethod: string): ReactNode => {
 		transferenciabancaria: (
 			<RemixIcons.RiExchangeLine className={ICON_CLASS} aria-hidden />
 		),
+		saldoemconta: (
+			<RemixIcons.RiWalletLine className={ICON_CLASS} aria-hidden />
+		),
 	};
 
 	return registry[key] ?? null;

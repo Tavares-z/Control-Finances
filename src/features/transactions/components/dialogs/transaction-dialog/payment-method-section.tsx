@@ -86,6 +86,7 @@ export function PaymentMethodSection({
 		"Cartão de débito",
 		"Pré-Pago | VR/VA",
 		"Transferência bancária",
+		"Saldo em conta",
 	].includes(formState.paymentMethod);
 
 	const filteredContaOptions =

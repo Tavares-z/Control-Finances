@@ -18,6 +18,7 @@ export const PAYMENT_METHODS = [
 	"Boleto",
 	"Pré-Pago | VR/VA",
 	"Transferência bancária",
+	"Saldo em conta",
 ] as const;
 
 export const CREDIT_CARD_PAYMENT_METHOD = "Cartão de crédito" as const;
