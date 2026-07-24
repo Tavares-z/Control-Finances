@@ -7,7 +7,7 @@
 - **Projeto:** Control-Finances — fork pessoal do OpenMonetis, deployado no Railway
 - **Upstream:** https://github.com/felipegcoutinho/openmonetis (versionamento semver, releases por tag)
 - **Fork local:** `C:\OpenMonetis-dev` (Windows, PowerShell + VS Code) — preencher URL do remote `origin` aqui: https://github.com/Tavares-z/Control-Finances
-- **Sync atual:** upstream v2.7.12 (completo — falta só os workflows de CI/CD, por decisão; ver "Estado do Sync" abaixo e [`CHANGELOG.md`](./CHANGELOG.md))
+- **Sync atual:** upstream v2.7.12 (completo — os workflows de CI/CD do upstream foram REMOVIDOS do fork por decisão; ver "Estado do Sync" abaixo e [`CHANGELOG.md`](./CHANGELOG.md))
 
 ## Contexto de Fork e Atualizações — REGRAS OBRIGATÓRIAS
 1. **NUNCA sugerir merge automático** de uma nova versão do upstream sem antes verificar conflitos com as customizações abaixo.
@@ -93,6 +93,9 @@ em core.ts — existe no fork, não existe no upstream atual (divergência antig
 ### Companion (device auth)
 /api/auth/device/verify retorna expiresAt (campo que o app Android Companion sempre esperou mas nunca recebia) — divergência do upstream, preservar ao sincronizar essa rota. Fork público do Companion em github.com/Tavares-z/openmonetis-companion (Kotlin/Android, repo separado) com fixes de confiabilidade: recuperação de notificação travada em SYNCING, aviso de expiração de token na tela de Ajustes.
 
+### Verificador de update aponta para o fork
+`GITHUB_REPO` em src/shared/lib/version/check-update.ts aponta para `Tavares-z/Control-Finances` (NÃO `felipegcoutinho/openmonetis`). O fork tem linha de versão própria (v3.x); checar update contra o upstream faria o app nunca detectar uma release do fork. O check lê o redirect de `/releases/latest` e faz parse da TAG (`v3.0.0`), não do nome da release (`v3.0.0 — Control-Finances (base upstream …)`) — por isso o título longo não quebra o parse. ⚠️ Ao sincronizar `check-update.ts`, RE-APONTAR para o fork. A landing page pública (page.tsx, setup-tabs.tsx, landing/queries.ts, companion-tab.tsx) e o `feedback-dialog.tsx` continuam apontando para o upstream DE PROPÓSITO (créditos ao projeto original; sistema pessoal) — não trocar esses.
+
 ## Stack Técnica
 Next.js 16 App Router, PostgreSQL + Drizzle ORM, pnpm, Railway, OpenRouter, AI SDK ^6.0.191 (Zod v4 interno)
 
@@ -127,7 +130,7 @@ Regras ao lançar uma release do fork:
 ## Estado do Sync
 Sync atual: upstream **v2.7.12** (de v2.7.2). Histórico detalhado de cada bloco portado está em [`CHANGELOG.md`](./CHANGELOG.md) (changelog do fork). Invariantes e gotchas que sobreviveram ao sync estão preservados nas seções acima (Stack Técnica, Minhas Customizações, Regra de Verificação), não aqui.
 
-Pendência conhecida: **workflows CI/CD** (`.github/workflows`) não sincronizados — o upstream removeu `docker-publish.yml`, reescreveu `release.yml` e adicionou `ci.yml`. Decisão explícita de não mexer: o fork usa Railway, não Docker Hub/GitHub Releases. Revisitar só se precisar de algo específico.
+**Workflows CI/CD REMOVIDOS do fork** (`.github/workflows` está vazio): `docker-publish.yml` e `release.yml` — que tinham vindo de um sync anterior — foram deletados. Motivos: (1) `docker-publish.yml` rodava a cada push e FALHAVA por falta dos secrets `DOCKER_USERNAME`/`DOCKER_PASSWORD` (o fork usa Railway, não Docker Hub) — gerava notificações de falha no inbox do GitHub; (2) `release.yml` criava tag+GitHub Release AUTOMÁTICA a cada push lendo `package.json`, o que conflita com o fluxo de release MANUAL do fork (ver "Versionamento do Fork") e ainda lia `CHANGELOG.md` no formato Keep-a-Changelog que no fork mora em `CHANGELOG.upstream.md` (parser não casava, corpo saía vazio). Chegou a criar uma release-fantasma `v2.7.12` (autor `github-actions[bot]`) que roubou o "Latest" da `v3.0.0` — deletada. ⚠️ Ao sincronizar upstream, NÃO reintroduzir esses workflows nem o `ci.yml`: o fork não usa Docker Hub/GitHub Releases automáticos. Se um dia quiser CI de lint/typecheck em PR, criar um workflow enxuto próprio (só `tsc --noEmit` + `biome check`), sem Docker/Release. O `package.json` foi alinhado de `2.7.12` → `3.0.0` (versão real do fork) na mesma limpeza.
 
 ⚠️ Formato do `CHANGELOG.md` diverge do upstream: no upstream, o `CHANGELOG.md` segue Keep-a-Changelog (`## [x.y.z] - data`) e é **lido por parser** em dois lugares — a aba "Changelog" em Ajustes (histórico mostrado ao usuário no app) e o workflow `release.yml` (extrai a entrada da versão pra criar a GitHub Release). No fork, o `CHANGELOG.md` virou formato próprio (changelog do fork) e o formato Keep-a-Changelog do upstream mora em `CHANGELOG.upstream.md`. Se for sincronizar a aba Changelog ou o `release.yml`, apontar o parser pra `CHANGELOG.upstream.md` — aplicar o diff cru faz o parser não casar e a tela/release quebrar em silêncio.
 
