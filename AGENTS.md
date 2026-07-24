@@ -115,7 +115,7 @@ Regras ao lançar uma release do fork:
 - **Um só eixo de versão** (`v3.x`). NÃO criar prefixo separado (`control-v…`, `fork-v…`) nem reusar a numeração do upstream — as tags do upstream já convivem no repo e um segundo esquema vira confusão a cada sync.
 - **Portar um fix/feature do upstream** = patch ou minor SEU, não o número do upstream. Ex: upstream lança `v2.7.13`, você porta → vira `v3.0.1` (patch) ou `v3.1.0` (minor), nunca `v2.7.13`/`v2.7.14`.
 - **Feature própria do fork** (Metas, Assinaturas, VR, Monetinha, etc.) = `minor` (`v3.1.0`); bugfix = `patch` (`v3.0.1`); breaking change estrutural = `major` (`v4.0.0`).
-- **Sempre registrar a base do upstream no corpo da release** ("baseado em / sincronizado com upstream vX.Y.Z"). É o elo entre as duas linhas — a de versão do fork e a "Sync atual" abaixo.
+- **Sempre registrar a base do upstream no TÍTULO da release** — formato `vX.Y.Z — Control-Finances (base upstream vA.B.C)` — e detalhar no corpo. Decisão explícita: a correspondência com o upstream é um *metadado* que mora no título/corpo, NÃO no número da tag (numerar a tag igual ao upstream foi avaliado e descartado — colide no `git fetch` quando o upstream lança a mesma versão, e não acomoda features próprias do fork como Metas/Assinaturas/VR/Monetinha, que não existem no upstream). O título dá a rastreabilidade "bato o olho e sei a qual upstream corresponde" sem os problemas de amarrar o número.
 - Release = **git tag anotada + GitHub Release** no `Tavares-z/Control-Finances` (não duplicar o conteúdo no `CHANGELOG.md`, que já é o diário técnico). ⚠️ O `gh` pode resolver o repo pro upstream por engano — sempre passar `--repo Tavares-z/Control-Finances` explicitamente.
 
 ## Estado do Sync
