@@ -79,6 +79,15 @@ export function PaymentMethodSection({
 	showSettledToggle,
 }: PaymentMethodSectionProps) {
 	const isCartaoSelected = formState.paymentMethod === "Cartão de crédito";
+	// Na edição, o select de forma de pagamento reaparece — mas só para
+	// lançamentos que NÃO são cartão de crédito, e sem a opção "Cartão de
+	// crédito" na lista. Isso libera corrigir a forma de um débito antigo
+	// (ex: marcar como "Saldo em conta") sem permitir a conversão de/para
+	// cartão, que mexeria em fatura/parcelamento (caminho arriscado).
+	const showPaymentMethodSelect = !isUpdateMode || !isCartaoSelected;
+	const paymentMethodOptions = isUpdateMode
+		? PAYMENT_METHODS.filter((method) => method !== "Cartão de crédito")
+		: PAYMENT_METHODS;
 	const showContaSelect = [
 		"Pix",
 		"Dinheiro",
@@ -103,7 +112,7 @@ export function PaymentMethodSection({
 	return (
 		<div className="space-y-3">
 			<div className="flex w-full flex-col gap-2 md:flex-row">
-				{!isUpdateMode ? (
+				{showPaymentMethodSelect ? (
 					<div
 						className={cn(
 							"w-full space-y-1",
@@ -130,7 +139,7 @@ export function PaymentMethodSection({
 								</SelectValue>
 							</SelectTrigger>
 							<SelectContent>
-								{PAYMENT_METHODS.map((method) => (
+								{paymentMethodOptions.map((method) => (
 									<SelectItem key={method} value={method}>
 										<PaymentMethodSelectContent label={method} />
 									</SelectItem>
@@ -207,7 +216,7 @@ export function PaymentMethodSection({
 					<div
 						className={cn(
 							"w-full space-y-1",
-							!isUpdateMode ? "md:w-1/2" : "md:w-full",
+							showPaymentMethodSelect ? "md:w-1/2" : "md:w-full",
 						)}
 					>
 						<Label htmlFor="conta">Conta</Label>
