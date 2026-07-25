@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { inboxItems, subscriptions } from "@/db/schema";
 import {
 	getCurrentCycleBillingDate,
@@ -66,6 +66,10 @@ export async function ensureDueSubscriptionsGenerated(
 			})
 			.onConflictDoNothing({
 				target: [inboxItems.subscriptionId, inboxItems.subscriptionPeriod],
+				// O índice pre_lancamentos_assinatura_id_periodo_key é PARCIAL
+				// (WHERE assinatura_id IS NOT NULL); sem repetir o predicado o
+				// Postgres não infere o árbitro → 42P10. Mesmo fix do sync Open Finance.
+				where: sql`"assinatura_id" is not null`,
 			})
 			.returning({ id: inboxItems.id });
 
