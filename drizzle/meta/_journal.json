@@ -260,6 +260,13 @@
       "when": 1784930855844,
       "tag": "0037_create_establishment_logos",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1785002451071,
+      "tag": "0038_swift_snowbird",
+      "breakpoints": true
     }
   ]
 }

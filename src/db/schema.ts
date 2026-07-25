@@ -653,6 +653,11 @@ export const inboxItems = pgTable(
 		// junto com subscriptionId para impedir geração duplicada sob concorrência
 		subscriptionPeriod: text("assinatura_periodo"),
 
+		// Id estável da transação na fonte externa (Open Finance / Pluggy).
+		// Usado para dedup idempotente do próprio sync (Camada 1). NULL para
+		// itens de outras fontes (Companion, assinatura).
+		externalSourceId: text("external_source_id"),
+
 		// Metadados de processamento
 		processedAt: timestamp("processed_at", {
 			mode: "date",
@@ -691,6 +696,66 @@ export const inboxItems = pgTable(
 		)
 			.on(table.subscriptionId, table.subscriptionPeriod)
 			.where(sql`assinatura_id IS NOT NULL`),
+		// Dedup de fonte externa (Open Finance): escopado por usuário de
+		// propósito, NÃO unique global no id externo. Espelha o padrão 0035.
+		externalSourceIdUnique: uniqueIndex(
+			"pre_lancamentos_user_id_external_source_id_key",
+		)
+			.on(table.userId, table.externalSourceId)
+			.where(sql`external_source_id IS NOT NULL`),
+	}),
+);
+
+export const openFinanceConnections = pgTable(
+	"openfinance_connections",
+	{
+		id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+
+		// Identificadores Pluggy — nível ITEM (PATCH futuro + consentimento)
+		pluggyItemId: text("pluggy_item_id").notNull(),
+		connectorName: text("connector_name"),
+
+		// Vínculo conta local ↔ conta Pluggy — nível ACCOUNT
+		// (GET /v2/transactions?accountId=). Uma conta-corrente na F1.
+		accountId: uuid("conta_id").references(() => financialAccounts.id, {
+			onDelete: "set null",
+		}),
+		pluggyAccountId: text("pluggy_account_id"),
+
+		// Status/consentimento do item — F1 só armazena, não age
+		status: text("status"), // UPDATED | LOGIN_ERROR | ...
+		consentExpiresAt: timestamp("consent_expires_at", {
+			mode: "date",
+			withTimezone: true,
+		}),
+
+		// Throttle do sync oportunístico (>= 1h; ver PLAN-openfinance-fase1 §4.5)
+		lastSyncedAt: timestamp("last_synced_at", {
+			mode: "date",
+			withTimezone: true,
+		}),
+
+		createdAt: timestamp("created_at", {
+			mode: "date",
+			withTimezone: true,
+		})
+			.notNull()
+			.defaultNow(),
+		updatedAt: timestamp("updated_at", {
+			mode: "date",
+			withTimezone: true,
+		})
+			.notNull()
+			.defaultNow(),
+	},
+	(table) => ({
+		userIdIdx: index("openfinance_connections_user_id_idx").on(table.userId),
+		pluggyItemIdUnique: uniqueIndex(
+			"openfinance_connections_user_id_pluggy_item_id_key",
+		).on(table.userId, table.pluggyItemId),
 	}),
 );
 
