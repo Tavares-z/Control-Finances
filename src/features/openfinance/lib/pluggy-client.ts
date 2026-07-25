@@ -138,6 +138,10 @@ interface PluggyAuthResponse {
   apiKey: string;
 }
 
+interface PluggyConnectTokenResponse {
+  accessToken: string;
+}
+
 interface PluggyErrorBody {
   message?: string;
   code?: number;
@@ -266,8 +270,71 @@ async function pluggyGet<T>(path: string): Promise<T> {
 }
 
 // ---------------------------------------------------------------------------
+// Request base (POST) com re-auth única em 401/403
+// ---------------------------------------------------------------------------
+
+async function pluggyPost<T>(path: string, body: unknown): Promise<T> {
+  const doFetch = (apiKey: string) =>
+    fetch(`${PLUGGY_API_URL}${path}`, {
+      method: "POST",
+      headers: { "X-API-KEY": apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+
+  let apiKey = await getApiKey();
+  let res = await doFetch(apiKey);
+
+  // Uma única tentativa de re-auth se a apiKey expirou/foi revogada.
+  if (res.status === 401 || res.status === 403) {
+    cachedApiKey = null;
+    cachedApiKeyExpiresAt = 0;
+    apiKey = await authenticate();
+    res = await doFetch(apiKey);
+  }
+
+  if (!res.ok) {
+    let errBody: PluggyErrorBody | null = null;
+    try {
+      errBody = (await res.json()) as PluggyErrorBody;
+    } catch {
+      // corpo não-JSON — segue com null
+    }
+    throw new PluggyApiError(
+      res.status,
+      errBody?.message ?? `Pluggy respondeu HTTP ${res.status}.`,
+      { code: errBody?.code, errorId: errBody?.errorId },
+    );
+  }
+
+  return (await res.json()) as T;
+}
+
+// ---------------------------------------------------------------------------
 // API pública
 // ---------------------------------------------------------------------------
+
+/**
+ * Gera um connect token (accessToken) para inicializar o widget Pluggy Connect.
+ * `POST /connect_token`, autenticado com a apiKey (mesmo fluxo das demais).
+ *
+ * @param options.itemId  se presente, o widget abre em modo UPDATE do item.
+ * @returns `{ accessToken }` — trate como segredo: dá acesso ao widget; nunca
+ *   logar/ecoar. Erros NÃO carregam o token nem credenciais.
+ */
+export async function createConnectToken(options?: {
+  itemId?: string;
+}): Promise<{ accessToken: string }> {
+  const body = options?.itemId ? { itemId: options.itemId } : {};
+  const data = await pluggyPost<PluggyConnectTokenResponse>(
+    "/connect_token",
+    body,
+  );
+  if (!data?.accessToken) {
+    throw new PluggyApiError(500, "Resposta de /connect_token sem accessToken.");
+  }
+  return { accessToken: data.accessToken };
+}
 
 /**
  * Lista as accounts de um item. Desembrulha o `results` do envelope paginado
