@@ -304,13 +304,34 @@ externalSourceId)`. Garantia **no banco**, não em memória — mesma filosofia 
 
 ### 4.3 Dedup Camada 2 (conteúdo — rede para pending→posted)
 
-Antes de inserir, `dedup.ts` checa se já existe item/transação com `(accountId,
-date, amount, description)` equivalente. Cobre o caso **pending→posted** (o Pluggy
+Antes de inserir, o sync checa se já existe um pré-lançamento de origem
+**openfinance** com conteúdo equivalente. Cobre o caso **pending→posted** (o Pluggy
 troca o `id` da transação quando ela sai de pending para posted — confirmado DA
-DOC, ver §5): a Camada 1 não pega (id mudou), a Camada 2 pega. Em F1, o
-comportamento no conflito de Camada 2 é **não inserir** (conservador) OU **inserir
-com flag de possível-duplicata** — decisão de UX a fechar na implementação; ambas
-são aditivas. **Nunca deletar** o que já existe.
+DOC, ver §5): a Camada 1 não pega (id mudou), a Camada 2 pega.
+
+**Chave de match (DECISÃO FECHADA, relaxada em relação ao plano original):**
+`userId` + `sourceApp = "openfinance"` + **dia LOCAL** (America/Sao_Paulo) +
+`|valor|` **em centavos** (nunca float cru) + `description`, contra pré-lançamentos
+de QUALQUER status. ⚠️ O plano original dizia `(accountId, date, amount,
+description)`, mas **`pre_lancamentos` não tem coluna de conta** — a conta só existe
+na `openfinance_connections`, não na linha do inbox. Por isso o `accountId` saiu da
+chave. Aceitável porque **F1 = 1 conexão / 1 conta** e a Camada 2 **só FLAGA, nunca
+suprime** — o risco de dois lançamentos de contas diferentes com mesmo
+dia/valor/descrição colidirem é baixo e o pior caso é uma marcação a mais, não um
+lançamento perdido. Comparar contra **qualquer status** (não só `pending`): um item
+já `processed` virou transação real, que é justamente o que não queremos duplicar.
+
+**Comportamento no conflito de Camada 2 (DECISÃO FECHADA — Opção 3 + visibilidade):**
+**INSERIR mesmo assim** (nunca suprimir), marcando a linha:
+- `possible_duplicate = true` (coluna **NOT NULL DEFAULT false** adicionada à
+  `pre_lancamentos` pela **migration 0039** — fonte de verdade da marcação);
+- `original_title` prefixado com `"[possível duplicata] "` — visibilidade em F1 (a UI
+  está fora de escopo, mas o `inbox-details-dialog` já renderiza `original_title` de
+  graça). O prefixo é só cosmético; a coluna é a verdade.
+
+`sourceApp` permanece **sempre `"openfinance"`** — é identidade da fonte, não estado;
+o estado de "possível duplicata" mora na coluna própria. **Nunca deletar** o que já
+existe.
 
 ### 4.4 Direção despesa/receita (pergunta 4 — RESOLVIDA sem coluna nova)
 

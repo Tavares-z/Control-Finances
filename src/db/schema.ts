@@ -658,6 +658,14 @@ export const inboxItems = pgTable(
 		// itens de outras fontes (Companion, assinatura).
 		externalSourceId: text("external_source_id"),
 
+		// Marca de "possível duplicata" da Camada 2 do sync Open Finance: item
+		// cujo id externo é novo (passou da Camada 1) mas cujo CONTEÚDO já existe
+		// (caso pending→posted que troca id). NUNCA suprime — só sinaliza. Fonte
+		// de verdade da marcação; o prefixo em original_title é só visibilidade.
+		possibleDuplicate: boolean("possible_duplicate")
+			.notNull()
+			.default(false),
+
 		// Metadados de processamento
 		processedAt: timestamp("processed_at", {
 			mode: "date",
