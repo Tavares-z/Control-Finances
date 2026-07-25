@@ -54,7 +54,13 @@ function buildCsp(): string {
 		`img-src 'self' ${imgExtras} data: blob:`,
 		"font-src 'self'",
 		`connect-src 'self' ${connectExtras}`,
-		`frame-src 'self'${s3Origin ? ` ${s3Origin}` : ""}`,
+		// connect.pluggy.ai: iframe do widget Pluggy Connect (Open Finance).
+		// A CSP é global e vai junto pro main no merge da F1 — risco nulo em prod
+		// mesmo antes da F2: isto só permite FRAMING deste domínio específico; o
+		// widget continua atrás de OPENFINANCE_ENABLED + connect token gerado no
+		// server. Só frame-src precisa: o SDK não faz fetch/script-load a domínios
+		// Pluggy no parent (as chamadas de API rodam dentro do iframe).
+		`frame-src 'self' https://connect.pluggy.ai${s3Origin ? ` ${s3Origin}` : ""}`,
 		"frame-ancestors 'none'",
 	].join("; ");
 }
