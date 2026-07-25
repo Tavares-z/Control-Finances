@@ -259,3 +259,27 @@ export async function syncOpenFinanceConnection(
 		alreadyExisted,
 	};
 }
+
+/**
+ * Sincroniza TODAS as conexões Open Finance de um usuário. Ponto de entrada do
+ * gancho oportunístico no load do /dashboard (Entrega 2).
+ *
+ * Atrás da flag server-side `OPENFINANCE_ENABLED` (default DESLIGADO — ausência
+ * da var = desligado). Cada conexão passa por `syncOpenFinanceConnection`, que
+ * já é no-op em throttle/erro e nunca lança; um bug de programação (exceção
+ * inesperada) propaga de propósito, para cair no try/catch do caller.
+ */
+export async function ensureOpenFinanceSynced(userId: string): Promise<void> {
+	// Idioma do precedente `isSignupDisabled` — "True"/"true " não desligam por acidente.
+	if (process.env.OPENFINANCE_ENABLED?.trim().toLowerCase() !== "true") return;
+
+	const connections = await db
+		.select({ id: openFinanceConnections.id })
+		.from(openFinanceConnections)
+		.where(eq(openFinanceConnections.userId, userId));
+
+	// F1 tem 1 conexão, mas iteramos sobre todas (custo igual, futuro-prova).
+	for (const { id } of connections) {
+		await syncOpenFinanceConnection(id);
+	}
+}
