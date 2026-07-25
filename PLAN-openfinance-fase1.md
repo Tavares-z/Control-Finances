@@ -245,7 +245,7 @@ Tudo aditivo. Rollback trivial (§6).
 
 | Arquivo | Papel |
 |---|---|
-| `src/features/openfinance/lib/pluggy-client.ts` | wrapper server-only: `auth()` (apiKey TTL 2h), `getAccounts(itemId)`, `getTransactions(accountId, cursor)` (GET /v2, cursor `{results,next}`), `createConnectToken()`. Lê `PLUGGY_CLIENT_ID/SECRET` de `process.env` (padrão de [s3-client.ts:4-8](src/shared/lib/storage/s3-client.ts#L4)). |
+| `src/features/openfinance/lib/pluggy-client.ts` | wrapper server-only: `auth()` interno (apiKey TTL 2h, re-auth única em 401/403), `listAccounts(itemId)`, `listTransactions(accountId, { createdAtFrom? })` — GET `/v2/transactions`, envelope `{results, next}`; **`cursor`/`page`/`limit` são REJEITADOS com 400** (SANDBOX-SHAPE.md §c), por isso o parâmetro é `createdAtFrom`, não cursor. `createConnectToken()`: **ADIADO** — necessário na UI de conexão (criação de item em prod), será capturado/especificado nesse sub-passo; fora do client da F1 até lá. Lê `PLUGGY_CLIENT_ID/SECRET` de `process.env` (padrão de [s3-client.ts:4-8](src/shared/lib/storage/s3-client.ts#L4)). |
 | `src/features/openfinance/sync.ts` | `ensureOpenFinanceSynced(userId)`: throttle por `lastSyncedAt`, puxa transações da conta-corrente vinculada, insere na Inbox com dedup Camada 1+2. |
 | `src/features/openfinance/lib/dedup.ts` | Camada 2: match por `(accountId, date, amount, description)` contra `pre_lancamentos` e `transactions`. |
 | `src/features/openfinance/actions.ts` | conectar/desconectar item, gerar connect token (server action). |

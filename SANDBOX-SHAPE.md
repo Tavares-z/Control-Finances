@@ -86,6 +86,10 @@ billId (<UUID>), billForecastDate (ex "2023-07", YYYY-MM)
 
 ## b) ACCOUNT — shape de `/accounts?itemId=`
 
+**Envelope da resposta:** `{ total, totalPages, page, results: [...] }` — paginação
+por página (`total`, `totalPages`, `page`), diferente do cursor `{results, next}` de
+`/v2/transactions`. Capturado em 2026-07-25.
+
 **Todas as chaves de um objeto de account:**
 ```
 id, type, subtype, name, balance, currencyCode, itemId, number, createdAt,
