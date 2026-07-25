@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { inboxItems, openFinanceConnections } from "@/db/schema";
 import {
 	listTransactions,
@@ -223,6 +223,9 @@ export async function syncOpenFinanceConnection(
 			})
 			.onConflictDoNothing({
 				target: [inboxItems.userId, inboxItems.externalSourceId],
+				// O índice único é PARCIAL (WHERE external_source_id IS NOT NULL);
+				// sem repetir o predicado o Postgres não infere o árbitro → 42P10.
+				where: sql`${inboxItems.externalSourceId} is not null`,
 			})
 			.returning({ id: inboxItems.id });
 
