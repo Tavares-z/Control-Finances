@@ -6,18 +6,39 @@ import {
 	RiErrorWarningLine,
 	RiQuestionLine,
 } from "@remixicon/react";
+import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
+import { toast } from "sonner";
+import {
+	createConnectTokenAction,
+	disconnectConnectionAction,
+	registerConnectionAction,
+} from "@/features/openfinance/actions";
 import type { OpenFinanceConnectionListItem } from "@/features/openfinance/queries";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "@/shared/components/ui/tooltip";
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/shared/components/ui/dialog";
 import { formatDateTime } from "@/shared/utils/date";
+
+// Widget browser-only: carregado via dynamic ssr:false para não rodar no SSR
+// do App Router (o pluggy-connect-sdk depende de APIs de janela).
+const PluggyConnect = dynamic(
+	() => import("react-pluggy-connect").then((m) => m.PluggyConnect),
+	{ ssr: false },
+);
 
 interface ConnectionsTabProps {
 	connections: OpenFinanceConnectionListItem[];
+	/** Habilita conectores sandbox no widget (staging). Prod: false por padrão. */
+	includeSandbox: boolean;
 }
 
 type BadgeVariant = "success" | "destructive" | "secondary";
@@ -49,7 +70,69 @@ function getStatusBadge(status: string | null): {
 	}
 }
 
-export function ConnectionsTab({ connections }: ConnectionsTabProps) {
+export function ConnectionsTab({
+	connections,
+	includeSandbox,
+}: ConnectionsTabProps) {
+	const router = useRouter();
+	const [isTokenPending, startTokenTransition] = useTransition();
+	const [isMutating, startMutation] = useTransition();
+	const [connectToken, setConnectToken] = useState<string | null>(null);
+	const [toDisconnect, setToDisconnect] =
+		useState<OpenFinanceConnectionListItem | null>(null);
+
+	const handleConnect = () => {
+		startTokenTransition(async () => {
+			const result = await createConnectTokenAction();
+			if (!result.success || !result.data) {
+				toast.error(result.error ?? "Não foi possível iniciar a conexão.");
+				return;
+			}
+			// accessToken NUNCA logado — dá acesso ao widget.
+			setConnectToken(result.data.accessToken);
+		});
+	};
+
+	const handleWidgetSuccess = (data: {
+		item: { id: string; connector?: { name?: string | null } | null };
+	}) => {
+		const pluggyItemId = data.item.id;
+		const connectorName = data.item.connector?.name ?? undefined;
+		setConnectToken(null);
+		startMutation(async () => {
+			const result = await registerConnectionAction({
+				pluggyItemId,
+				connectorName,
+			});
+			if (result.success) {
+				toast.success(result.message ?? "Banco conectado.");
+				router.refresh();
+			} else {
+				toast.error(result.error ?? "Não foi possível registrar a conexão.");
+			}
+		});
+	};
+
+	const handleWidgetError = () => {
+		setConnectToken(null);
+		toast.error("Não foi possível concluir a conexão com o banco.");
+	};
+
+	const handleDisconnect = () => {
+		if (!toDisconnect) return;
+		const connectionId = toDisconnect.id;
+		startMutation(async () => {
+			const result = await disconnectConnectionAction({ connectionId });
+			if (result.success) {
+				toast.success(result.message ?? "Conexão desconectada.");
+				setToDisconnect(null);
+				router.refresh();
+			} else {
+				toast.error(result.error ?? "Não foi possível desconectar a conexão.");
+			}
+		});
+	};
+
 	return (
 		<div className="space-y-4">
 			{connections.length === 0 ? (
@@ -107,26 +190,91 @@ export function ConnectionsTab({ connections }: ConnectionsTabProps) {
 									)}
 									{consentDate && <p>Consentimento expira em {consentDate}</p>}
 								</div>
+
+								<div className="mt-3 flex justify-end">
+									<Button
+										type="button"
+										variant="ghost"
+										size="sm"
+										className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+										onClick={() => setToDisconnect(connection)}
+										disabled={isMutating}
+									>
+										Desconectar
+									</Button>
+								</div>
 							</li>
 						);
 					})}
 				</ul>
 			)}
 
-			<div className="flex flex-col items-start gap-1">
-				<Tooltip>
-					<TooltipTrigger asChild>
-						{/* span é o alvo de hover: botão desabilitado não emite pointer events */}
-						<span>
-							<Button type="button" disabled>
-								Conectar banco
-							</Button>
-						</span>
-					</TooltipTrigger>
-					<TooltipContent>Disponível em breve</TooltipContent>
-				</Tooltip>
-				<p className="text-xs text-muted-foreground">Disponível em breve.</p>
+			<div>
+				<Button
+					type="button"
+					onClick={handleConnect}
+					disabled={isTokenPending || isMutating}
+				>
+					{isTokenPending ? "Abrindo…" : "Conectar banco"}
+				</Button>
 			</div>
+
+			{connectToken && (
+				<PluggyConnect
+					connectToken={connectToken}
+					includeSandbox={includeSandbox}
+					onSuccess={handleWidgetSuccess}
+					onError={handleWidgetError}
+					onClose={() => setConnectToken(null)}
+				/>
+			)}
+
+			<Dialog
+				open={toDisconnect !== null}
+				onOpenChange={(isOpen) => {
+					if (!isOpen && !isMutating) setToDisconnect(null);
+				}}
+			>
+				<DialogContent
+					className="max-w-md"
+					onEscapeKeyDown={(e) => {
+						if (isMutating) e.preventDefault();
+					}}
+					onPointerDownOutside={(e) => {
+						if (isMutating) e.preventDefault();
+					}}
+				>
+					<DialogHeader>
+						<DialogTitle>Desconectar banco?</DialogTitle>
+						<DialogDescription>
+							A conexão com{" "}
+							<strong>
+								{toDisconnect?.connectorName || "esta instituição"}
+							</strong>{" "}
+							será removida e novos lançamentos deixarão de ser importados. Os
+							lançamentos já criados na sua Caixa de entrada permanecem.
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<Button
+							type="button"
+							variant="outline"
+							onClick={() => setToDisconnect(null)}
+							disabled={isMutating}
+						>
+							Cancelar
+						</Button>
+						<Button
+							type="button"
+							variant="destructive"
+							onClick={handleDisconnect}
+							disabled={isMutating}
+						>
+							{isMutating ? "Desconectando…" : "Desconectar"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 }

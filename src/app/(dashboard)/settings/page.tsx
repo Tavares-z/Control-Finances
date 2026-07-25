@@ -45,6 +45,9 @@ export default async function Page() {
 	const openFinanceConnections = openFinanceEnabled
 		? await listOpenFinanceConnections(session.user.id)
 		: [];
+	// Conectores sandbox no widget só em staging; prod fica false por padrão.
+	const openFinanceSandbox =
+		process.env.OPENFINANCE_SANDBOX?.trim().toLowerCase() === "true";
 
 	return (
 		<div className="w-full">
@@ -148,7 +151,10 @@ export default async function Page() {
 									</p>
 								</div>
 								<Separator />
-								<ConnectionsTab connections={openFinanceConnections} />
+								<ConnectionsTab
+									connections={openFinanceConnections}
+									includeSandbox={openFinanceSandbox}
+								/>
 							</div>
 						</Card>
 					</TabsContent>
