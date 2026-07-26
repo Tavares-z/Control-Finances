@@ -1,0 +1,3 @@
+ALTER TABLE "pre_lancamentos" ADD COLUMN "conexao_id" uuid;--> statement-breakpoint
+ALTER TABLE "pre_lancamentos" ADD CONSTRAINT "pre_lancamentos_conexao_id_openfinance_connections_id_fk" FOREIGN KEY ("conexao_id") REFERENCES "public"."openfinance_connections"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "pre_lancamentos_conexao_id_idx" ON "pre_lancamentos" USING btree ("conexao_id");
