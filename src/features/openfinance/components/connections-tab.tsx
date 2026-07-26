@@ -4,7 +4,7 @@ import {
 	RiBankLine,
 	RiCheckboxCircleLine,
 	RiErrorWarningLine,
-	RiQuestionLine,
+	RiTimeLine,
 } from "@remixicon/react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
@@ -60,31 +60,36 @@ interface ConnectionsTabProps {
 
 type BadgeVariant = "success" | "destructive" | "secondary";
 
-function getStatusBadge(status: string | null): {
+// Deriva o badge do ESTADO REAL da conexão, não do status cru (que hoje nunca
+// é gravado — ver F1.3). Precedência: erro de login > já sincronizou > nunca
+// sincronizou. Sem isso, toda conexão saudável caía num fallback "Desconhecido".
+function getStatusBadge(
+	status: string | null,
+	lastSyncedAt: Date | null,
+): {
 	variant: BadgeVariant;
 	label: string;
 	Icon: typeof RiCheckboxCircleLine;
 } {
-	switch (status) {
-		case "UPDATED":
-			return {
-				variant: "success",
-				label: "Atualizada",
-				Icon: RiCheckboxCircleLine,
-			};
-		case "LOGIN_ERROR":
-			return {
-				variant: "destructive",
-				label: "Erro de login",
-				Icon: RiErrorWarningLine,
-			};
-		default:
-			return {
-				variant: "secondary",
-				label: "Desconhecido",
-				Icon: RiQuestionLine,
-			};
+	if (status === "LOGIN_ERROR") {
+		return {
+			variant: "destructive",
+			label: "Erro de login",
+			Icon: RiErrorWarningLine,
+		};
 	}
+	if (lastSyncedAt != null) {
+		return {
+			variant: "success",
+			label: "Sincronizada",
+			Icon: RiCheckboxCircleLine,
+		};
+	}
+	return {
+		variant: "secondary",
+		label: "Aguardando sincronização",
+		Icon: RiTimeLine,
+	};
 }
 
 /**
@@ -284,7 +289,10 @@ export function ConnectionsTab({
 			) : (
 				<ul className="space-y-3">
 					{connections.map((connection) => {
-						const status = getStatusBadge(connection.status);
+						const status = getStatusBadge(
+							connection.status,
+							connection.lastSyncedAt,
+						);
 						const lastSync = formatDateTime(connection.lastSyncedAt);
 						const consentDate = formatDateTime(connection.consentExpiresAt, {
 							day: "2-digit",
