@@ -1,5 +1,10 @@
 import { and, count, desc, eq } from "drizzle-orm";
-import { cards, financialAccounts, inboxItems } from "@/db/schema";
+import {
+	cards,
+	financialAccounts,
+	inboxItems,
+	openFinanceConnections,
+} from "@/db/schema";
 import type {
 	InboxItem,
 	InboxPaginationState,
@@ -50,8 +55,33 @@ export async function fetchInboxItemsPage(
 	const offset = (currentPage - 1) * pageSize;
 
 	const items = await db
-		.select()
+		.select({
+			id: inboxItems.id,
+			sourceApp: inboxItems.sourceApp,
+			sourceAppName: inboxItems.sourceAppName,
+			originalTitle: inboxItems.originalTitle,
+			originalText: inboxItems.originalText,
+			notificationTimestamp: inboxItems.notificationTimestamp,
+			parsedName: inboxItems.parsedName,
+			parsedAmount: inboxItems.parsedAmount,
+			status: inboxItems.status,
+			transactionId: inboxItems.transactionId,
+			subscriptionId: inboxItems.subscriptionId,
+			processedAt: inboxItems.processedAt,
+			discardedAt: inboxItems.discardedAt,
+			createdAt: inboxItems.createdAt,
+			updatedAt: inboxItems.updatedAt,
+			accountName: financialAccounts.name,
+		})
 		.from(inboxItems)
+		.leftJoin(
+			openFinanceConnections,
+			eq(inboxItems.connectionId, openFinanceConnections.id),
+		)
+		.leftJoin(
+			financialAccounts,
+			eq(openFinanceConnections.accountId, financialAccounts.id),
+		)
 		.where(where)
 		.orderBy(desc(inboxItems.notificationTimestamp), desc(inboxItems.createdAt))
 		.limit(pageSize)
