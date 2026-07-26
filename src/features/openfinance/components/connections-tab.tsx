@@ -13,6 +13,8 @@ import { toast } from "sonner";
 import {
 	createConnectTokenAction,
 	disconnectConnectionAction,
+	linkConnectionAccountAction,
+	type PluggyAccountOption,
 	registerConnectionAction,
 } from "@/features/openfinance/actions";
 import type { OpenFinanceConnectionListItem } from "@/features/openfinance/queries";
@@ -26,6 +28,13 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/shared/components/ui/dialog";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/shared/components/ui/select";
 import { formatDateTime } from "@/shared/utils/date";
 
 // Widget browser-only: carregado via dynamic ssr:false para não rodar no SSR
@@ -35,10 +44,18 @@ const PluggyConnect = dynamic(
 	{ ssr: false },
 );
 
+/** Conta local mínima para o dropdown de vínculo (id + nome). */
+export interface LinkableAccount {
+	id: string;
+	name: string;
+}
+
 interface ConnectionsTabProps {
 	connections: OpenFinanceConnectionListItem[];
 	/** Habilita conectores sandbox no widget (staging). Prod: false por padrão. */
 	includeSandbox: boolean;
+	/** Contas locais vinculáveis (já sem VR/VA — filtrado no servidor). */
+	linkableAccounts: LinkableAccount[];
 }
 
 type BadgeVariant = "success" | "destructive" | "secondary";
@@ -70,9 +87,126 @@ function getStatusBadge(status: string | null): {
 	}
 }
 
+/**
+ * Controle de vínculo de UMA conexão. Dropdown de conta local; quando o banco
+ * tem 2+ contas BANK, a action devolve as opções e este componente renderiza
+ * um 2º Select condicional (desambiguação) antes de gravar.
+ */
+function LinkAccountControl({
+	connection,
+	linkableAccounts,
+}: {
+	connection: OpenFinanceConnectionListItem;
+	linkableAccounts: LinkableAccount[];
+}) {
+	const router = useRouter();
+	const [isPending, startTransition] = useTransition();
+	// Conta local escolhida (persiste entre o 1º e o 2º passo da desambiguação).
+	const [selectedAccountId, setSelectedAccountId] = useState<string>(
+		connection.accountId ?? "",
+	);
+	// Opções do 2º nível; não-vazio = precisa escolher a conta Pluggy.
+	const [pluggyOptions, setPluggyOptions] = useState<PluggyAccountOption[]>([]);
+
+	const isLinked = connection.accountId !== null;
+
+	const runLink = (localAccountId: string, pluggyAccountId?: string) => {
+		startTransition(async () => {
+			const result = await linkConnectionAccountAction({
+				connectionId: connection.id,
+				localAccountId,
+				pluggyAccountId,
+			});
+			if (!result.success) {
+				toast.error(result.error ?? "Não foi possível vincular a conta.");
+				return;
+			}
+			if (result.data?.needsPluggyChoice) {
+				// 2+ contas BANK: pede a escolha do 2º nível.
+				setPluggyOptions(result.data.options);
+				return;
+			}
+			setPluggyOptions([]);
+			toast.success(result.message ?? "Conta vinculada.");
+			router.refresh();
+		});
+	};
+
+	const handleAccountChange = (value: string) => {
+		setSelectedAccountId(value);
+		setPluggyOptions([]); // troca de conta reinicia a desambiguação
+		runLink(value);
+	};
+
+	const selectId = `link-account-${connection.id}`;
+	const pluggyId = `link-pluggy-${connection.id}`;
+
+	return (
+		<div className="space-y-2">
+			<label htmlFor={selectId} className="text-sm text-muted-foreground">
+				{isLinked ? "Trocar conta vinculada" : "Vincular a uma conta"}
+			</label>
+			<Select
+				value={selectedAccountId}
+				onValueChange={handleAccountChange}
+				disabled={isPending || linkableAccounts.length === 0}
+			>
+				<SelectTrigger id={selectId} className="w-full">
+					<SelectValue placeholder="Selecione uma conta" />
+				</SelectTrigger>
+				<SelectContent>
+					{linkableAccounts.map((account) => (
+						<SelectItem key={account.id} value={account.id}>
+							{account.name}
+						</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
+
+			{pluggyOptions.length > 0 && (
+				<div className="space-y-1">
+					<p className="text-sm text-warning">
+						Escolha a conta do banco para concluir o vínculo.
+					</p>
+					<label htmlFor={pluggyId} className="text-sm text-muted-foreground">
+						Qual conta neste banco?
+					</label>
+					<Select
+						onValueChange={(pluggyAccountId) =>
+							runLink(selectedAccountId, pluggyAccountId)
+						}
+						disabled={isPending}
+					>
+						<SelectTrigger id={pluggyId} className="w-full">
+							<SelectValue placeholder="Selecione a conta do banco" />
+						</SelectTrigger>
+						<SelectContent>
+							{pluggyOptions.map((option) => (
+								<SelectItem
+									key={option.pluggyAccountId}
+									value={option.pluggyAccountId}
+								>
+									{option.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</div>
+			)}
+
+			{linkableAccounts.length === 0 && (
+				<p className="text-sm text-muted-foreground">
+					Cadastre uma conta para poder vincular.
+				</p>
+			)}
+		</div>
+	);
+}
+
 export function ConnectionsTab({
 	connections,
 	includeSandbox,
+	linkableAccounts,
 }: ConnectionsTabProps) {
 	const router = useRouter();
 	const [isTokenPending, startTokenTransition] = useTransition();
@@ -189,6 +323,13 @@ export function ConnectionsTab({
 										<p>Conta vinculada: {connection.accountName}</p>
 									)}
 									{consentDate && <p>Consentimento expira em {consentDate}</p>}
+								</div>
+
+								<div className="mt-3">
+									<LinkAccountControl
+										connection={connection}
+										linkableAccounts={linkableAccounts}
+									/>
 								</div>
 
 								<div className="mt-3 flex justify-end">
