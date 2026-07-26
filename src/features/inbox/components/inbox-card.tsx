@@ -128,7 +128,7 @@ export const InboxCard = memo(function InboxCard({
 						</div>
 						<div className="flex min-w-0 flex-col">
 							<span className="truncate font-semibold text-base">
-								{item.sourceAppName || item.sourceApp}
+								{item.accountName ?? item.sourceAppName ?? item.sourceApp}
 							</span>
 							<Tooltip>
 								<TooltipTrigger asChild>

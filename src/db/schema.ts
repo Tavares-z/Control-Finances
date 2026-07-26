@@ -658,6 +658,10 @@ export const inboxItems = pgTable(
 		// itens de outras fontes (Companion, assinatura).
 		externalSourceId: text("external_source_id"),
 
+		connectionId: uuid("conexao_id").references(() => openFinanceConnections.id, {
+			onDelete: "set null",
+		}),
+
 		// Marca de "possível duplicata" da Camada 2 do sync Open Finance: item
 		// cujo id externo é novo (passou da Camada 1) mas cujo CONTEÚDO já existe
 		// (caso pending→posted que troca id). NUNCA suprime — só sinaliza. Fonte
@@ -698,6 +702,9 @@ export const inboxItems = pgTable(
 		),
 		subscriptionIdIdx: index("pre_lancamentos_assinatura_id_idx").on(
 			table.subscriptionId,
+		),
+		connectionIdIdx: index("pre_lancamentos_conexao_id_idx").on(
+			table.connectionId,
 		),
 		subscriptionIdPeriodUnique: uniqueIndex(
 			"pre_lancamentos_assinatura_id_periodo_key",

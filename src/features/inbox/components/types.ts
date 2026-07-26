@@ -18,6 +18,7 @@ export interface InboxItem {
 	discardedAt: Date | null;
 	createdAt: Date;
 	updatedAt: Date;
+	accountName: string | null;
 }
 
 export type InboxStatusCounts = Record<InboxStatus, number>;

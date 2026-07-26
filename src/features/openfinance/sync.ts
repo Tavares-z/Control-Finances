@@ -208,6 +208,7 @@ export async function syncOpenFinanceConnection(
 			.insert(inboxItems)
 			.values({
 				userId: connection.userId,
+				connectionId: connection.id, // F1.4: vínculo persistente inbox↔conexão
 				sourceApp: SOURCE_APP, // sempre "openfinance" — identidade, não estado
 				sourceAppName: connection.connectorName,
 				originalTitle: isDuplicate
