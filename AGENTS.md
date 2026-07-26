@@ -7,7 +7,8 @@
 - **Projeto:** Control-Finances — fork pessoal do OpenMonetis, deployado no Railway
 - **Upstream:** https://github.com/felipegcoutinho/openmonetis (versionamento semver, releases por tag)
 - **Fork local:** `C:\OpenMonetis-dev` (Windows, PowerShell + VS Code) — preencher URL do remote `origin` aqui: https://github.com/Tavares-z/Control-Finances
-- **Sync atual:** upstream v2.7.12 (completo — os workflows de CI/CD do upstream foram REMOVIDOS do fork por decisão; ver "Estado do Sync" abaixo e [`CHANGELOG.md`](./CHANGELOG.md))
+- **Sync atual (upstream):** upstream v2.7.12 (completo — os workflows de CI/CD do upstream foram REMOVIDOS do fork por decisão; ver "Estado do Sync" abaixo e [`CHANGELOG.md`](./CHANGELOG.md))
+- **Versão do fork:** v3.1.0 — Fase 1 de Open Finance (Pluggy) LIGADA em produção (PRs #6–#9). Ver subseção "Open Finance (Pluggy)" em "Minhas Customizações".
 
 ## Contexto de Fork e Atualizações — REGRAS OBRIGATÓRIAS
 1. **NUNCA sugerir merge automático** de uma nova versão do upstream sem antes verificar conflitos com as customizações abaixo.
@@ -103,6 +104,35 @@ Salvaguarda: `scripts/guard-db-target.mjs` (allowlist) roda ANTES de `db:migrate
 
 Popular o staging com dados fake exige um usuário existente (o seed lança "Usuário … não foi encontrado" num banco recém-migrado): primeiro criar a conta pelo signup do app apontado pro staging, depois rodar o seed com esse userId. No Windows, chamar o `tsx` direto pra evitar o postinstall/`cp`: `node node_modules/tsx/dist/cli.mjs scripts/mock-data.ts --userId=<id> --startPeriod=YYYY-MM`.
 
+### Open Finance (Pluggy)
+
+Integração Open Finance via Pluggy. Feature LIGADA em produção (v3.1.0, PRs #6–#9). Vive em `src/features/openfinance/`: `actions.ts`, `queries.ts`, `sync.ts`, `lib/pluggy-client.ts`, `components/connections-tab.tsx`. Gancho de sync em `dashboard/page.tsx` (dentro de try/catch). CSP em `src/proxy.ts` libera `frame-src https://connect.pluggy.ai` (só framing).
+
+**Dependência:** `react-pluggy-connect ^2.12.0` — widget cliente, carregado via `dynamic(ssr:false)`. NÃO existe SDK de servidor Pluggy: `pluggy-client.ts` é fetch cru à API (`https://api.pluggy.ai`), com apiKey cacheada em módulo (TTL ~110min) e re-auth única em 401/403.
+
+**Env vars (duas, independentes):**
+- `OPENFINANCE_ENABLED` — flag MASTER da feature. Ausência = desligado. Gate em actions, sync e settings.
+- `OPENFINANCE_SANDBOX` — flag SEPARADA, só habilita conectores sandbox no widget (`includeSandbox`). NÃO habilita a feature.
+- `PLUGGY_CLIENT_ID` / `PLUGGY_CLIENT_SECRET` — só em `pluggy-client.ts` (e nos scripts de diagnóstico). Nunca logadas.
+
+**Schema — `openfinance_connections` (`schema.ts:717-768`):** dois níveis na mesma tabela — ITEM (`pluggyItemId`, `connectorName`) e CONTA (`accountId` FK→conta local ON DELETE SET NULL, `pluggyAccountId`). `uniqueIndex` composto não-parcial `(userId, pluggyItemId)`. **Coluna `status` (linha 737) é morta na F1:** declarada e lida pelo badge, mas NENHUM caminho a grava — o badge real deriva de `lastSyncedAt`, não dela.
+
+**Sync (`sync.ts`):** throttle 1h por `lastSyncedAt`; backfill 90d no 1º sync, senão janela `lastSyncedAt − 24h` (overlap). No-op sem `accountId`/`pluggyAccountId`. Não pagina (só loga warn). Dedup em 2 camadas: (1) `onConflictDoNothing` no índice parcial `(userId, externalSourceId) WHERE external_source_id IS NOT NULL`; (2) chave de conteúdo `dia|centavos|descrição` → insere mesmo assim com `possibleDuplicate=true` e prefixo `[possível duplicata]`. **Nunca suprime, nunca deleta.** `sourceApp="openfinance"`, valor com sinal, timestamp = dia local SP ao meio-dia UTC.
+
+**F1.1 — vínculo conta local ↔ conexão (`linkConnectionAccountAction`):** fluxo 2 níveis com colapso no servidor. Valida ownership da conexão e da conta local; rejeita `accountType "Pré-Pago | VR/VA"`. Regra **1 conta local = 1 conexão validada SÓ em código** (não há unique constraint em `conta_id` — decisão consciente). Lista contas Pluggy filtrando `type !== "CREDIT"`: 1 conta colapsa direto, 2+ devolve `needsPluggyChoice` pro cliente escolher (2º passo re-validado). Auto-sync best-effort após vincular (falha não desfaz o vínculo).
+
+**F1.2 — registro + título do card:** `registerConnectionAction` faz upsert idempotente por `(user, item)` (`accountId` nasce null). Título do card compõe `"{connectorName} · {accountName}"` quando vinculado, resolvendo cards idênticos "MeuPluggy". `truncate` + `min-w-0` + `title`.
+
+**F1.3 — badge por estado real (`connections-tab.tsx:66-93`):** precedência `LOGIN_ERROR` (destructive) > `lastSyncedAt != null` (success/"Sincronizada") > fallback (secondary/"Aguardando sincronização"). Removido ramo inalcançável "UPDATED" e fallback "Desconhecido".
+
+**Desconexão:** `disconnectConnectionAction` só remove o registro LOCAL — NÃO chama `DELETE /items/{id}` na Pluggy (item segue vivo lá; backlog).
+
+**Modelo Pluggy:** uso pessoal via conector **MeuPluggy** (`connectorName` compartilhado por todas as conexões pessoais — não desambigua) = grátis, sem expiração. **`id 200`** do conector MeuPluggy: confirmado em uso, mas não verificável no código (vem da API Pluggy). Sandbox (staging): conector com credenciais `user-ok`/`password-ok`, reutilizáveis (cada conexão gera `itemId` novo). Fluxo pessoal: conectar bancos em `meu.pluggy.ai` antes do app; evitar reconectar mesma conta (limite por CPF).
+
+**Scripts de diagnóstico (`scripts/`):** `probe-pluggy-accounts.mjs` — sonda read-only de `type/subtype/name` por `itemId` (nunca number/balance/owner); não toca banco. `seed-openfinance-test-connection.ts` — insere conexão de teste não-vinculada; guarda anti-prod aborta se host contém `kodama`. Ambos leem credenciais do `.env` (nenhuma hardcoded).
+
+**Backlog:** Eixo A2 (status real via `GET /items/{id}` p/ detectar login expirado); `DELETE` do item na Pluggy ao desconectar; F1.4 (Eixo B — nome da conta real nos itens da Caixa de entrada, exige 1ª migration do Open Finance).
+
 ## Stack Técnica
 Next.js 16 App Router, PostgreSQL + Drizzle ORM, pnpm, Railway, OpenRouter, AI SDK ^6.0.191 (Zod v4 interno)
 
@@ -141,6 +171,8 @@ Regras ao lançar uma release do fork:
 
 ## Estado do Sync
 Sync atual: upstream **v2.7.12** (de v2.7.2). Histórico detalhado de cada bloco portado está em [`CHANGELOG.md`](./CHANGELOG.md) (changelog do fork). Invariantes e gotchas que sobreviveram ao sync estão preservados nas seções acima (Stack Técnica, Minhas Customizações, Regra de Verificação), não aqui.
+
+**Versão do fork: v3.1.0.** Além do sync com upstream, o fork tem sua própria linha de release. A **Fase 1 de Open Finance (Pluggy)** está LIGADA em produção (v3.1.0, PRs #6–#9): sync Pluggy com throttle/dedup, vínculo conta local↔conexão, título e badge de conexão. Detalhes e decisões-chave na subseção "Open Finance (Pluggy)" em "Minhas Customizações". (O `package.json`, alinhado a `3.0.0` na limpeza de CI descrita abaixo, seguiu para `3.1.0` neste release.)
 
 **Workflows CI/CD REMOVIDOS do fork** (`.github/workflows` está vazio): `docker-publish.yml` e `release.yml` — que tinham vindo de um sync anterior — foram deletados. Motivos: (1) `docker-publish.yml` rodava a cada push e FALHAVA por falta dos secrets `DOCKER_USERNAME`/`DOCKER_PASSWORD` (o fork usa Railway, não Docker Hub) — gerava notificações de falha no inbox do GitHub; (2) `release.yml` criava tag+GitHub Release AUTOMÁTICA a cada push lendo `package.json`, o que conflita com o fluxo de release MANUAL do fork (ver "Versionamento do Fork") e ainda lia `CHANGELOG.md` no formato Keep-a-Changelog que no fork mora em `CHANGELOG.upstream.md` (parser não casava, corpo saía vazio). Chegou a criar uma release-fantasma `v2.7.12` (autor `github-actions[bot]`) que roubou o "Latest" da `v3.0.0` — deletada. ⚠️ Ao sincronizar upstream, NÃO reintroduzir esses workflows nem o `ci.yml`: o fork não usa Docker Hub/GitHub Releases automáticos. Se um dia quiser CI de lint/typecheck em PR, criar um workflow enxuto próprio (só `tsc --noEmit` + `biome check`), sem Docker/Release. O `package.json` foi alinhado de `2.7.12` → `3.0.0` (versão real do fork) na mesma limpeza.
 
