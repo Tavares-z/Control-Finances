@@ -291,6 +291,12 @@ export function ConnectionsTab({
 							month: "2-digit",
 							year: "numeric",
 						});
+						// Título compõe conector + conta local vinculada para desambiguar
+						// vários cards do mesmo conector (ex. 4x "MeuPluggy" em prod).
+						const institution = connection.connectorName || "Instituição";
+						const title = connection.accountName
+							? `${institution} · ${connection.accountName}`
+							: institution;
 
 						return (
 							<li
@@ -298,13 +304,13 @@ export function ConnectionsTab({
 								className="rounded-lg border border-border bg-card p-4"
 							>
 								<div className="flex items-start justify-between gap-3">
-									<div className="flex items-center gap-2">
+									<div className="flex min-w-0 items-center gap-2">
 										<RiBankLine
 											className="size-5 shrink-0 text-muted-foreground"
 											aria-hidden="true"
 										/>
-										<span className="font-medium">
-											{connection.connectorName || "Instituição"}
+										<span className="truncate font-medium" title={title}>
+											{title}
 										</span>
 									</div>
 									<Badge variant={status.variant}>
@@ -319,9 +325,6 @@ export function ConnectionsTab({
 											? `Última sincronização: ${lastSync}`
 											: "Nunca sincronizada"}
 									</p>
-									{connection.accountName && (
-										<p>Conta vinculada: {connection.accountName}</p>
-									)}
 									{consentDate && <p>Consentimento expira em {consentDate}</p>}
 								</div>
 
