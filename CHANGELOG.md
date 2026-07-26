@@ -24,6 +24,21 @@ As datas seguem o histórico real do git (`%cs` do commit).
 
 ## Customizações do fork
 
+### 2026-07-25 — Open Finance, Fase 1 (v3.1.0)
+- **Open Finance (fase 1):** conexão de contas bancárias via Pluggy. Nova aba
+  "Conexões bancárias" em Ajustes, com **conectar** (widget Pluggy Connect) e
+  **desconectar**. Os lançamentos das contas conectadas entram automaticamente na
+  Caixa de entrada, com deduplicação (por id da transação e por conteúdo).
+  Sincronização oportunística ao abrir o dashboard (no máximo 1x por hora por
+  conexão). Tudo atrás de flag (`OPENFINANCE_ENABLED`), **desativado por padrão**.
+- **Correção — Assinaturas:** assinaturas sem cartão vinculado não geravam item na
+  Caixa de entrada por um conflito silencioso no banco (predicado do índice parcial
+  faltando no `ON CONFLICT`); a geração voltou a funcionar. (Já em produção via
+  cherry-pick.)
+- **Interno:** runner versionado de sincronização em `scripts/` para diagnóstico do
+  Open Finance; liberação do domínio do widget (`connect.pluggy.ai`) no `frame-src`
+  da CSP.
+
 ### 2026-07-22 — VR/VA: data da próxima recarga (#5)
 - Campo opcional "Próxima recarga" no form de conta VR/VA (migration 0036,
   `contas.proxima_recarga`). Quando preenchida e futura, crava o `daysRemaining` do

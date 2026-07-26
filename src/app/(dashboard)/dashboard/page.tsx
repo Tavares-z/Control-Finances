@@ -4,6 +4,7 @@ import { DashboardMetricsCards } from "@/features/dashboard/components/dashboard
 import { DashboardWelcome } from "@/features/dashboard/components/dashboard-welcome";
 import { extractDashboardLogoNames } from "@/features/dashboard/lib/extract-logo-names";
 import { fetchDashboardPageData } from "@/features/dashboard/page-data-queries";
+import { ensureOpenFinanceSynced } from "@/features/openfinance/sync";
 import { ensureDueSubscriptionsGenerated } from "@/features/subscriptions/generate-due-inbox-items";
 import { getSingleParam } from "@/features/transactions/lib/page-helpers";
 import { LogoPrefetchProvider } from "@/shared/components/entity-avatar";
@@ -29,6 +30,12 @@ export default async function Page({ searchParams }: PageProps) {
     await ensureDueSubscriptionsGenerated(user.id);
   } catch (error) {
     console.error("[ensureDueSubscriptionsGenerated]", error);
+  }
+
+  try {
+    await ensureOpenFinanceSynced(user.id);
+  } catch (error) {
+    console.error("[ensureOpenFinanceSynced]", error);
   }
 
   const { dashboardData, preferences, quickActionOptions } =

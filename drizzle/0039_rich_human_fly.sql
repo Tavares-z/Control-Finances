@@ -1,0 +1,1 @@
+ALTER TABLE "pre_lancamentos" ADD COLUMN "possible_duplicate" boolean DEFAULT false NOT NULL;

@@ -2,6 +2,8 @@ import { RiAndroidLine, RiArrowRightSLine } from "@remixicon/react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
+import { ConnectionsTab } from "@/features/openfinance/components/connections-tab";
+import { listOpenFinanceConnections } from "@/features/openfinance/queries";
 import { AssistantForm } from "@/features/settings/components/assistant-form";
 import { CompanionTab } from "@/features/settings/components/companion-tab";
 import { DeleteAccountForm } from "@/features/settings/components/delete-account-form";
@@ -37,6 +39,16 @@ export default async function Page() {
 	const { authProvider, userPreferences, userApiTokens } =
 		await fetchSettingsPageData(session.user.id);
 
+	// Gate server-side: sem a flag, a aba não existe (kodama idêntico ao de hoje).
+	const openFinanceEnabled =
+		process.env.OPENFINANCE_ENABLED?.trim().toLowerCase() === "true";
+	const openFinanceConnections = openFinanceEnabled
+		? await listOpenFinanceConnections(session.user.id)
+		: [];
+	// Conectores sandbox no widget só em staging; prod fica false por padrão.
+	const openFinanceSandbox =
+		process.env.OPENFINANCE_SANDBOX?.trim().toLowerCase() === "true";
+
 	return (
 		<div className="w-full">
 			<Tabs defaultValue="preferencias" className="w-full">
@@ -46,6 +58,9 @@ export default async function Page() {
 						<TabsList className="inline-flex w-max flex-nowrap md:w-full">
 							<TabsTrigger value="preferencias">Preferências</TabsTrigger>
 							<TabsTrigger value="companion">Companion</TabsTrigger>
+							{openFinanceEnabled && (
+								<TabsTrigger value="conexoes">Conexões bancárias</TabsTrigger>
+							)}
 							<TabsTrigger value="nome">Alterar nome</TabsTrigger>
 							<TabsTrigger value="senha">Alterar senha</TabsTrigger>
 							<TabsTrigger value="passkeys">Passkeys</TabsTrigger>
@@ -121,6 +136,29 @@ export default async function Page() {
 						</div>
 					</Card>
 				</TabsContent>
+
+				{openFinanceEnabled && (
+					<TabsContent value="conexoes" className="mt-4">
+						<Card className="p-6">
+							<div className="space-y-4">
+								<div>
+									<h2 className="text-xl font-semibold mb-1">
+										Conexões bancárias
+									</h2>
+									<p className="text-sm text-muted-foreground">
+										Gerencie as conexões de Open Finance que importam seus
+										lançamentos para a Caixa de entrada.
+									</p>
+								</div>
+								<Separator />
+								<ConnectionsTab
+									connections={openFinanceConnections}
+									includeSandbox={openFinanceSandbox}
+								/>
+							</div>
+						</Card>
+					</TabsContent>
+				)}
 
 				<TabsContent value="nome" className="mt-4">
 					<Card className="p-6">

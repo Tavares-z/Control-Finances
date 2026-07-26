@@ -1,0 +1,14 @@
+{
+	"//": "tsconfig dedicado do openfinance-sync-runner (rodado via tsx no subprocesso). baseUrl no root do repo; mapeia @/* e stuba server-only/client-only para um módulo vazio (fora do bundler do Next eles não resolvem / lançam).",
+	"compilerOptions": {
+		"baseUrl": "..",
+		"module": "esnext",
+		"moduleResolution": "bundler",
+		"target": "esnext",
+		"paths": {
+			"@/*": ["src/*", "*"],
+			"server-only": ["scripts/openfinance-sync-runner.server-only.ts"],
+			"client-only": ["scripts/openfinance-sync-runner.server-only.ts"]
+		}
+	}
+}
