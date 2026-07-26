@@ -8,6 +8,10 @@ export interface OpenFinanceConnectionListItem {
 	status: string | null;
 	lastSyncedAt: Date | null;
 	consentExpiresAt: Date | null;
+	/** Item Pluggy — o cliente devolve na action de vínculo (F1.1). */
+	pluggyItemId: string;
+	/** conta_id local vinculado (null = não vinculada). Fonte de "vinculada?". */
+	accountId: string | null;
 	/** Nome da conta local vinculada (LEFT JOIN — pode ser null). */
 	accountName: string | null;
 }
@@ -27,6 +31,8 @@ export async function listOpenFinanceConnections(
 			status: openFinanceConnections.status,
 			lastSyncedAt: openFinanceConnections.lastSyncedAt,
 			consentExpiresAt: openFinanceConnections.consentExpiresAt,
+			pluggyItemId: openFinanceConnections.pluggyItemId,
+			accountId: openFinanceConnections.accountId,
 			accountName: financialAccounts.name,
 		})
 		.from(openFinanceConnections)

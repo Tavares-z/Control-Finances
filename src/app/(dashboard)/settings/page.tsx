@@ -2,6 +2,7 @@ import { RiAndroidLine, RiArrowRightSLine } from "@remixicon/react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
+import { fetchAllAccountsForUser } from "@/features/accounts/queries";
 import { ConnectionsTab } from "@/features/openfinance/components/connections-tab";
 import { listOpenFinanceConnections } from "@/features/openfinance/queries";
 import { AssistantForm } from "@/features/settings/components/assistant-form";
@@ -44,6 +45,13 @@ export default async function Page() {
 		process.env.OPENFINANCE_ENABLED?.trim().toLowerCase() === "true";
 	const openFinanceConnections = openFinanceEnabled
 		? await listOpenFinanceConnections(session.user.id)
+		: [];
+	// Contas locais para o dropdown de vínculo (F1.1). Exclui VR/VA — saldo
+	// pré-pago sem conexão bancária Open Finance. Só carrega com a flag ativa.
+	const linkableAccounts = openFinanceEnabled
+		? (await fetchAllAccountsForUser(session.user.id)).activeAccounts
+				.filter((account) => account.accountType !== "Pré-Pago | VR/VA")
+				.map((account) => ({ id: account.id, name: account.name }))
 		: [];
 	// Conectores sandbox no widget só em staging; prod fica false por padrão.
 	const openFinanceSandbox =
@@ -154,6 +162,7 @@ export default async function Page() {
 								<ConnectionsTab
 									connections={openFinanceConnections}
 									includeSandbox={openFinanceSandbox}
+									linkableAccounts={linkableAccounts}
 								/>
 							</div>
 						</Card>
@@ -239,7 +248,9 @@ export default async function Page() {
 							</div>
 							<Separator />
 							<AssistantForm
-								initialModel={userPreferences?.chatModel ?? "google/gemini-3.5-flash"}
+								initialModel={
+									userPreferences?.chatModel ?? "google/gemini-3.5-flash"
+								}
 								initialPersonality={userPreferences?.chatPersonality ?? ""}
 							/>
 						</div>

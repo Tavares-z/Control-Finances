@@ -279,7 +279,18 @@ export async function ensureOpenFinanceSynced(userId: string): Promise<void> {
 		.where(eq(openFinanceConnections.userId, userId));
 
 	// F1 tem 1 conexão, mas iteramos sobre todas (custo igual, futuro-prova).
+	// Agrega os status para uma linha de diagnóstico SEM PII (só contagens) —
+	// permite ver "4 skipped" virar "4 ok" após o backfill sem abrir o banco.
+	const tally = { ok: 0, throttled: 0, skipped: 0, error: 0 };
 	for (const { id } of connections) {
-		await syncOpenFinanceConnection(id);
+		const result = await syncOpenFinanceConnection(id);
+		tally[result.status] += 1;
+	}
+	if (connections.length > 0) {
+		console.info("[ensureOpenFinanceSynced]", {
+			userId,
+			connections: connections.length,
+			...tally,
+		});
 	}
 }
