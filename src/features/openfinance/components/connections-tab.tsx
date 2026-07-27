@@ -15,6 +15,7 @@ import {
 	disconnectConnectionAction,
 	linkConnectionAccountAction,
 	type PluggyAccountOption,
+	reconnectConnectionAction,
 	registerConnectionAction,
 } from "@/features/openfinance/actions";
 import type { OpenFinanceConnectionListItem } from "@/features/openfinance/queries";
@@ -257,6 +258,22 @@ export function ConnectionsTab({
 		toast.error("Não foi possível concluir a conexão com o banco.");
 	};
 
+	// Reconexão: abre o widget em modo UPDATE do item existente. Reusa o mesmo
+	// connectToken state e, por consequência, os mesmos onSuccess/onError/onClose
+	// do <PluggyConnect> — o registerConnectionAction do onSuccess é idempotente
+	// por (user, item), então concluir só atualiza a conexão existente.
+	const handleReconnect = (itemId: string) => {
+		startTokenTransition(async () => {
+			const result = await reconnectConnectionAction(itemId);
+			if (!result.success || !result.data) {
+				toast.error(result.error ?? "Não foi possível iniciar a reconexão.");
+				return;
+			}
+			// accessToken NUNCA logado — dá acesso ao widget.
+			setConnectToken(result.data.accessToken);
+		});
+	};
+
 	const handleDisconnect = () => {
 		if (!toDisconnect) return;
 		const connectionId = toDisconnect.id;
@@ -343,7 +360,18 @@ export function ConnectionsTab({
 									/>
 								</div>
 
-								<div className="mt-3 flex justify-end">
+								<div className="mt-3 flex justify-end gap-2">
+									{status.variant === "destructive" && (
+										<Button
+											type="button"
+											variant="outline"
+											size="sm"
+											onClick={() => handleReconnect(connection.pluggyItemId)}
+											disabled={isTokenPending || isMutating}
+										>
+											{isTokenPending ? "Abrindo…" : "Reconectar"}
+										</Button>
+									)}
 									<Button
 										type="button"
 										variant="ghost"

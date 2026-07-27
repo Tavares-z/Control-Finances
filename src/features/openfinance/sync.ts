@@ -3,6 +3,7 @@ import "server-only";
 import { and, eq, sql } from "drizzle-orm";
 import { inboxItems, openFinanceConnections } from "@/db/schema";
 import {
+	getItem,
 	listTransactions,
 	PluggyApiError,
 	type PluggyTransaction,
@@ -129,6 +130,45 @@ export async function syncOpenFinanceConnection(
 				errorId: error.errorId,
 				message: error.message,
 			});
+			// A2: o sync falhou — consulta o estado REAL do item (GET /items/{id})
+			// e grava o status cru + expiração do consentimento na conexão, para o
+			// badge refletir login expirado etc. Try/catch ANINHADO e estreito: uma
+			// falha aqui (Pluggy OU banco) NÃO pode escapar — só loga e segue para o
+			// return de erro. Se getItem falhar, deixa o status como estava (não
+			// inventa LOGIN_ERROR).
+			try {
+				const item = await getItem(connection.pluggyItemId);
+				const consentExpiresAt = item.consent?.expiresAt
+					? new Date(item.consent.expiresAt)
+					: undefined;
+				await db
+					.update(openFinanceConnections)
+					.set({
+						status: item.status,
+						updatedAt: new Date(),
+						// Só grava consentExpiresAt quando presente; senão não mexe.
+						...(consentExpiresAt ? { consentExpiresAt } : {}),
+					})
+					.where(eq(openFinanceConnections.id, connection.id));
+			} catch (statusError) {
+				if (statusError instanceof PluggyApiError) {
+					console.error("[syncOpenFinanceConnection] getItem status", {
+						connectionId,
+						status: statusError.status,
+						code: statusError.code,
+						errorId: statusError.errorId,
+						message: statusError.message,
+					});
+				} else {
+					const sErr = statusError as Error;
+					console.error("[syncOpenFinanceConnection] getItem status", {
+						connectionId,
+						name: sErr.name,
+						message: sErr.message,
+					});
+				}
+				// Não propaga: o status fica como estava e seguimos ao return de erro.
+			}
 			return {
 				status: "error",
 				...empty,
@@ -246,10 +286,12 @@ export async function syncOpenFinanceConnection(
 	}
 
 	// 8. Sucesso → carimba lastSyncedAt (só aqui; nunca no caminho de erro).
+	//    status="UPDATED": o sync voltou a funcionar, então o item está são —
+	//    limpa qualquer LOGIN_ERROR anterior gravado no caminho de erro (A2).
 	const now = new Date();
 	await db
 		.update(openFinanceConnections)
-		.set({ lastSyncedAt: now, updatedAt: now })
+		.set({ lastSyncedAt: now, updatedAt: now, status: "UPDATED" })
 		.where(eq(openFinanceConnections.id, connection.id));
 
 	return {

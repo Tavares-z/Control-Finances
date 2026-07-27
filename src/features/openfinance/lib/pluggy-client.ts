@@ -126,6 +126,32 @@ export interface PluggyTransactionsPage {
   next: unknown;
 }
 
+/**
+ * Consentimento de um item Pluggy (aninhado em `item.consent`). Só modelamos
+ * `expiresAt` (ISO 8601), que é o dado que persistimos; o resto do objeto de
+ * consentimento não é usado — deixamos aberto sem tipar campo inventado.
+ */
+export interface PluggyConsent {
+  /** ISO 8601 da expiração do consentimento; pode vir null/ausente. */
+  expiresAt?: string | null;
+}
+
+/**
+ * Item Pluggy (`GET /items/{id}`). Modelamos conservadoramente só o que o A2
+ * usa: `id`, `status` (cru — ex.: `UPDATED`, `LOGIN_ERROR`, `OUTDATED`, …) e a
+ * expiração do consentimento. `executionStatus` é opcional (detalhe do último
+ * ciclo de atualização). Não inventamos os demais campos do item.
+ */
+export interface PluggyItem {
+  id: string;
+  /** Status cru do item; string aberta — não restringimos a um enum fixo. */
+  status: string;
+  /** Detalhe do último ciclo de atualização; opcional. */
+  executionStatus?: string | null;
+  /** Consentimento aninhado; ausente/null em alguns itens. */
+  consent?: PluggyConsent | null;
+}
+
 /** Envelope paginado por página de `GET /accounts`. */
 interface PluggyAccountsEnvelope {
   total: number;
@@ -311,6 +337,53 @@ async function pluggyPost<T>(path: string, body: unknown): Promise<T> {
 }
 
 // ---------------------------------------------------------------------------
+// Request base (DELETE) com re-auth única em 401/403
+// ---------------------------------------------------------------------------
+
+async function pluggyDelete<T>(path: string): Promise<T> {
+  const doFetch = (apiKey: string) =>
+    fetch(`${PLUGGY_API_URL}${path}`, {
+      method: "DELETE",
+      headers: { "X-API-KEY": apiKey },
+      cache: "no-store",
+    });
+
+  let apiKey = await getApiKey();
+  let res = await doFetch(apiKey);
+
+  // Uma única tentativa de re-auth se a apiKey expirou/foi revogada.
+  if (res.status === 401 || res.status === 403) {
+    cachedApiKey = null;
+    cachedApiKeyExpiresAt = 0;
+    apiKey = await authenticate();
+    res = await doFetch(apiKey);
+  }
+
+  if (!res.ok) {
+    let body: PluggyErrorBody | null = null;
+    try {
+      body = (await res.json()) as PluggyErrorBody;
+    } catch {
+      // corpo não-JSON — segue com null
+    }
+    throw new PluggyApiError(
+      res.status,
+      body?.message ?? `Pluggy respondeu HTTP ${res.status}.`,
+      { code: body?.code, errorId: body?.errorId },
+    );
+  }
+
+  // O DELETE de item devolve corpo pequeno/ausente; alguns endpoints Pluggy
+  // respondem 200 com JSON, outros 204 sem corpo. Não impomos JSON: tentamos
+  // ler e caímos para undefined quando não há corpo (ex.: 204).
+  try {
+    return (await res.json()) as T;
+  } catch {
+    return undefined as T;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // API pública
 // ---------------------------------------------------------------------------
 
@@ -376,4 +449,27 @@ export async function listTransactions(
   return pluggyGet<PluggyTransactionsPage>(
     `/v2/transactions?${query.toString()}`,
   );
+}
+
+/**
+ * Exclui um item na Pluggy: `DELETE /items/{itemId}`. Encerra a conexão do lado
+ * da Pluggy (item + consentimento). Usado no fluxo best-effort de desconexão —
+ * o chamador decide se uma falha aqui aborta ou só é logada.
+ *
+ * Retorno CRU do endpoint (200 com JSON ou 204 sem corpo → `undefined`). O
+ * chamador do fluxo de desconexão ignora o valor; a tipagem `unknown` reflete
+ * que o corpo não é contratual. Erros viram `PluggyApiError` (sem credenciais).
+ */
+export async function deleteItem(itemId: string): Promise<unknown> {
+  return pluggyDelete<unknown>(`/items/${encodeURIComponent(itemId)}`);
+}
+
+/**
+ * Lê o estado real de um item: `GET /items/{id}`. Usado pela detecção de status
+ * do A2 (login expirado etc.) — o chamador grava `item.status` cru e a
+ * expiração do consentimento na conexão. Reusa `pluggyGet` (auth/erro já
+ * tratados). Erros viram `PluggyApiError` (sem credenciais).
+ */
+export async function getItem(itemId: string): Promise<PluggyItem> {
+  return pluggyGet<PluggyItem>(`/items/${encodeURIComponent(itemId)}`);
 }
