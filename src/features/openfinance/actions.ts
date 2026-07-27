@@ -7,7 +7,9 @@ import { z } from "zod";
 import { financialAccounts, openFinanceConnections } from "@/db/schema";
 import {
 	createConnectToken,
+	deleteItem,
 	listAccounts,
+	PluggyApiError,
 } from "@/features/openfinance/lib/pluggy-client";
 import { syncOpenFinanceConnection } from "@/features/openfinance/sync";
 import { auth } from "@/shared/lib/auth/config";
@@ -130,9 +132,11 @@ const disconnectConnectionSchema = z.object({
  * Desconecta (remove) uma conexão Open Finance do usuário. Ownership vai na
  * própria cláusula WHERE (id + user_id), não em query separada.
  *
- * F1 só remove LOCALMENTE — NÃO chama DELETE do item na Pluggy (decisão: o
- * escopo da F1 é desvincular do app; a exclusão do lado da Pluggy/consentimento
- * fica para uma fase futura). Lançamentos já criados na Inbox permanecem.
+ * Best-effort: TENTA excluir o item na Pluggy (DELETE /items/{id}) antes de
+ * remover o registro local, mas uma falha ali NÃO impede a desconexão — o
+ * registro local é removido de qualquer forma e a falha é só logada (sem
+ * credenciais). Um item órfão na Pluggy é menos ruim que o usuário travado sem
+ * conseguir desconectar. Lançamentos já criados na Inbox permanecem.
  */
 export async function disconnectConnectionAction(
 	input: z.input<typeof disconnectConnectionSchema>,
@@ -154,6 +158,51 @@ export async function disconnectConnectionAction(
 			};
 		}
 
+		// Ownership + pega o pluggyItemId para o DELETE na Pluggy. Se não achar a
+		// conexão do usuário, não chama a Pluggy nem deleta — retorna cedo.
+		const [connection] = await db
+			.select({
+				id: openFinanceConnections.id,
+				pluggyItemId: openFinanceConnections.pluggyItemId,
+			})
+			.from(openFinanceConnections)
+			.where(
+				and(
+					eq(openFinanceConnections.id, parsed.data.connectionId),
+					eq(openFinanceConnections.userId, session.user.id),
+				),
+			);
+
+		if (!connection) {
+			return { success: false, error: "Conexão não encontrada" };
+		}
+
+		// Best-effort: exclui o item na Pluggy. Try/catch PRÓPRIO e estreito —
+		// só a chamada Pluggy. Sucesso ou falha, o fluxo segue para o delete
+		// local. Log sem credenciais (espelha o catch de sync.ts).
+		try {
+			await deleteItem(connection.pluggyItemId);
+		} catch (error) {
+			if (error instanceof PluggyApiError) {
+				console.error("[disconnectConnectionAction] Pluggy deleteItem", {
+					connectionId: connection.id,
+					status: error.status,
+					code: error.code,
+					errorId: error.errorId,
+					message: error.message,
+				});
+			} else {
+				const err = error as Error;
+				console.error("[disconnectConnectionAction] network deleteItem", {
+					connectionId: connection.id,
+					name: err.name,
+					message: err.message,
+				});
+			}
+			// Falha na Pluggy NÃO aborta: segue para o delete local.
+		}
+
+		// Delete local do registro (ownership de novo na WHERE).
 		const deleted = await db
 			.delete(openFinanceConnections)
 			.where(
