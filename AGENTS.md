@@ -127,13 +127,15 @@ Integração Open Finance via Pluggy. Feature LIGADA em produção (v3.1.0, PRs 
 
 **F1.3 — badge por estado real (`connections-tab.tsx:66-93`):** precedência `LOGIN_ERROR` (destructive) > `lastSyncedAt != null` (success/"Sincronizada") > fallback (secondary/"Aguardando sincronização"). Removido ramo inalcançável "UPDATED" e fallback "Desconhecido".
 
+**F1.4 — nome da conta real no Inbox (Eixo B):** sync grava `connectionId` no item (`sync.ts:211`); listagem faz join conexão↔inbox expondo `accountName` (`queries.ts`); card exibe nome da conta com fallback para origem (`inbox-card.tsx`). 1ª migration do Open Finance em `pre_lancamentos` (coluna `conexao_id`).
+
 **Desconexão:** `disconnectConnectionAction` só remove o registro LOCAL — NÃO chama `DELETE /items/{id}` na Pluggy (item segue vivo lá; backlog).
 
 **Modelo Pluggy:** uso pessoal via conector **MeuPluggy** (`connectorName` compartilhado por todas as conexões pessoais — não desambigua) = grátis, sem expiração. **`id 200`** do conector MeuPluggy: confirmado em uso, mas não verificável no código (vem da API Pluggy). Sandbox (staging): conector com credenciais `user-ok`/`password-ok`, reutilizáveis (cada conexão gera `itemId` novo). Fluxo pessoal: conectar bancos em `meu.pluggy.ai` antes do app; evitar reconectar mesma conta (limite por CPF).
 
 **Scripts de diagnóstico (`scripts/`):** `probe-pluggy-accounts.mjs` — sonda read-only de `type/subtype/name` por `itemId` (nunca number/balance/owner); não toca banco. `seed-openfinance-test-connection.ts` — insere conexão de teste não-vinculada; guarda anti-prod aborta se host contém `kodama`. Ambos leem credenciais do `.env` (nenhuma hardcoded).
 
-**Backlog:** Eixo A2 (status real via `GET /items/{id}` p/ detectar login expirado); `DELETE` do item na Pluggy ao desconectar; F1.4 (Eixo B — nome da conta real nos itens da Caixa de entrada, exige 1ª migration do Open Finance).
+**Backlog:** Eixo A2 (status real via `GET /items/{id}` p/ detectar login expirado); `DELETE` do item na Pluggy ao desconectar.
 
 ## Stack Técnica
 Next.js 16 App Router, PostgreSQL + Drizzle ORM, pnpm, Railway, OpenRouter, AI SDK ^6.0.191 (Zod v4 interno)
