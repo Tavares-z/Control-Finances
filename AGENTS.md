@@ -135,7 +135,7 @@ Integração Open Finance via Pluggy. Feature LIGADA em produção (v3.1.0, PRs 
 
 **Scripts de diagnóstico (`scripts/`):** `probe-pluggy-accounts.mjs` — sonda read-only de `type/subtype/name` por `itemId` (nunca number/balance/owner); não toca banco. `seed-openfinance-test-connection.ts` — insere conexão de teste não-vinculada; guarda anti-prod aborta se host contém `kodama`. Ambos leem credenciais do `.env` (nenhuma hardcoded).
 
-**Backlog:** Eixo A2 (status real via `GET /items/{id}` p/ detectar login expirado).
+**Backlog:** Eixo A2 — status real via `GET /items/{id}`. Frente 2 FEITA: sync consulta o item no catch de erro e grava `status` cru + `consentExpiresAt` na conexão (`sync.ts`), e limpa para `UPDATED` no sucesso. FALTA (Frente 3): confirmar contra o sandbox a string exata que a Pluggy usa para login expirado (o badge F1.3 casa `"LOGIN_ERROR"` literal — se a grafia diferir, mapear) + botão de reconexão via `createConnectToken({itemId})`.
 
 ## Stack Técnica
 Next.js 16 App Router, PostgreSQL + Drizzle ORM, pnpm, Railway, OpenRouter, AI SDK ^6.0.191 (Zod v4 interno)

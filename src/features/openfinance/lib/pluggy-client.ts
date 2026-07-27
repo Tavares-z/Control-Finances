@@ -126,6 +126,32 @@ export interface PluggyTransactionsPage {
   next: unknown;
 }
 
+/**
+ * Consentimento de um item Pluggy (aninhado em `item.consent`). Só modelamos
+ * `expiresAt` (ISO 8601), que é o dado que persistimos; o resto do objeto de
+ * consentimento não é usado — deixamos aberto sem tipar campo inventado.
+ */
+export interface PluggyConsent {
+  /** ISO 8601 da expiração do consentimento; pode vir null/ausente. */
+  expiresAt?: string | null;
+}
+
+/**
+ * Item Pluggy (`GET /items/{id}`). Modelamos conservadoramente só o que o A2
+ * usa: `id`, `status` (cru — ex.: `UPDATED`, `LOGIN_ERROR`, `OUTDATED`, …) e a
+ * expiração do consentimento. `executionStatus` é opcional (detalhe do último
+ * ciclo de atualização). Não inventamos os demais campos do item.
+ */
+export interface PluggyItem {
+  id: string;
+  /** Status cru do item; string aberta — não restringimos a um enum fixo. */
+  status: string;
+  /** Detalhe do último ciclo de atualização; opcional. */
+  executionStatus?: string | null;
+  /** Consentimento aninhado; ausente/null em alguns itens. */
+  consent?: PluggyConsent | null;
+}
+
 /** Envelope paginado por página de `GET /accounts`. */
 interface PluggyAccountsEnvelope {
   total: number;
@@ -436,4 +462,14 @@ export async function listTransactions(
  */
 export async function deleteItem(itemId: string): Promise<unknown> {
   return pluggyDelete<unknown>(`/items/${encodeURIComponent(itemId)}`);
+}
+
+/**
+ * Lê o estado real de um item: `GET /items/{id}`. Usado pela detecção de status
+ * do A2 (login expirado etc.) — o chamador grava `item.status` cru e a
+ * expiração do consentimento na conexão. Reusa `pluggyGet` (auth/erro já
+ * tratados). Erros viram `PluggyApiError` (sem credenciais).
+ */
+export async function getItem(itemId: string): Promise<PluggyItem> {
+  return pluggyGet<PluggyItem>(`/items/${encodeURIComponent(itemId)}`);
 }
