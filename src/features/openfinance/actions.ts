@@ -61,6 +61,72 @@ export async function createConnectTokenAction(): Promise<
 	}
 }
 
+const reconnectConnectionSchema = z.object({
+	itemId: z.string().uuid("Item inválido"),
+});
+
+/**
+ * Gera um connect token de UPDATE para reautenticar um item existente na Pluggy
+ * (fluxo de reconexão após LOGIN_ERROR/consentimento expirado). Diferente da
+ * `createConnectTokenAction`, recebe o `itemId` e o repassa a `createConnectToken`,
+ * que abre o widget em modo UPDATE do item — NÃO cria conexão nova.
+ *
+ * Ownership é o ponto crítico de segurança: só emite o token se o `itemId`
+ * pertencer a uma conexão DO USUÁRIO logado (SELECT por pluggyItemId + userId).
+ * Sem isso, um usuário poderia passar o itemId de outro e ganhar um token de
+ * UPDATE sobre conexão alheia.
+ *
+ * Shape de sucesso idêntico à `createConnectTokenAction`: { success, data:{ accessToken } }.
+ */
+export async function reconnectConnectionAction(
+	itemId: string,
+): Promise<ActionResponse<{ accessToken: string }>> {
+	try {
+		const session = await auth.api.getSession({ headers: await headers() });
+		if (!session?.user?.id) {
+			return { success: false, error: AUTH_ERROR };
+		}
+		if (!isOpenFinanceEnabled()) {
+			return { success: false, error: FLAG_ERROR };
+		}
+
+		const parsed = reconnectConnectionSchema.safeParse({ itemId });
+		if (!parsed.success) {
+			return {
+				success: false,
+				error: parsed.error.issues[0]?.message ?? "Dados inválidos",
+			};
+		}
+
+		// Ownership: o item precisa pertencer a uma conexão do usuário logado.
+		const [connection] = await db
+			.select({ id: openFinanceConnections.id })
+			.from(openFinanceConnections)
+			.where(
+				and(
+					eq(openFinanceConnections.pluggyItemId, parsed.data.itemId),
+					eq(openFinanceConnections.userId, session.user.id),
+				),
+			);
+		if (!connection) {
+			return { success: false, error: "Conexão não encontrada" };
+		}
+
+		// Token em modo UPDATE do item existente (o client repassa o itemId).
+		const { accessToken } = await createConnectToken({
+			itemId: parsed.data.itemId,
+		});
+		return { success: true, data: { accessToken } };
+	} catch (error) {
+		// Nunca ecoa o token/credenciais — PluggyApiError só carrega status/code.
+		console.error("[reconnectConnectionAction]", error);
+		return {
+			success: false,
+			error: "Não foi possível iniciar a reconexão com o banco.",
+		};
+	}
+}
+
 const registerConnectionSchema = z.object({
 	pluggyItemId: z.string().uuid("Item inválido"),
 	connectorName: z.string().optional(),
