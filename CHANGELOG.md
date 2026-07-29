@@ -24,6 +24,21 @@ As datas seguem o histórico real do git (`%cs` do commit).
 
 ## Customizações do fork
 
+### 2026-07-29 — Open Finance: Webhooks Pluggy (v3.2.0)
+- **Open Finance — Webhooks Pluggy (detecção em tempo real):** receptor público
+  `POST /api/webhooks/pluggy` que reage a eventos da Pluggy na hora, em vez de só
+  oportunisticamente ao abrir o dashboard. Login expirado/consentimento vencido
+  (`item/error`, `item/waiting_user_*`) atualizam o status da conexão em tempo
+  real (badge + botão Reconectar reagem na hora); transações novas
+  (`transactions/created`) sincronizam imediatamente, furando o throttle de 1h.
+- **Segurança:** o webhook é autenticado por um segredo compartilhado no header
+  (`Authorization: Bearer`), validado em tempo constante. A Pluggy não assina o
+  corpo — o segredo é configurado no header do webhook (via API) e no ambiente
+  (`PLUGGY_WEBHOOK_SECRET`). Sem o segredo, o receptor rejeita tudo (fail-safe).
+- **Interno:** `scripts/register-pluggy-webhook.mjs` para registrar o header de
+  autenticação do webhook (a Pluggy só aceita headers via API, não pelo
+  dashboard). Fecha a Fase 1 de Open Finance — sem pendências futuras conhecidas.
+
 ### 2026-07-25 — Open Finance, Fase 1 (v3.1.0)
 - **Open Finance (fase 1):** conexão de contas bancárias via Pluggy. Nova aba
   "Conexões bancárias" em Ajustes, com **conectar** (widget Pluggy Connect) e
