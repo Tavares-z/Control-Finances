@@ -1,6 +1,7 @@
 "use client";
 
 import {
+	RiAlertLine,
 	RiBankLine,
 	RiCheckboxCircleLine,
 	RiErrorWarningLine,
@@ -59,11 +60,14 @@ interface ConnectionsTabProps {
 	linkableAccounts: LinkableAccount[];
 }
 
-type BadgeVariant = "success" | "destructive" | "secondary";
+type BadgeVariant = "success" | "destructive" | "warning" | "secondary";
 
-// Deriva o badge do ESTADO REAL da conexão, não do status cru (que hoje nunca
-// é gravado — ver F1.3). Precedência: erro de login > já sincronizou > nunca
-// sincronizou. Sem isso, toda conexão saudável caía num fallback "Desconhecido".
+// Deriva o badge do ESTADO REAL da conexão, não do status cru (que hoje só é
+// gravado no caminho de erro do sync — ver F1.3 / A2). Precedência: erro de
+// login > desatualizada > já sincronizou > nunca sincronizou. Os ramos de status
+// cru (LOGIN_ERROR/OUTDATED) vêm ANTES do check de lastSyncedAt de propósito:
+// uma conexão que já sincronizou tem lastSyncedAt setado, então um ramo de
+// status colocado depois nunca dispararia.
 function getStatusBadge(
 	status: string | null,
 	lastSyncedAt: Date | null,
@@ -77,6 +81,16 @@ function getStatusBadge(
 			variant: "destructive",
 			label: "Erro de login",
 			Icon: RiErrorWarningLine,
+		};
+	}
+	// OUTDATED: item parou de atualizar (consentimento por vencer, banco fora,
+	// etc.). Não é erro duro de login, mas é acionável — badge de aviso + o mesmo
+	// botão Reconectar, que costuma curar o estado com nova autenticação.
+	if (status === "OUTDATED") {
+		return {
+			variant: "warning",
+			label: "Desatualizada",
+			Icon: RiAlertLine,
 		};
 	}
 	if (lastSyncedAt != null) {
@@ -361,7 +375,8 @@ export function ConnectionsTab({
 								</div>
 
 								<div className="mt-3 flex justify-end gap-2">
-									{status.variant === "destructive" && (
+									{(status.variant === "destructive" ||
+										status.variant === "warning") && (
 										<Button
 											type="button"
 											variant="outline"
