@@ -68,8 +68,60 @@ function contentKey(
 	return `${localDay}|${cents}|${description.trim()}`;
 }
 
+/**
+ * Consulta o estado REAL de um item na Pluggy (`GET /items/{id}`) e grava o
+ * `status` cru + a expiração do consentimento na conexão local. É a lógica de
+ * detecção de status do A2, extraída para ser reusável em DOIS gatilhos:
+ *   - o `catch` de erro do sync (comportamento original — ver uso abaixo);
+ *   - o webhook (`item/error`, `item/waiting_user_input`), que a antecipa em
+ *     tempo real em vez de esperar o próximo sync falhar.
+ *
+ * Nunca lança: uma falha (Pluggy OU banco) é só logada sem credenciais e o
+ * status fica como estava (não inventa LOGIN_ERROR). Recebe a conexão já
+ * carregada (id + pluggyItemId) para não repetir o SELECT em cada caller.
+ */
+export async function refreshConnectionStatus(connection: {
+	id: string;
+	pluggyItemId: string;
+}): Promise<void> {
+	try {
+		const item = await getItem(connection.pluggyItemId);
+		const consentExpiresAt = item.consent?.expiresAt
+			? new Date(item.consent.expiresAt)
+			: undefined;
+		await db
+			.update(openFinanceConnections)
+			.set({
+				status: item.status,
+				updatedAt: new Date(),
+				// Só grava consentExpiresAt quando presente; senão não mexe.
+				...(consentExpiresAt ? { consentExpiresAt } : {}),
+			})
+			.where(eq(openFinanceConnections.id, connection.id));
+	} catch (statusError) {
+		if (statusError instanceof PluggyApiError) {
+			console.error("[refreshConnectionStatus] getItem status", {
+				connectionId: connection.id,
+				status: statusError.status,
+				code: statusError.code,
+				errorId: statusError.errorId,
+				message: statusError.message,
+			});
+		} else {
+			const sErr = statusError as Error;
+			console.error("[refreshConnectionStatus] getItem status", {
+				connectionId: connection.id,
+				name: sErr.name,
+				message: sErr.message,
+			});
+		}
+		// Não propaga: o status fica como estava.
+	}
+}
+
 export async function syncOpenFinanceConnection(
 	connectionId: string,
+	options?: { force?: boolean },
 ): Promise<SyncResult> {
 	const empty = {
 		fetched: 0,
@@ -95,9 +147,16 @@ export async function syncOpenFinanceConnection(
 		};
 	}
 
-	// 2. Throttle: sincronizado há menos de 1h → no-op imediato.
+	// 2. Throttle: sincronizado há menos de 1h → no-op imediato. O webhook de
+	//    transação (transactions/created) passa force=true: é um evento REAL da
+	//    Pluggy, não polling — puxar na hora vale mais que respeitar o 1h, e o
+	//    dedup em 2 camadas protege contra duplicata de qualquer forma.
 	const { lastSyncedAt } = connection;
-	if (lastSyncedAt && Date.now() - lastSyncedAt.getTime() < THROTTLE_MS) {
+	if (
+		!options?.force &&
+		lastSyncedAt &&
+		Date.now() - lastSyncedAt.getTime() < THROTTLE_MS
+	) {
 		return { status: "throttled", ...empty, message: "Sincronizado há < 1h." };
 	}
 
@@ -132,43 +191,12 @@ export async function syncOpenFinanceConnection(
 			});
 			// A2: o sync falhou — consulta o estado REAL do item (GET /items/{id})
 			// e grava o status cru + expiração do consentimento na conexão, para o
-			// badge refletir login expirado etc. Try/catch ANINHADO e estreito: uma
-			// falha aqui (Pluggy OU banco) NÃO pode escapar — só loga e segue para o
-			// return de erro. Se getItem falhar, deixa o status como estava (não
-			// inventa LOGIN_ERROR).
-			try {
-				const item = await getItem(connection.pluggyItemId);
-				const consentExpiresAt = item.consent?.expiresAt
-					? new Date(item.consent.expiresAt)
-					: undefined;
-				await db
-					.update(openFinanceConnections)
-					.set({
-						status: item.status,
-						updatedAt: new Date(),
-						// Só grava consentExpiresAt quando presente; senão não mexe.
-						...(consentExpiresAt ? { consentExpiresAt } : {}),
-					})
-					.where(eq(openFinanceConnections.id, connection.id));
-			} catch (statusError) {
-				if (statusError instanceof PluggyApiError) {
-					console.error("[syncOpenFinanceConnection] getItem status", {
-						connectionId,
-						status: statusError.status,
-						code: statusError.code,
-						errorId: statusError.errorId,
-						message: statusError.message,
-					});
-				} else {
-					const sErr = statusError as Error;
-					console.error("[syncOpenFinanceConnection] getItem status", {
-						connectionId,
-						name: sErr.name,
-						message: sErr.message,
-					});
-				}
-				// Não propaga: o status fica como estava e seguimos ao return de erro.
-			}
+			// badge refletir login expirado etc. Extraído para refreshConnectionStatus
+			// (reusado pelo webhook); ele já engole toda falha sem propagar.
+			await refreshConnectionStatus({
+				id: connection.id,
+				pluggyItemId: connection.pluggyItemId,
+			});
 			return {
 				status: "error",
 				...empty,

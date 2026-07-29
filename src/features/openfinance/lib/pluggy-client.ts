@@ -1,5 +1,7 @@
 import "server-only";
 
+import { createHmac, timingSafeEqual } from "node:crypto";
+
 /**
  * Wrapper server-only da API Pluggy (Open Finance).
  *
@@ -391,14 +393,20 @@ async function pluggyDelete<T>(path: string): Promise<T> {
  * Gera um connect token (accessToken) para inicializar o widget Pluggy Connect.
  * `POST /connect_token`, autenticado com a apiKey (mesmo fluxo das demais).
  *
- * @param options.itemId  se presente, o widget abre em modo UPDATE do item.
+ * @param options.itemId      se presente, o widget abre em modo UPDATE do item.
+ * @param options.webhookUrl  se presente, a Pluggy associa este webhook ao item
+ *   criado/atualizado por este token — é como as conexões passam a receber
+ *   `item/error`, `transactions/created`, etc. em tempo real (Webhooks).
  * @returns `{ accessToken }` — trate como segredo: dá acesso ao widget; nunca
  *   logar/ecoar. Erros NÃO carregam o token nem credenciais.
  */
 export async function createConnectToken(options?: {
   itemId?: string;
+  webhookUrl?: string;
 }): Promise<{ accessToken: string }> {
-  const body = options?.itemId ? { itemId: options.itemId } : {};
+  const body: { itemId?: string; webhookUrl?: string } = {};
+  if (options?.itemId) body.itemId = options.itemId;
+  if (options?.webhookUrl) body.webhookUrl = options.webhookUrl;
   const data = await pluggyPost<PluggyConnectTokenResponse>(
     "/connect_token",
     body,
@@ -472,4 +480,65 @@ export async function deleteItem(itemId: string): Promise<unknown> {
  */
 export async function getItem(itemId: string): Promise<PluggyItem> {
   return pluggyGet<PluggyItem>(`/items/${encodeURIComponent(itemId)}`);
+}
+
+// ---------------------------------------------------------------------------
+// Validação de assinatura de webhook (HMAC-SHA512)
+// ---------------------------------------------------------------------------
+
+/**
+ * Verifica a assinatura de um webhook Pluggy.
+ *
+ * A Pluggy assina o CORPO CRU da requisição com HMAC-SHA512 e envia a
+ * assinatura em base64 no header `X-HMAC-SHA512-Signature`. A verificação
+ * recomputa o HMAC sobre o corpo cru (NÃO sobre o JSON re-serializado — qualquer
+ * reordenação/reespaçamento quebraria o match) e compara em tempo constante.
+ *
+ * Rotação de secret: a Pluggy expõe DOIS secrets — CURRENT (ativo) e NEXT (o que
+ * assumirá numa rotação). Verificamos contra CURRENT e caímos para NEXT quando
+ * presente, para que uma rotação não derrube a recepção. Passe os dois secrets
+ * que estiverem configurados; `undefined`/`""` são ignorados.
+ *
+ * ⚠️ `rawBody` DEVE ser exatamente os bytes recebidos (via `request.text()`),
+ * nunca `JSON.stringify(await request.json())`.
+ *
+ * @returns `true` se a assinatura casar com CURRENT ou NEXT; `false` caso
+ *   contrário (inclui header ausente ou nenhum secret configurado).
+ */
+export function verifyPluggyWebhookSignature(
+  rawBody: string,
+  signatureHeader: string | null,
+  secrets: { current?: string; next?: string },
+): boolean {
+  if (!signatureHeader) return false;
+
+  // Assinatura recebida em base64 → bytes. Corpo malformado (não-base64) →
+  // rejeita sem lançar.
+  let receivedBuf: Buffer;
+  try {
+    receivedBuf = Buffer.from(signatureHeader, "base64");
+  } catch {
+    return false;
+  }
+  if (receivedBuf.length === 0) return false;
+
+  const candidates = [secrets.current, secrets.next].filter(
+    (s): s is string => typeof s === "string" && s.length > 0,
+  );
+  if (candidates.length === 0) return false;
+
+  for (const secret of candidates) {
+    const expectedBuf = createHmac("sha512", secret)
+      .update(rawBody, "utf8")
+      .digest();
+    // timingSafeEqual exige buffers de mesmo tamanho — o length check evita o
+    // throw e já descarta assinaturas de tamanho errado.
+    if (
+      receivedBuf.length === expectedBuf.length &&
+      timingSafeEqual(receivedBuf, expectedBuf)
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
