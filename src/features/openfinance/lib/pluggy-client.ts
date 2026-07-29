@@ -1,5 +1,7 @@
 import "server-only";
 
+import { timingSafeEqual } from "node:crypto";
+
 /**
  * Wrapper server-only da API Pluggy (Open Finance).
  *
@@ -391,14 +393,20 @@ async function pluggyDelete<T>(path: string): Promise<T> {
  * Gera um connect token (accessToken) para inicializar o widget Pluggy Connect.
  * `POST /connect_token`, autenticado com a apiKey (mesmo fluxo das demais).
  *
- * @param options.itemId  se presente, o widget abre em modo UPDATE do item.
+ * @param options.itemId      se presente, o widget abre em modo UPDATE do item.
+ * @param options.webhookUrl  se presente, a Pluggy associa este webhook ao item
+ *   criado/atualizado por este token — é como as conexões passam a receber
+ *   `item/error`, `transactions/created`, etc. em tempo real (Webhooks).
  * @returns `{ accessToken }` — trate como segredo: dá acesso ao widget; nunca
  *   logar/ecoar. Erros NÃO carregam o token nem credenciais.
  */
 export async function createConnectToken(options?: {
   itemId?: string;
+  webhookUrl?: string;
 }): Promise<{ accessToken: string }> {
-  const body = options?.itemId ? { itemId: options.itemId } : {};
+  const body: { itemId?: string; webhookUrl?: string } = {};
+  if (options?.itemId) body.itemId = options.itemId;
+  if (options?.webhookUrl) body.webhookUrl = options.webhookUrl;
   const data = await pluggyPost<PluggyConnectTokenResponse>(
     "/connect_token",
     body,
@@ -472,4 +480,47 @@ export async function deleteItem(itemId: string): Promise<unknown> {
  */
 export async function getItem(itemId: string): Promise<PluggyItem> {
   return pluggyGet<PluggyItem>(`/items/${encodeURIComponent(itemId)}`);
+}
+
+// ---------------------------------------------------------------------------
+// Autenticação de webhook (shared secret em header customizado)
+// ---------------------------------------------------------------------------
+
+/**
+ * Verifica a autenticidade de um webhook Pluggy por SHARED SECRET em header.
+ *
+ * ⚠️ A Pluggy NÃO assina o corpo (não há HMAC/assinatura; verificado na
+ * referência oficial de POST /webhooks e no SDK oficial — o request só aceita
+ * url/event/`headers`, e a resposta não devolve secret algum). O modelo real é:
+ * ao criar o webhook, o cliente define HEADERS CUSTOMIZADOS que a Pluggy reenvia
+ * a cada notificação. Aqui usamos `Authorization: Bearer <token>`, com o token
+ * gerado pelo próprio cliente (ex.: `openssl rand -hex 32`) e configurado nos
+ * DOIS lados: no campo `headers` do webhook na Pluggy e no env
+ * `PLUGGY_WEBHOOK_SECRET`.
+ *
+ * A comparação é em tempo constante (timingSafeEqual) para não vazar o token por
+ * timing. Header ausente/malformado ou secret não configurado → `false`.
+ *
+ * @param authorizationHeader  o header `Authorization` cru recebido (ou null).
+ * @param expectedSecret       o token esperado (`PLUGGY_WEBHOOK_SECRET`).
+ * @returns `true` só quando o Bearer token casa exatamente com o secret.
+ */
+export function verifyPluggyWebhookToken(
+  authorizationHeader: string | null,
+  expectedSecret: string | undefined,
+): boolean {
+  if (!expectedSecret) return false;
+  if (!authorizationHeader) return false;
+
+  // Aceita "Bearer <token>" (case-insensitive no esquema); extrai o token.
+  const match = /^Bearer\s+(.+)$/i.exec(authorizationHeader.trim());
+  if (!match) return false;
+  const received = match[1];
+
+  // Comparação em tempo constante. Buffers de tamanho diferente NÃO passam pelo
+  // timingSafeEqual (lança) — o length check antecipa e já reprova.
+  const receivedBuf = Buffer.from(received, "utf8");
+  const expectedBuf = Buffer.from(expectedSecret, "utf8");
+  if (receivedBuf.length !== expectedBuf.length) return false;
+  return timingSafeEqual(receivedBuf, expectedBuf);
 }
