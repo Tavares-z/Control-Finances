@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { timingSafeEqual } from "node:crypto";
 
 /**
  * Wrapper server-only da API Pluggy (Open Finance).
@@ -483,62 +483,44 @@ export async function getItem(itemId: string): Promise<PluggyItem> {
 }
 
 // ---------------------------------------------------------------------------
-// Validação de assinatura de webhook (HMAC-SHA512)
+// Autenticação de webhook (shared secret em header customizado)
 // ---------------------------------------------------------------------------
 
 /**
- * Verifica a assinatura de um webhook Pluggy.
+ * Verifica a autenticidade de um webhook Pluggy por SHARED SECRET em header.
  *
- * A Pluggy assina o CORPO CRU da requisição com HMAC-SHA512 e envia a
- * assinatura em base64 no header `X-HMAC-SHA512-Signature`. A verificação
- * recomputa o HMAC sobre o corpo cru (NÃO sobre o JSON re-serializado — qualquer
- * reordenação/reespaçamento quebraria o match) e compara em tempo constante.
+ * ⚠️ A Pluggy NÃO assina o corpo (não há HMAC/assinatura; verificado na
+ * referência oficial de POST /webhooks e no SDK oficial — o request só aceita
+ * url/event/`headers`, e a resposta não devolve secret algum). O modelo real é:
+ * ao criar o webhook, o cliente define HEADERS CUSTOMIZADOS que a Pluggy reenvia
+ * a cada notificação. Aqui usamos `Authorization: Bearer <token>`, com o token
+ * gerado pelo próprio cliente (ex.: `openssl rand -hex 32`) e configurado nos
+ * DOIS lados: no campo `headers` do webhook na Pluggy e no env
+ * `PLUGGY_WEBHOOK_SECRET`.
  *
- * Rotação de secret: a Pluggy expõe DOIS secrets — CURRENT (ativo) e NEXT (o que
- * assumirá numa rotação). Verificamos contra CURRENT e caímos para NEXT quando
- * presente, para que uma rotação não derrube a recepção. Passe os dois secrets
- * que estiverem configurados; `undefined`/`""` são ignorados.
+ * A comparação é em tempo constante (timingSafeEqual) para não vazar o token por
+ * timing. Header ausente/malformado ou secret não configurado → `false`.
  *
- * ⚠️ `rawBody` DEVE ser exatamente os bytes recebidos (via `request.text()`),
- * nunca `JSON.stringify(await request.json())`.
- *
- * @returns `true` se a assinatura casar com CURRENT ou NEXT; `false` caso
- *   contrário (inclui header ausente ou nenhum secret configurado).
+ * @param authorizationHeader  o header `Authorization` cru recebido (ou null).
+ * @param expectedSecret       o token esperado (`PLUGGY_WEBHOOK_SECRET`).
+ * @returns `true` só quando o Bearer token casa exatamente com o secret.
  */
-export function verifyPluggyWebhookSignature(
-  rawBody: string,
-  signatureHeader: string | null,
-  secrets: { current?: string; next?: string },
+export function verifyPluggyWebhookToken(
+  authorizationHeader: string | null,
+  expectedSecret: string | undefined,
 ): boolean {
-  if (!signatureHeader) return false;
+  if (!expectedSecret) return false;
+  if (!authorizationHeader) return false;
 
-  // Assinatura recebida em base64 → bytes. Corpo malformado (não-base64) →
-  // rejeita sem lançar.
-  let receivedBuf: Buffer;
-  try {
-    receivedBuf = Buffer.from(signatureHeader, "base64");
-  } catch {
-    return false;
-  }
-  if (receivedBuf.length === 0) return false;
+  // Aceita "Bearer <token>" (case-insensitive no esquema); extrai o token.
+  const match = /^Bearer\s+(.+)$/i.exec(authorizationHeader.trim());
+  if (!match) return false;
+  const received = match[1];
 
-  const candidates = [secrets.current, secrets.next].filter(
-    (s): s is string => typeof s === "string" && s.length > 0,
-  );
-  if (candidates.length === 0) return false;
-
-  for (const secret of candidates) {
-    const expectedBuf = createHmac("sha512", secret)
-      .update(rawBody, "utf8")
-      .digest();
-    // timingSafeEqual exige buffers de mesmo tamanho — o length check evita o
-    // throw e já descarta assinaturas de tamanho errado.
-    if (
-      receivedBuf.length === expectedBuf.length &&
-      timingSafeEqual(receivedBuf, expectedBuf)
-    ) {
-      return true;
-    }
-  }
-  return false;
+  // Comparação em tempo constante. Buffers de tamanho diferente NÃO passam pelo
+  // timingSafeEqual (lança) — o length check antecipa e já reprova.
+  const receivedBuf = Buffer.from(received, "utf8");
+  const expectedBuf = Buffer.from(expectedSecret, "utf8");
+  if (receivedBuf.length !== expectedBuf.length) return false;
+  return timingSafeEqual(receivedBuf, expectedBuf);
 }

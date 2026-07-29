@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { openFinanceConnections } from "@/db/schema";
-import { verifyPluggyWebhookSignature } from "@/features/openfinance/lib/pluggy-client";
+import { verifyPluggyWebhookToken } from "@/features/openfinance/lib/pluggy-client";
 import {
 	refreshConnectionStatus,
 	syncOpenFinanceConnection,
@@ -13,11 +13,13 @@ import { db } from "@/shared/lib/db";
  *
  * Endpoint PÚBLICO (não passa por sessão): o proxy roda getSession em /api/*
  * mas só redireciona rotas de PROTECTED_ROUTES, e esta não está lá. A
- * autenticidade vem da assinatura HMAC-SHA512 do corpo, não de sessão.
+ * autenticidade vem de um SHARED SECRET em header, não de sessão.
  *
- * Contrato Pluggy (confirmado na doc, não suposição):
- * - Header `X-HMAC-SHA512-Signature` = base64(HMAC-SHA512(corpo cru)).
- * - Secrets CURRENT/NEXT rotacionáveis (env PLUGGY_WEBHOOK_SECRET[_NEXT]).
+ * Contrato Pluggy (confirmado na referência oficial + SDK, não suposição):
+ * - A Pluggy NÃO assina o corpo. O modelo de auth é HEADER CUSTOMIZADO: ao criar
+ *   o webhook define-se um header (aqui `Authorization: Bearer <token>`) que a
+ *   Pluggy reenvia a cada notificação. O token é gerado pelo cliente e mora no
+ *   env `PLUGGY_WEBHOOK_SECRET` + no campo `headers` do webhook na Pluggy.
  * - Payload top-level: `event`, `eventId`, `itemId`; `item/error` traz `error`;
  *   `transactions/created` traz `accountId`/`transactionsCount` (NÃO os ids —
  *   por isso o handler dispara o sync, que busca as transações, em vez de
@@ -26,12 +28,12 @@ import { db } from "@/shared/lib/db";
  *   (1 GET item OU 1 sync), então processamos inline sem fila.
  *
  * Segurança/robustez:
- * - Assinatura inválida → 401, sem tocar no banco.
+ * - Token inválido/ausente → 401, sem tocar no banco.
  * - Flag OPENFINANCE_ENABLED off → 200 e ignora (não 404: não vaza topologia
  *   nem faz a Pluggy re-tentar 9x contra um endpoint que existe).
  * - Item desconhecido / evento não tratado → 200 e ignora (idempotente,
  *   futuro-prova; evita retries inúteis).
- * - Nunca loga corpo, assinatura ou secret.
+ * - Nunca loga corpo, token ou secret.
  */
 
 function isOpenFinanceEnabled(): boolean {
@@ -47,34 +49,29 @@ interface PluggyWebhookPayload {
 }
 
 export async function POST(request: Request) {
-	// 1. Corpo CRU primeiro — a validação HMAC é sobre os bytes recebidos, não
-	//    sobre JSON re-serializado. Reparsear depois de validar.
-	const rawBody = await request.text();
-
-	// 2. Assinatura. Rejeita ANTES de parsear/tocar no banco.
-	const signature = request.headers.get("X-HMAC-SHA512-Signature");
-	const valid = verifyPluggyWebhookSignature(rawBody, signature, {
-		current: process.env.PLUGGY_WEBHOOK_SECRET,
-		next: process.env.PLUGGY_WEBHOOK_SECRET_NEXT,
-	});
-	if (!valid) {
-		// 401 sem detalhe — não distingue "sem secret configurado" de "assinatura
-		// errada" para não dar pista a quem sonda o endpoint.
-		return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+	// 1. Auth por shared secret no header Authorization. Rejeita ANTES de
+	//    parsear/tocar no banco. 401 sem detalhe — não distingue "sem secret
+	//    configurado" de "token errado" para não dar pista a quem sonda.
+	const authorized = verifyPluggyWebhookToken(
+		request.headers.get("Authorization"),
+		process.env.PLUGGY_WEBHOOK_SECRET,
+	);
+	if (!authorized) {
+		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 	}
 
-	// 3. Flag: assinatura válida mas feature desligada → aceita e ignora.
+	// 2. Flag: token válido mas feature desligada → aceita e ignora.
 	if (!isOpenFinanceEnabled()) {
 		return NextResponse.json({ ok: true, ignored: "disabled" });
 	}
 
-	// 4. Parse. Corpo válido por assinatura mas não-JSON é anômalo → 200 e ignora
-	//    (não vale re-tentar 9x).
+	// 3. Parse. Corpo autenticado mas não-JSON é anômalo → 200 e ignora (não
+	//    vale re-tentar 9x).
 	let payload: PluggyWebhookPayload;
 	try {
-		payload = JSON.parse(rawBody) as PluggyWebhookPayload;
+		payload = (await request.json()) as PluggyWebhookPayload;
 	} catch {
-		console.warn("[webhook/pluggy] corpo assinado mas não-JSON — ignorado");
+		console.warn("[webhook/pluggy] corpo autenticado mas não-JSON — ignorado");
 		return NextResponse.json({ ok: true, ignored: "unparseable" });
 	}
 
@@ -83,7 +80,7 @@ export async function POST(request: Request) {
 		return NextResponse.json({ ok: true, ignored: "missing-fields" });
 	}
 
-	// 5. Localiza a conexão pelo itemId. Webhook não tem userId — o itemId é a
+	// 4. Localiza a conexão pelo itemId. Webhook não tem userId — o itemId é a
 	//    chave. Sem conexão local (item de outro ambiente/já desconectado) →
 	//    ignora.
 	const [connection] = await db
@@ -98,7 +95,7 @@ export async function POST(request: Request) {
 		return NextResponse.json({ ok: true, ignored: "unknown-item" });
 	}
 
-	// 6. Dispatch por evento. Tudo best-effort: um erro aqui NÃO deve virar 5xx
+	// 5. Dispatch por evento. Tudo best-effort: um erro aqui NÃO deve virar 5xx
 	//    (a Pluggy re-tentaria 9x). Envolve o trabalho e sempre responde 200.
 	try {
 		switch (event) {
