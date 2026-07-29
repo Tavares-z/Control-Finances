@@ -30,6 +30,34 @@ function isOpenFinanceEnabled(): boolean {
 }
 
 /**
+ * Monta a URL pública do receptor de webhook a partir de BETTER_AUTH_URL (a URL
+ * canônica do app, já usada pelo Better Auth). É essa URL que a Pluggy passa a
+ * chamar em item/error, transactions/created, etc.
+ *
+ * Retorna undefined quando a base é ausente ou localhost/HTTP — a Pluggy EXIGE
+ * HTTPS e proíbe localhost, então em dev o connect token simplesmente sai sem
+ * webhookUrl (a conexão funciona, só não recebe eventos em tempo real). Sem
+ * isso, dev quebraria a criação do token. Em staging/prod (HTTPS público) a URL
+ * é montada normalmente.
+ */
+function resolveWebhookUrl(): string | undefined {
+	const base = process.env.BETTER_AUTH_URL?.trim();
+	if (!base) return undefined;
+	let url: URL;
+	try {
+		url = new URL(base);
+	} catch {
+		return undefined;
+	}
+	if (url.protocol !== "https:") return undefined;
+	// Sem porta explícita de localhost/loopback (a Pluggy rejeita).
+	if (url.hostname === "localhost" || url.hostname === "127.0.0.1") {
+		return undefined;
+	}
+	return new URL("/api/webhooks/pluggy", url).toString();
+}
+
+/**
  * Gera um connect token da Pluggy para inicializar o widget Pluggy Connect no
  * cliente. NÃO expõe a apiKey do servidor — só o accessToken de curta duração
  * do widget, que o front usa para abrir o fluxo de conexão.
@@ -49,7 +77,9 @@ export async function createConnectTokenAction(): Promise<
 			return { success: false, error: FLAG_ERROR };
 		}
 
-		const { accessToken } = await createConnectToken();
+		const { accessToken } = await createConnectToken({
+			webhookUrl: resolveWebhookUrl(),
+		});
 		return { success: true, data: { accessToken } };
 	} catch (error) {
 		// Nunca ecoa o token/credenciais — PluggyApiError só carrega status/code.
@@ -113,8 +143,11 @@ export async function reconnectConnectionAction(
 		}
 
 		// Token em modo UPDATE do item existente (o client repassa o itemId).
+		// Reassocia o webhookUrl para garantir que o item continue notificando após
+		// a reconexão (o widget UPDATE recria o consentimento).
 		const { accessToken } = await createConnectToken({
 			itemId: parsed.data.itemId,
+			webhookUrl: resolveWebhookUrl(),
 		});
 		return { success: true, data: { accessToken } };
 	} catch (error) {
