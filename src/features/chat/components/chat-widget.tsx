@@ -1,20 +1,21 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { type ClassValue, clsx } from "clsx";
 import {
-	X,
-	Send,
-	MessageCircle,
-	Loader2,
-	Paperclip,
-	Maximize2,
-	Minimize2,
 	ArrowUpRight,
+	Loader2,
+	Maximize2,
+	MessageCircle,
 	Mic,
+	Minimize2,
+	Paperclip,
+	Send,
 	Square,
+	X,
 } from "lucide-react";
-import { clsx, type ClassValue } from "clsx";
+import { useEffect, useRef, useState } from "react";
 import { twMerge } from "tailwind-merge";
+
 const cn = (...inputs: ClassValue[]) => twMerge(clsx(inputs));
 
 const ACCEPTED_MIME_TYPES = [
@@ -240,8 +241,21 @@ export function ChatWidget({ currentModel }: ChatWidgetProps) {
 				() => setRecordSeconds((s) => s + 1),
 				1000,
 			);
-		} catch {
-			setFileError("Não consegui acessar o microfone. Verifique a permissão.");
+		} catch (err) {
+			// Distinguir a causa real: sem isso, "verifique a permissão" mascara
+			// bloqueio por política (Permissions-Policy) ou ausência de microfone.
+			const name = err instanceof DOMException ? err.name : "";
+			if (name === "NotAllowedError" || name === "SecurityError") {
+				setFileError(
+					"Permissão de microfone negada ou bloqueada. Libere o microfone para este site nas configurações do navegador.",
+				);
+			} else if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+				setFileError("Nenhum microfone encontrado no dispositivo.");
+			} else {
+				setFileError(
+					`Não consegui acessar o microfone${name ? ` (${name})` : ""}. Verifique a permissão.`,
+				);
+			}
 		}
 	}
 
