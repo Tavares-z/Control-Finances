@@ -13,56 +13,54 @@ Cada release registra a base do upstream correspondente no corpo.
 
 ## [3.2.0] - 2026-07-29
 
-Open Finance — Webhooks Pluggy: detecção em tempo real de eventos da Pluggy, fechando a Fase 1 de Open Finance. Base upstream v2.7.12.
+Suas contas conectadas por Open Finance agora se atualizam sozinhas, na hora — sem precisar abrir o painel para "acordar" a sincronização.
 
 ### Adicionado
-- Webhooks Pluggy (detecção em tempo real): receptor público `POST /api/webhooks/pluggy` que reage a eventos da Pluggy na hora, em vez de só oportunisticamente ao abrir o dashboard. Login expirado/consentimento vencido (`item/error`, `item/waiting_user_*`) atualizam o status da conexão em tempo real (badge + botão Reconectar reagem na hora); transações novas (`transactions/created`) sincronizam imediatamente, furando o throttle de 1h.
-- Segurança do webhook: autenticado por um segredo compartilhado no header (`Authorization: Bearer`), validado em tempo constante. A Pluggy não assina o corpo — o segredo é configurado no header do webhook (via API) e no ambiente (`PLUGGY_WEBHOOK_SECRET`). Sem o segredo, o receptor rejeita tudo (fail-safe).
-- Interno: `scripts/register-pluggy-webhook.mjs` para registrar o header de autenticação do webhook (a Pluggy só aceita headers via API, não pelo dashboard). Fecha a Fase 1 de Open Finance — sem pendências futuras conhecidas.
+- Atualização em tempo real das conexões bancárias: quando o banco envia algo novo (uma transação, ou um aviso de que a conexão precisa de atenção), o app reage na mesma hora. Antes, ele só verificava quando você abria o painel; agora, uma compra nova pode cair na sua Caixa de entrada assim que o banco a informa, e o aviso de "conexão expirada" (com o botão Reconectar) aparece sozinho, sem você ter que descobrir na tentativa e erro.
+- Mais segurança nessa comunicação com o banco: o canal que recebe esses avisos é protegido por uma senha secreta combinada entre o app e o provedor (Pluggy). Qualquer aviso que chegue sem a senha correta é recusado, então ninguém de fora consegue injetar informação falsa nas suas conexões.
 
 ## [3.1.1] - 2026-07-28
 
-Ajustes finais da conexão Open Finance: badge de conexão desatualizada e reconexão pelo usuário. Base upstream v2.7.12.
+Melhor visibilidade de quando uma conexão bancária precisa da sua atenção.
 
 ### Adicionado
-- Badge "Desatualizada" (estado `OUTDATED`) na aba de conexões bancárias, com ícone de alerta e botão "Reconectar" que reabre o widget Pluggy em modo de atualização — sem esperar a conexão falhar de vez.
+- Aviso "Desatualizada" nas conexões bancárias: quando uma conexão perde a validade (o banco costuma pedir religação de tempos em tempos), ela agora mostra um selo amarelo de alerta e um botão "Reconectar" que reabre a tela de religação — sem esperar a conexão falhar por completo para você perceber.
 
 ## [3.1.0] - 2026-07-25
 
-Open Finance (Fase 1): conexão de contas bancárias via Pluggy, atrás de flag e desativado por padrão. Base upstream v2.7.12.
+Chegou o Open Finance: conecte suas contas bancárias e deixe os lançamentos entrarem sozinhos.
 
 ### Adicionado
-- Open Finance (fase 1): conexão de contas bancárias via Pluggy. Nova aba "Conexões bancárias" em Ajustes, com **conectar** (widget Pluggy Connect) e **desconectar**. Os lançamentos das contas conectadas entram automaticamente na Caixa de entrada, com deduplicação (por id da transação e por conteúdo). Sincronização oportunística ao abrir o dashboard (no máximo 1x por hora por conexão). Tudo atrás de flag (`OPENFINANCE_ENABLED`), desativado por padrão.
-- Interno: runner versionado de sincronização em `scripts/` para diagnóstico do Open Finance; liberação do domínio do widget (`connect.pluggy.ai`) no `frame-src` da CSP.
+- Conexão de contas bancárias (Open Finance): uma nova aba em Ajustes permite conectar seus bancos com poucos cliques e desconectar quando quiser. A partir daí, as movimentações das contas conectadas passam a cair automaticamente na sua Caixa de entrada, prontas para você revisar e confirmar. O app evita lançar a mesma transação duas vezes, e a busca por novidades acontece de forma discreta ao abrir o painel (no máximo uma vez por hora, para não pesar). O recurso vem desligado por padrão — você escolhe quando ligar.
 
 ### Corrigido
-- Assinaturas sem cartão vinculado não geravam item na Caixa de entrada por um conflito silencioso no banco (predicado do índice parcial faltando no `ON CONFLICT`); a geração voltou a funcionar. (Já em produção via cherry-pick.)
+- Assinaturas sem cartão vinculado voltaram a aparecer na Caixa de entrada: elas tinham parado de gerar o lembrete de cobrança por um problema interno; agora o lançamento é criado normalmente de novo.
 
 ## [3.0.0] - 2026-07-23
 
-Primeira release do fork Control-Finances, consolidando todas as customizações próprias sobre a base upstream v2.7.12.
+Primeira versão própria do Control-Finances, reunindo tudo o que foi criado sobre a base do OpenMonetis: metas, assinaturas, controle de VR/VA, a assistente Monetinha e vários acertos do dia a dia.
 
 ### Adicionado
-- VR/VA — data da próxima recarga (#5): campo opcional "Próxima recarga" no form de conta VR/VA (migration 0036, `contas.proxima_recarga`). Quando preenchida e futura, crava o `daysRemaining` do widget de saldo VR/VA no lugar da estimativa por histórico.
-- Contas — saldo inicial editável (#4): o campo "Saldo inicial" passou a aparecer também na edição de conta (antes só na criação). O helper `syncInitialBalanceTransaction` mantém a coluna `saldo_inicial` e o lançamento do extrato em sincronia (upsert idempotente).
-- Dashboard — widget de Saldo VR/VA: mostra saldo do benefício, disponível por dia até a próxima recarga, ritmo de consumo e veredito (fecha/aperta/não fecha). Query em `dashboard/vr/vr-balance-queries.ts`.
-- Orçamentos — sugestão de limite pela média dos últimos 3 meses: ao escolher categoria e período no dialog de orçamento, busca o gasto real dos 3 meses anteriores na mesma categoria e mostra a média com um botão para preencher o limite. Sem migration.
-- Dashboard — projeção de fluxo de caixa e alertas de anomalia: widget "Fluxo de caixa projetado" (saldo estimado em 30/60/90 dias) e seção "Anomalias de gastos" no sino de notificações (categoria com gasto ≥40% acima da média dos últimos 3 meses). Inclui a tool `consultar_projecao_caixa` na Monetinha. Sem migration.
-- Metas — imagem de capa opcional: capa opcional por meta (migration 0034, `goals.coverAttachmentId`), reaproveitando a tabela `attachments`/S3 com fluxo de upload próprio por `goalId`.
-- Assinaturas / Despesas Fixas: tabela `assinaturas` (migration 0033) + `inboxItems.subscriptionId`, CRUD completo, página `/assinaturas`, widget no dashboard, tool `consultar_assinaturas` na IA, relatório em `/reports/subscriptions`. Cobrança contínua de duração indefinida que, ao vencer, gera 1 pré-lançamento pending no Inbox (assinatura com `cardId` não gera — vai na fatura).
-- Metas Financeiras: tabela `metas`, CRUD completo, página `/metas` (abas Ativas/Concluídas/Arquivadas), widget top-3 no dashboard, tool `consultar_metas` na IA.
-- Monetinha (ChatWidget): chat com IA no layout do dashboard (tabela `mensagens_chat`, colunas `chat_model`/`chat_personality` em `preferencias_usuario`), anexos (jpg/png/webp/pdf até 10MB), modo full-screen, aba "Assistente" em `/settings`. Tools: `consultar_metas`, `consultar_assinaturas`, `consultar_orcamento`.
-- Inbox — seleção de tipo ao processar: modal "Como deseja registrar?" (Despesa/Receita/Transferência entre contas) ao processar um pré-lançamento.
-- Forma de pagamento "Saldo em conta": débito genérico direto do saldo da conta, distinto de Pix/Boleto no rótulo, para não sujar o widget de formas de pagamento.
+- Data da próxima recarga do VR/VA: no cadastro da conta de benefício você pode informar quando cai a próxima recarga. Com isso, o app mostra com precisão quantos dias faltam e quanto dá para gastar por dia até lá, em vez de trabalhar com uma estimativa.
+- Corrigir o saldo inicial de uma conta já criada: antes, o campo "Saldo inicial" só aparecia na criação da conta. Agora ele também aparece na edição, então dá para ajustar o saldo de abertura direto pela tela, e o extrato acompanha a correção automaticamente.
+- Painel de Saldo VR/VA: um quadro no painel mostra quanto ainda há no benefício, quanto dá para gastar por dia até a próxima recarga, o ritmo atual de consumo e um veredito claro (se o saldo "fecha", "aperta" ou "não fecha" até lá).
+- Sugestão de limite de orçamento: ao criar um orçamento para uma categoria, o app calcula a média do que você gastou nela nos últimos 3 meses e oferece um botão para preencher esse valor como limite — um ponto de partida realista.
+- Previsão de saldo e alertas de gasto fora do padrão: o painel passou a estimar seu saldo daqui a 30, 60 e 90 dias (juntando lançamentos futuros e assinaturas ativas), e o sininho de notificações avisa quando uma categoria estoura 40% acima da sua média recente.
+- Foto de capa nas metas: cada meta pode ganhar uma imagem de referência (por exemplo, o destino de uma viagem), exibida no topo do cartão para deixar o objetivo mais concreto e motivador.
+- Assinaturas e despesas fixas: uma área nova para cadastrar cobranças recorrentes sem prazo (Netflix, aluguel, etc.), com página própria, um resumo no painel e um relatório de projeção anual. Quando uma cobrança vence, o app cria um lembrete na Caixa de entrada para você confirmar. (Assinaturas cobradas no cartão não geram lembrete, porque já vão aparecer na fatura.)
+- Metas financeiras: crie objetivos de economia com página dedicada (abas Ativas, Concluídas e Arquivadas) e acompanhe as três principais direto no painel.
+- Monetinha, a assistente por chat: converse com uma IA dentro do app para registrar gastos e tirar dúvidas sobre suas finanças. Aceita anexos (imagens e PDF até 10MB), tem modo tela cheia e ajustes próprios em Ajustes.
+- Escolher o tipo ao processar a Caixa de entrada: ao tratar um item pendente, você agora escolhe como registrá-lo — Despesa, Receita ou Transferência entre contas.
+- Nova forma de pagamento "Saldo em conta": para débitos direto do saldo da conta (carteira digital, débito automático) que não são exatamente Pix nem boleto, deixando o registro mais fiel e o relatório de formas de pagamento mais limpo.
 
 ### Alterado
-- Lançamentos — forma de pagamento oculta em lançamentos técnicos (#3): "Ajuste de saldo" e "Saldo inicial" passam a exibir "—" na tabela desktop e a omitir o badge na lista mobile, via `hasNoRealPaymentMethod()`. Só renderização.
-- Design: componentes customizados (widget VR/VA, card de assinatura, card de meta) passaram a usar os tokens semânticos `success`/`warning` no lugar de classes `emerald`/`amber` cruas, alinhando ao `DESIGN.md`.
-- Documentação: `CLAUDE.md` ganhou a "Regra de Design" e foi renomeado para `AGENTS.md` (neutro entre IAs); `CLAUDE.md` virou um stub de uma linha (`@AGENTS.md`).
+- Lançamentos técnicos ficaram mais claros: ajustes de saldo e o lançamento de "Saldo inicial" não têm forma de pagamento real, então deixaram de exibir um "Pix" enganoso e passam a mostrar apenas um traço.
+- Ajustes visuais para manter o app consistente em tema claro e escuro (cores de sucesso e alerta padronizadas nos quadros de VR/VA, assinaturas e metas).
 
 ### Corrigido
-- Deps — Popover dentro de Dialog (#1): override de `@radix-ui/react-dismissable-layer` numa única versão no `pnpm-workspace.yaml`, corrigindo o calendário inclicável em "Nova assinatura"/"Nova meta".
-- Correções cruzadas: fatura paga não zera mais o valor exibido no card do cartão; capa de meta órfã no S3 é limpa ao excluir a meta; race de duplicidade de assinatura eliminada (migration 0035, `pre_lancamentos.assinatura_periodo` + índice único parcial).
+- Calendário que não abria em alguns formulários: em "Nova assinatura" e "Nova meta", o seletor de data podia ficar sem responder ao clique. Corrigido.
+- Fatura paga não zera mais o valor do cartão no painel: pagar a fatura deixava o cartão parecendo zerado e escondia compras novas do período; agora o valor continua correto.
+- Limpeza automática da capa da meta ao excluí-la, sem deixar arquivos soltos, e fim de uma duplicação rara de assinatura quando o app era usado em duas telas quase ao mesmo tempo.
 
 ---
 
