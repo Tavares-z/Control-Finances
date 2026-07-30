@@ -10,6 +10,8 @@ import {
 	Maximize2,
 	Minimize2,
 	ArrowUpRight,
+	Mic,
+	Square,
 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -77,9 +79,16 @@ export function ChatWidget({ currentModel }: ChatWidgetProps) {
 	const [file, setFile] = useState<FileAttachment | null>(null);
 	const [fileError, setFileError] = useState<string | null>(null);
 	const [insightContent, setInsightContent] = useState<string | null>(null);
+	const [recording, setRecording] = useState(false);
+	const [transcribing, setTranscribing] = useState(false);
+	const [recordSeconds, setRecordSeconds] = useState(0);
 	const bottomRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
+	const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+	const mediaStreamRef = useRef<MediaStream | null>(null);
+	const audioChunksRef = useRef<Blob[]>([]);
+	const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
 	const modelSupportsVision = VISION_SUPPORTED_MODELS.has(currentModel ?? "");
 
@@ -104,6 +113,15 @@ export function ChatWidget({ currentModel }: ChatWidgetProps) {
 		window.addEventListener("keydown", handleEsc);
 		return () => window.removeEventListener("keydown", handleEsc);
 	}, [insightContent]);
+
+	useEffect(() => {
+		return () => {
+			if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+			for (const track of mediaStreamRef.current?.getTracks() ?? []) {
+				track.stop();
+			}
+		};
+	}, []);
 
 	function fileToBase64(f: File): Promise<string> {
 		return new Promise((resolve, reject) => {
@@ -144,6 +162,103 @@ export function ChatWidget({ currentModel }: ChatWidgetProps) {
 
 		if (fileInputRef.current) fileInputRef.current.value = "";
 		inputRef.current?.focus();
+	}
+
+	function stopRecordTimer() {
+		if (recordTimerRef.current) {
+			clearInterval(recordTimerRef.current);
+			recordTimerRef.current = null;
+		}
+	}
+
+	async function transcribeAudio(blob: Blob) {
+		setTranscribing(true);
+		try {
+			const base64 = await fileToBase64(
+				new File([blob], "audio", { type: blob.type }),
+			);
+
+			const res = await fetch("/api/chat/transcribe", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ data: base64, mimeType: blob.type }),
+			});
+			const data = (await res.json()) as { text?: string; error?: string };
+
+			const transcript = data.text?.trim();
+			if (!res.ok || !transcript) {
+				setFileError(data.error ?? "Não consegui transcrever o áudio.");
+				return;
+			}
+
+			// Fluxo revisar-antes-de-enviar: a transcrição cai no input para o
+			// usuário conferir/corrigir (ex: valor errado) antes de mandar.
+			setInput((prev) => (prev.trim() ? `${prev} ${transcript}` : transcript));
+			inputRef.current?.focus();
+		} catch {
+			setFileError("Não consegui transcrever o áudio. Tenta de novo.");
+		} finally {
+			setTranscribing(false);
+		}
+	}
+
+	async function startRecording() {
+		setFileError(null);
+		if (
+			typeof navigator === "undefined" ||
+			!navigator.mediaDevices?.getUserMedia
+		) {
+			setFileError("Seu navegador não suporta gravação de áudio.");
+			return;
+		}
+
+		try {
+			const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+			mediaStreamRef.current = stream;
+			// Deixa o browser escolher o formato (Chrome/FF: webm, Safari/iOS: mp4).
+			const recorder = new MediaRecorder(stream);
+			audioChunksRef.current = [];
+
+			recorder.ondataavailable = (e) => {
+				if (e.data.size > 0) audioChunksRef.current.push(e.data);
+			};
+			recorder.onstop = () => {
+				stopRecordTimer();
+				for (const track of stream.getTracks()) track.stop();
+				mediaStreamRef.current = null;
+				const blob = new Blob(audioChunksRef.current, {
+					type: recorder.mimeType || "audio/webm",
+				});
+				if (blob.size > 0) void transcribeAudio(blob);
+			};
+
+			mediaRecorderRef.current = recorder;
+			recorder.start();
+			setRecording(true);
+			setRecordSeconds(0);
+			recordTimerRef.current = setInterval(
+				() => setRecordSeconds((s) => s + 1),
+				1000,
+			);
+		} catch {
+			setFileError("Não consegui acessar o microfone. Verifique a permissão.");
+		}
+	}
+
+	function stopRecording() {
+		mediaRecorderRef.current?.stop();
+		setRecording(false);
+	}
+
+	function cancelRecording() {
+		const recorder = mediaRecorderRef.current;
+		if (recorder) {
+			// Descarta: zera os chunks antes do onstop para não transcrever.
+			audioChunksRef.current = [];
+			recorder.stop();
+		}
+		stopRecordTimer();
+		setRecording(false);
 	}
 
 	function openInsightModal(content: string) {
@@ -518,35 +633,83 @@ export function ChatWidget({ currentModel }: ChatWidgetProps) {
 							onChange={handleFileSelect}
 							className="hidden"
 						/>
-						<button
-							onClick={() => fileInputRef.current?.click()}
-							disabled={loading}
-							className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
-							aria-label="Anexar arquivo"
-						>
-							<Paperclip size={16} />
-						</button>
 
-						<textarea
-							ref={inputRef}
-							value={input}
-							onChange={(e) => setInput(e.target.value)}
-							onKeyDown={handleKeyDown}
-							placeholder={
-								file
-									? "Adicione uma mensagem (opcional)..."
-									: "Pergunta pra Monetinha..."
-							}
-							rows={1}
-							className="flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground max-h-24"
-						/>
-						<button
-							onClick={() => sendMessage()}
-							disabled={!canSend}
-							className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-500 hover:bg-orange-600 text-white disabled:opacity-50 transition-colors"
-						>
-							<Send size={14} />
-						</button>
+						{recording ? (
+							/* Barra de gravação: cancelar · tempo · parar e transcrever */
+							<div className="flex flex-1 items-center gap-2">
+								<button
+									onClick={cancelRecording}
+									className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+									aria-label="Cancelar gravação"
+								>
+									<X size={16} />
+								</button>
+								<div className="flex flex-1 items-center gap-2 text-sm text-muted-foreground">
+									<span
+										className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-destructive"
+										aria-hidden
+									/>
+									<span className="tabular-nums">
+										Gravando… {Math.floor(recordSeconds / 60)}:
+										{String(recordSeconds % 60).padStart(2, "0")}
+									</span>
+								</div>
+								<button
+									onClick={stopRecording}
+									className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-500 hover:bg-orange-600 text-white transition-colors"
+									aria-label="Parar e transcrever"
+								>
+									<Square size={13} fill="currentColor" />
+								</button>
+							</div>
+						) : (
+							<>
+								<button
+									onClick={() => fileInputRef.current?.click()}
+									disabled={loading || transcribing}
+									className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
+									aria-label="Anexar arquivo"
+								>
+									<Paperclip size={16} />
+								</button>
+								<button
+									onClick={startRecording}
+									disabled={loading || transcribing}
+									className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
+									aria-label="Gravar áudio"
+								>
+									{transcribing ? (
+										<Loader2 size={16} className="animate-spin" />
+									) : (
+										<Mic size={16} />
+									)}
+								</button>
+
+								<textarea
+									ref={inputRef}
+									value={input}
+									onChange={(e) => setInput(e.target.value)}
+									onKeyDown={handleKeyDown}
+									placeholder={
+										transcribing
+											? "Transcrevendo seu áudio…"
+											: file
+												? "Adicione uma mensagem (opcional)..."
+												: "Pergunta pra Monetinha..."
+									}
+									rows={1}
+									disabled={transcribing}
+									className="flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground max-h-24 disabled:opacity-60"
+								/>
+								<button
+									onClick={() => sendMessage()}
+									disabled={!canSend}
+									className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-500 hover:bg-orange-600 text-white disabled:opacity-50 transition-colors"
+								>
+									<Send size={14} />
+								</button>
+							</>
+						)}
 					</div>
 				</div>
 			)}
