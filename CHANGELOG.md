@@ -11,56 +11,61 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.
 e o fork segue seu próprio eixo de versão (`v3.x`), independente do upstream.
 Cada release registra a base do upstream correspondente no corpo.
 
+> **Tom deste changelog:** escrito para quem vai usar o app, não para quem programa.
+> Nada de jargão técnico (tabela, migration, função) — o foco é o que muda no seu dia
+> a dia. E na pegada da Monetinha: leve, animado, como uma amiga contando a novidade,
+> sem exagero de emojis (1 ou 2 por versão, no máximo).
+
 ## [3.2.0] - 2026-07-29
 
-Suas contas conectadas por Open Finance agora se atualizam sozinhas, na hora — sem precisar abrir o painel para "acordar" a sincronização.
+Suas conexões bancárias agora se viram sozinhas — chega de abrir o painel só pra elas acordarem! 🎉
 
 ### Adicionado
-- Atualização em tempo real das conexões bancárias: quando o banco envia algo novo (uma transação, ou um aviso de que a conexão precisa de atenção), o app reage na mesma hora. Antes, ele só verificava quando você abria o painel; agora, uma compra nova pode cair na sua Caixa de entrada assim que o banco a informa, e o aviso de "conexão expirada" (com o botão Reconectar) aparece sozinho, sem você ter que descobrir na tentativa e erro.
-- Mais segurança nessa comunicação com o banco: o canal que recebe esses avisos é protegido por uma senha secreta combinada entre o app e o provedor (Pluggy). Qualquer aviso que chegue sem a senha correta é recusado, então ninguém de fora consegue injetar informação falsa nas suas conexões.
+- Suas contas conectadas ficam sempre em dia, na hora: quando o banco tem uma novidade (uma compra nova, ou um aviso de que a conexão precisa de atenção), o app já reage na mesma hora. Antes ele só olhava quando você abria o painel; agora a compra pode cair na sua Caixa de entrada assim que o banco avisa, e se a conexão expirou o alerta com o botão Reconectar aparece sozinho — sem você ficar no chute tentando descobrir o que aconteceu.
+- E tudo isso com a porta bem trancada: esse canal que recebe os avisos do banco é protegido por uma senha secreta que só o app e o provedor (Pluggy) conhecem. Se chegar qualquer aviso sem a senha certa, ele é barrado na entrada — ninguém de fora consegue empurrar informação falsa pras suas conexões.
 
 ## [3.1.1] - 2026-07-28
 
-Melhor visibilidade de quando uma conexão bancária precisa da sua atenção.
+Ficou mais fácil perceber quando uma conexão bancária está pedindo socorro.
 
 ### Adicionado
-- Aviso "Desatualizada" nas conexões bancárias: quando uma conexão perde a validade (o banco costuma pedir religação de tempos em tempos), ela agora mostra um selo amarelo de alerta e um botão "Reconectar" que reabre a tela de religação — sem esperar a conexão falhar por completo para você perceber.
+- Selo "Desatualizada" nas conexões: de vez em quando o banco pede pra religar a conexão, e antes isso passava batido. Agora aparece um selinho amarelo de alerta e um botão "Reconectar" que já abre a tela certa — você resolve na hora, sem esperar a conexão parar de vez.
 
 ## [3.1.0] - 2026-07-25
 
-Chegou o Open Finance: conecte suas contas bancárias e deixe os lançamentos entrarem sozinhos.
+Chegou o Open Finance! Conecte seus bancos e deixe os lançamentos entrarem no piloto automático. 🏦
 
 ### Adicionado
-- Conexão de contas bancárias (Open Finance): uma nova aba em Ajustes permite conectar seus bancos com poucos cliques e desconectar quando quiser. A partir daí, as movimentações das contas conectadas passam a cair automaticamente na sua Caixa de entrada, prontas para você revisar e confirmar. O app evita lançar a mesma transação duas vezes, e a busca por novidades acontece de forma discreta ao abrir o painel (no máximo uma vez por hora, para não pesar). O recurso vem desligado por padrão — você escolhe quando ligar.
+- Conecte suas contas bancárias (Open Finance): tem uma aba nova em Ajustes onde você liga seus bancos com poucos cliques (e desliga quando quiser). A partir daí, as movimentações das contas conectadas caem sozinhas na Caixa de entrada, prontinhas pra você revisar e confirmar. Pode ficar tranquilo: o app não deixa a mesma transação entrar duas vezes, e ele procura novidades de leve ao abrir o painel (no máximo uma vez por hora, pra não pesar). Vem desligado por padrão — quem manda ligar é você.
 
 ### Corrigido
-- Assinaturas sem cartão vinculado voltaram a aparecer na Caixa de entrada: elas tinham parado de gerar o lembrete de cobrança por um problema interno; agora o lançamento é criado normalmente de novo.
+- Assinaturas sem cartão voltaram a aparecer na Caixa de entrada: elas tinham parado de avisar a cobrança por causa de um probleminha nos bastidores. Já resolvido — o lembrete volta a ser criado direitinho.
 
 ## [3.0.0] - 2026-07-23
 
-Primeira versão própria do Control-Finances, reunindo tudo o que foi criado sobre a base do OpenMonetis: metas, assinaturas, controle de VR/VA, a assistente Monetinha e vários acertos do dia a dia.
+A primeira versão de cara própria do Control-Finances! Aqui mora tudo o que foi criado sobre a base do OpenMonetis: metas, assinaturas, controle de VR/VA, a Monetinha e um monte de acerto do dia a dia. ✨
 
 ### Adicionado
-- Data da próxima recarga do VR/VA: no cadastro da conta de benefício você pode informar quando cai a próxima recarga. Com isso, o app mostra com precisão quantos dias faltam e quanto dá para gastar por dia até lá, em vez de trabalhar com uma estimativa.
-- Corrigir o saldo inicial de uma conta já criada: antes, o campo "Saldo inicial" só aparecia na criação da conta. Agora ele também aparece na edição, então dá para ajustar o saldo de abertura direto pela tela, e o extrato acompanha a correção automaticamente.
-- Painel de Saldo VR/VA: um quadro no painel mostra quanto ainda há no benefício, quanto dá para gastar por dia até a próxima recarga, o ritmo atual de consumo e um veredito claro (se o saldo "fecha", "aperta" ou "não fecha" até lá).
-- Sugestão de limite de orçamento: ao criar um orçamento para uma categoria, o app calcula a média do que você gastou nela nos últimos 3 meses e oferece um botão para preencher esse valor como limite — um ponto de partida realista.
-- Previsão de saldo e alertas de gasto fora do padrão: o painel passou a estimar seu saldo daqui a 30, 60 e 90 dias (juntando lançamentos futuros e assinaturas ativas), e o sininho de notificações avisa quando uma categoria estoura 40% acima da sua média recente.
-- Foto de capa nas metas: cada meta pode ganhar uma imagem de referência (por exemplo, o destino de uma viagem), exibida no topo do cartão para deixar o objetivo mais concreto e motivador.
-- Assinaturas e despesas fixas: uma área nova para cadastrar cobranças recorrentes sem prazo (Netflix, aluguel, etc.), com página própria, um resumo no painel e um relatório de projeção anual. Quando uma cobrança vence, o app cria um lembrete na Caixa de entrada para você confirmar. (Assinaturas cobradas no cartão não geram lembrete, porque já vão aparecer na fatura.)
-- Metas financeiras: crie objetivos de economia com página dedicada (abas Ativas, Concluídas e Arquivadas) e acompanhe as três principais direto no painel.
-- Monetinha, a assistente por chat: converse com uma IA dentro do app para registrar gastos e tirar dúvidas sobre suas finanças. Aceita anexos (imagens e PDF até 10MB), tem modo tela cheia e ajustes próprios em Ajustes.
-- Escolher o tipo ao processar a Caixa de entrada: ao tratar um item pendente, você agora escolhe como registrá-lo — Despesa, Receita ou Transferência entre contas.
-- Nova forma de pagamento "Saldo em conta": para débitos direto do saldo da conta (carteira digital, débito automático) que não são exatamente Pix nem boleto, deixando o registro mais fiel e o relatório de formas de pagamento mais limpo.
+- Data da próxima recarga do VR/VA: agora você pode avisar ao app quando cai a próxima recarga do benefício. Com isso, ele te diz com precisão quantos dias faltam e quanto dá pra gastar por dia até lá — nada de chute.
+- Ajustar o saldo inicial de uma conta que já existe: antes esse campo só aparecia na hora de criar a conta. Agora ele também está na edição, então corrigir o saldo de abertura é questão de dois cliques, e o extrato se ajeita junto sozinho.
+- Painel de Saldo VR/VA: um quadrinho no painel te mostra quanto ainda sobra no benefício, quanto dá pra gastar por dia até a recarga, o ritmo que você está indo e um veredito sem rodeios — se o saldo "fecha", "aperta" ou "não fecha" até lá.
+- Um empurrãozinho no orçamento: ao criar o orçamento de uma categoria, o app olha quanto você gastou nela nos últimos 3 meses e sugere esse valor como limite, num clique. Um ponto de partida com os pés no chão.
+- Bola de cristal do saldo (e alerta de exagero): o painel passou a estimar como fica seu saldo daqui a 30, 60 e 90 dias — juntando o que já está agendado e as assinaturas ativas. E o sininho te cutuca quando uma categoria estoura 40% acima da sua média recente.
+- Foto de capa nas metas: cada meta pode ganhar uma imagem de referência (tipo o destino daquela viagem dos sonhos) lá no topo do cartão, pra deixar o objetivo bem na sua cara e dar aquele gás.
+- Assinaturas e despesas fixas: uma área nova pras cobranças que não têm fim (Netflix, aluguel e cia), com página própria, um resumo no painel e até uma projeção do ano todo. Quando uma cobrança vence, o app deixa um lembrete na Caixa de entrada pra você confirmar. (As que caem no cartão não geram lembrete, porque já vão aparecer na fatura.)
+- Metas financeiras: crie seus objetivos de economia com página dedicada (abas Ativas, Concluídas e Arquivadas) e acompanhe as três principais direto no painel — porque ver o progresso motiva.
+- A Monetinha, sua assistente por chat: converse com uma IA dentro do app pra registrar gastos e tirar dúvidas sobre suas finanças. Ela aceita anexos (imagens e PDF até 10MB), tem modo tela cheia e dá pra ajustar o jeitão dela em Ajustes.
+- Escolha o tipo ao processar a Caixa de entrada: ao tratar um item pendente, você diz de cara como quer registrar — Despesa, Receita ou Transferência entre contas.
+- Nova forma de pagamento "Saldo em conta": pra aquele débito direto da carteira digital ou débito automático que não é bem Pix nem boleto. Fica mais fiel ao que aconteceu e deixa o relatório de formas de pagamento mais limpo.
 
 ### Alterado
-- Lançamentos técnicos ficaram mais claros: ajustes de saldo e o lançamento de "Saldo inicial" não têm forma de pagamento real, então deixaram de exibir um "Pix" enganoso e passam a mostrar apenas um traço.
-- Ajustes visuais para manter o app consistente em tema claro e escuro (cores de sucesso e alerta padronizadas nos quadros de VR/VA, assinaturas e metas).
+- Lançamentos técnicos ficaram menos confusos: ajustes de saldo e o "Saldo inicial" não têm forma de pagamento de verdade, então pararam de mostrar um "Pix" que enganava e agora exibem só um tracinho.
+- Uns retoques visuais pra deixar o app bonito e consistente no claro e no escuro (cores de sucesso e alerta padronizadas nos quadros de VR/VA, assinaturas e metas).
 
 ### Corrigido
-- Calendário que não abria em alguns formulários: em "Nova assinatura" e "Nova meta", o seletor de data podia ficar sem responder ao clique. Corrigido.
-- Fatura paga não zera mais o valor do cartão no painel: pagar a fatura deixava o cartão parecendo zerado e escondia compras novas do período; agora o valor continua correto.
-- Limpeza automática da capa da meta ao excluí-la, sem deixar arquivos soltos, e fim de uma duplicação rara de assinatura quando o app era usado em duas telas quase ao mesmo tempo.
+- O calendário que travava: em "Nova assinatura" e "Nova meta", o seletor de data às vezes fazia corpo mole e não respondia ao clique. Resolvido.
+- Fatura paga não zera mais o cartão no painel: pagar a fatura fazia o cartão parecer zerado e ainda escondia as compras novas do período. Agora o valor continua certinho.
+- E mais uns ajustes de bastidor: a capa da meta é apagada junto quando você exclui a meta (sem deixar arquivo perdido), e sumiu aquela duplicação rara de assinatura que aparecia quando o app era usado em duas telas quase ao mesmo tempo.
 
 ---
 
