@@ -55,8 +55,11 @@ const nextConfig: NextConfig = {
 						value: "none",
 					},
 					{
+						// microphone=(self): liberado só para a própria origem, usado
+						// pela gravação de voz da Monetinha. camera/geolocation seguem
+						// bloqueados (=()) — o app não os usa.
 						key: "Permissions-Policy",
-						value: "camera=(), microphone=(), geolocation=()",
+						value: "camera=(), microphone=(self), geolocation=()",
 					},
 				],
 			},
