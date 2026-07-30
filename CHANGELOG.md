@@ -7,129 +7,69 @@ customizações próprias do fork e os pontos de sincronização com o upstream.
 O changelog cru do upstream (espelho, sobrescrito no sync) fica em
 [`CHANGELOG.upstream.md`](./CHANGELOG.upstream.md).
 
-O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
-As datas seguem o histórico real do git (`%cs` do commit).
+O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/)
+e o fork segue seu próprio eixo de versão (`v3.x`), independente do upstream.
+Cada release registra a base do upstream correspondente no corpo.
 
-## [Não lançado]
+> **Tom deste changelog:** escrito para quem vai usar o app, não para quem programa.
+> Nada de jargão técnico (tabela, migration, função) — o foco é o que muda no seu dia
+> a dia. E na pegada da Monetinha: leve, animado, como uma amiga contando a novidade,
+> sem exagero de emojis (1 ou 2 por versão, no máximo).
+
+## [3.2.0] - 2026-07-29
+
+Suas conexões bancárias agora se viram sozinhas — chega de abrir o painel só pra elas acordarem! 🎉
+
+### Adicionado
+- Suas contas conectadas ficam sempre em dia, na hora: quando o banco tem uma novidade (uma compra nova, ou um aviso de que a conexão precisa de atenção), o app já reage na mesma hora. Antes ele só olhava quando você abria o painel; agora a compra pode cair na sua Caixa de entrada assim que o banco avisa, e se a conexão expirou o alerta com o botão Reconectar aparece sozinho — sem você ficar no chute tentando descobrir o que aconteceu.
+- E tudo isso com a porta bem trancada: esse canal que recebe os avisos do banco é protegido por uma senha secreta que só o app e o provedor (Pluggy) conhecem. Se chegar qualquer aviso sem a senha certa, ele é barrado na entrada — ninguém de fora consegue empurrar informação falsa pras suas conexões.
+
+## [3.1.1] - 2026-07-28
+
+Ficou mais fácil perceber quando uma conexão bancária está pedindo socorro.
+
+### Adicionado
+- Selo "Desatualizada" nas conexões: de vez em quando o banco pede pra religar a conexão, e antes isso passava batido. Agora aparece um selinho amarelo de alerta e um botão "Reconectar" que já abre a tela certa — você resolve na hora, sem esperar a conexão parar de vez.
+
+## [3.1.0] - 2026-07-25
+
+Chegou o Open Finance! Conecte seus bancos e deixe os lançamentos entrarem no piloto automático. 🏦
+
+### Adicionado
+- Conecte suas contas bancárias (Open Finance): tem uma aba nova em Ajustes onde você liga seus bancos com poucos cliques (e desliga quando quiser). A partir daí, as movimentações das contas conectadas caem sozinhas na Caixa de entrada, prontinhas pra você revisar e confirmar. Pode ficar tranquilo: o app não deixa a mesma transação entrar duas vezes, e ele procura novidades de leve ao abrir o painel (no máximo uma vez por hora, pra não pesar). Vem desligado por padrão — quem manda ligar é você.
+
+### Corrigido
+- Assinaturas sem cartão voltaram a aparecer na Caixa de entrada: elas tinham parado de avisar a cobrança por causa de um probleminha nos bastidores. Já resolvido — o lembrete volta a ser criado direitinho.
+
+## [3.0.0] - 2026-07-23
+
+A primeira versão de cara própria do Control-Finances! Aqui mora tudo o que foi criado sobre a base do OpenMonetis: metas, assinaturas, controle de VR/VA, a Monetinha e um monte de acerto do dia a dia. ✨
+
+### Adicionado
+- Data da próxima recarga do VR/VA: agora você pode avisar ao app quando cai a próxima recarga do benefício. Com isso, ele te diz com precisão quantos dias faltam e quanto dá pra gastar por dia até lá — nada de chute.
+- Ajustar o saldo inicial de uma conta que já existe: antes esse campo só aparecia na hora de criar a conta. Agora ele também está na edição, então corrigir o saldo de abertura é questão de dois cliques, e o extrato se ajeita junto sozinho.
+- Painel de Saldo VR/VA: um quadrinho no painel te mostra quanto ainda sobra no benefício, quanto dá pra gastar por dia até a recarga, o ritmo que você está indo e um veredito sem rodeios — se o saldo "fecha", "aperta" ou "não fecha" até lá.
+- Um empurrãozinho no orçamento: ao criar o orçamento de uma categoria, o app olha quanto você gastou nela nos últimos 3 meses e sugere esse valor como limite, num clique. Um ponto de partida com os pés no chão.
+- Bola de cristal do saldo (e alerta de exagero): o painel passou a estimar como fica seu saldo daqui a 30, 60 e 90 dias — juntando o que já está agendado e as assinaturas ativas. E o sininho te cutuca quando uma categoria estoura 40% acima da sua média recente.
+- Foto de capa nas metas: cada meta pode ganhar uma imagem de referência (tipo o destino daquela viagem dos sonhos) lá no topo do cartão, pra deixar o objetivo bem na sua cara e dar aquele gás.
+- Assinaturas e despesas fixas: uma área nova pras cobranças que não têm fim (Netflix, aluguel e cia), com página própria, um resumo no painel e até uma projeção do ano todo. Quando uma cobrança vence, o app deixa um lembrete na Caixa de entrada pra você confirmar. (As que caem no cartão não geram lembrete, porque já vão aparecer na fatura.)
+- Metas financeiras: crie seus objetivos de economia com página dedicada (abas Ativas, Concluídas e Arquivadas) e acompanhe as três principais direto no painel — porque ver o progresso motiva.
+- A Monetinha, sua assistente por chat: converse com uma IA dentro do app pra registrar gastos e tirar dúvidas sobre suas finanças. Ela aceita anexos (imagens e PDF até 10MB), tem modo tela cheia e dá pra ajustar o jeitão dela em Ajustes.
+- Escolha o tipo ao processar a Caixa de entrada: ao tratar um item pendente, você diz de cara como quer registrar — Despesa, Receita ou Transferência entre contas.
+- Nova forma de pagamento "Saldo em conta": pra aquele débito direto da carteira digital ou débito automático que não é bem Pix nem boleto. Fica mais fiel ao que aconteceu e deixa o relatório de formas de pagamento mais limpo.
 
 ### Alterado
-- **Design:** componentes customizados (widget VR/VA, card de assinatura, card de meta)
-  passaram a usar os tokens semânticos `success`/`warning` no lugar de classes
-  `emerald`/`amber` cruas, alinhando ao `DESIGN.md`. (2026-07-22)
-- **Documentação:** `CLAUDE.md` ganhou a "Regra de Design", apontando o `DESIGN.md`
-  como fonte de verdade visual obrigatória em qualquer alteração de UI. (2026-07-22)
-- **Documentação:** o documento de instruções foi renomeado de `CLAUDE.md` para
-  `AGENTS.md` (neutro entre IAs); `CLAUDE.md` virou um stub de uma linha
-  (`@AGENTS.md`) para o Claude Code seguir carregando automaticamente. (2026-07-23)
+- Lançamentos técnicos ficaram menos confusos: ajustes de saldo e o "Saldo inicial" não têm forma de pagamento de verdade, então pararam de mostrar um "Pix" que enganava e agora exibem só um tracinho.
+- Uns retoques visuais pra deixar o app bonito e consistente no claro e no escuro (cores de sucesso e alerta padronizadas nos quadros de VR/VA, assinaturas e metas).
 
-## Customizações do fork
-
-### 2026-07-29 — Open Finance: Webhooks Pluggy (v3.2.0)
-- **Open Finance — Webhooks Pluggy (detecção em tempo real):** receptor público
-  `POST /api/webhooks/pluggy` que reage a eventos da Pluggy na hora, em vez de só
-  oportunisticamente ao abrir o dashboard. Login expirado/consentimento vencido
-  (`item/error`, `item/waiting_user_*`) atualizam o status da conexão em tempo
-  real (badge + botão Reconectar reagem na hora); transações novas
-  (`transactions/created`) sincronizam imediatamente, furando o throttle de 1h.
-- **Segurança:** o webhook é autenticado por um segredo compartilhado no header
-  (`Authorization: Bearer`), validado em tempo constante. A Pluggy não assina o
-  corpo — o segredo é configurado no header do webhook (via API) e no ambiente
-  (`PLUGGY_WEBHOOK_SECRET`). Sem o segredo, o receptor rejeita tudo (fail-safe).
-- **Interno:** `scripts/register-pluggy-webhook.mjs` para registrar o header de
-  autenticação do webhook (a Pluggy só aceita headers via API, não pelo
-  dashboard). Fecha a Fase 1 de Open Finance — sem pendências futuras conhecidas.
-
-### 2026-07-25 — Open Finance, Fase 1 (v3.1.0)
-- **Open Finance (fase 1):** conexão de contas bancárias via Pluggy. Nova aba
-  "Conexões bancárias" em Ajustes, com **conectar** (widget Pluggy Connect) e
-  **desconectar**. Os lançamentos das contas conectadas entram automaticamente na
-  Caixa de entrada, com deduplicação (por id da transação e por conteúdo).
-  Sincronização oportunística ao abrir o dashboard (no máximo 1x por hora por
-  conexão). Tudo atrás de flag (`OPENFINANCE_ENABLED`), **desativado por padrão**.
-- **Correção — Assinaturas:** assinaturas sem cartão vinculado não geravam item na
-  Caixa de entrada por um conflito silencioso no banco (predicado do índice parcial
-  faltando no `ON CONFLICT`); a geração voltou a funcionar. (Já em produção via
-  cherry-pick.)
-- **Interno:** runner versionado de sincronização em `scripts/` para diagnóstico do
-  Open Finance; liberação do domínio do widget (`connect.pluggy.ai`) no `frame-src`
-  da CSP.
-
-### 2026-07-22 — VR/VA: data da próxima recarga (#5)
-- Campo opcional "Próxima recarga" no form de conta VR/VA (migration 0036,
-  `contas.proxima_recarga`). Quando preenchida e futura, crava o `daysRemaining` do
-  widget de saldo VR/VA no lugar da estimativa por histórico.
-
-### 2026-07-22 — Contas: saldo inicial editável (#4)
-- O campo "Saldo inicial" passou a aparecer também na edição de conta (antes só na
-  criação). O helper `syncInitialBalanceTransaction` mantém a coluna `saldo_inicial`
-  e o lançamento do extrato em sincronia (upsert idempotente).
-
-### 2026-07-22 — Lançamentos: forma de pagamento oculta em lançamentos técnicos (#3)
-- "Ajuste de saldo" e "Saldo inicial" gravam `paymentMethod` "Pix" como carimbo
-  default (coluna notNull), mas não têm forma de pagamento real. Passam a exibir "—"
-  na tabela desktop e a omitir o badge na lista mobile, via `hasNoRealPaymentMethod()`.
-  Só renderização — preserva a dependência do saldo inicial em `paymentMethod === "Pix"`.
-
-### 2026-07-21 — Dashboard: widget de Saldo VR/VA
-- Widget que mostra saldo do benefício, disponível por dia até a próxima recarga,
-  ritmo de consumo e veredito (fecha/aperta/não fecha). Query em
-  `dashboard/vr/vr-balance-queries.ts`.
-
-### 2026-07-19 — Orçamentos: sugestão de limite pela média dos últimos 3 meses
-- Ao escolher categoria e período no dialog de orçamento, busca o gasto real dos 3 meses
-  anteriores na mesma categoria e mostra a média com um botão para preencher o limite.
-  Sem migration — reaproveita o filtro de `fetchCategoryBudgetSummary`.
-
-### 2026-07-15 — Dashboard: projeção de fluxo de caixa e alertas de anomalia de gastos
-- Widget "Fluxo de caixa projetado" (saldo estimado em 30/60/90 dias, combinando
-  transações futuras já lançadas e próximas cobranças de assinaturas ativas) e seção
-  "Anomalias de gastos" no sino de notificações (categoria com gasto ≥40% acima da média
-  dos últimos 3 meses). Inclui a tool `consultar_projecao_caixa` na Monetinha. Sem
-  migration — toda a feature é leitura sobre colunas já existentes.
-
-### 2026-07-13 — Metas: imagem de capa opcional
-- Capa opcional por meta (migration 0034, `goals.coverAttachmentId`), reaproveitando
-  a tabela `attachments`/S3 com fluxo de upload próprio por `goalId`.
-
-### 2026-07-13 — Correções cruzadas
-- Fatura paga não zera mais o valor exibido no card do cartão; capa de meta órfã no S3
-  é limpa ao excluir a meta; race de duplicidade de assinatura eliminada (migration 0035,
-  `pre_lancamentos.assinatura_periodo` + índice único parcial).
-
-### 2026-07-12 — Deps: correção do Popover dentro de Dialog (#1)
-- Override de `@radix-ui/react-dismissable-layer` numa única versão no
-  `pnpm-workspace.yaml`, corrigindo o calendário inclicável em "Nova assinatura"/"Nova meta".
-
-### 2026-07-11 — Assinaturas / Despesas Fixas
-- Tabela `assinaturas` (migration 0033) + `inboxItems.subscriptionId`, CRUD completo,
-  página `/assinaturas`, widget no dashboard, tool `consultar_assinaturas` na IA,
-  relatório em `/reports/subscriptions`. Cobrança contínua de duração indefinida que,
-  ao vencer, gera 1 pré-lançamento pending no Inbox (assinatura com `cardId` não gera —
-  vai na fatura).
-
-### 2026-06-07 — Metas Financeiras
-- Tabela `metas`, CRUD completo, página `/metas` (abas Ativas/Concluídas/Arquivadas),
-  widget top-3 no dashboard, tool `consultar_metas` na IA.
-
-### 2026-05-30 — Monetinha (ChatWidget)
-- Chat com IA no layout do dashboard (tabela `mensagens_chat`, colunas
-  `chat_model`/`chat_personality` em `preferencias_usuario`), anexos (jpg/png/webp/pdf
-  até 10MB), modo full-screen, aba "Assistente" em `/settings`. Tools: `consultar_metas`,
-  `consultar_assinaturas`, `consultar_orcamento`.
-
-### 2026-05-29 — Inbox: seleção de tipo ao processar
-- Modal "Como deseja registrar?" (Despesa/Receita/Transferência entre contas) ao
-  processar um pré-lançamento.
-
-## Sincronização com o upstream
-
-### 2026-07 — Sincronizado com upstream v2.7.12
-- Sync de v2.7.2 → v2.7.12 (migrations, Settings/Monetinha, transações, dashboard
-  widgets, popovers de fatura, anexos por pessoa, import de planilhas, cards). Workflows
-  de CI/CD deixados de fora por decisão (fork usa Railway). Detalhes no `AGENTS.md`,
-  seção "Estado do Sync".
+### Corrigido
+- O calendário que travava: em "Nova assinatura" e "Nova meta", o seletor de data às vezes fazia corpo mole e não respondia ao clique. Resolvido.
+- Fatura paga não zera mais o cartão no painel: pagar a fatura fazia o cartão parecer zerado e ainda escondia as compras novas do período. Agora o valor continua certinho.
+- E mais uns ajustes de bastidor: a capa da meta é apagada junto quando você exclui a meta (sem deixar arquivo perdido), e sumiu aquela duplicação rara de assinatura que aparecia quando o app era usado em duas telas quase ao mesmo tempo.
 
 ---
 
-> Histórico completo das versões do OpenMonetis (2.7.2 e anteriores):
-> ver [`CHANGELOG.upstream.md`](./CHANGELOG.upstream.md).
+> **Sincronização com o upstream:** o fork está sincronizado com o upstream **v2.7.12**
+> (de v2.7.2). Detalhes de cada bloco portado no `AGENTS.md`, seção "Estado do Sync".
+> O histórico completo das versões do OpenMonetis (2.7.2 e anteriores) vive em
+> [`CHANGELOG.upstream.md`](./CHANGELOG.upstream.md).
