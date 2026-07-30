@@ -16,6 +16,14 @@ Cada release registra a base do upstream correspondente no corpo.
 > a dia. E na pegada da Monetinha: leve, animado, como uma amiga contando a novidade,
 > sem exagero de emojis (1 ou 2 por versão, no máximo).
 
+## [3.3.0] - 2026-07-29
+
+Agora você pode falar com a Monetinha! Registrar um gasto ficou tão fácil quanto mandar um áudio. 🎤
+
+### Adicionado
+- Manda áudio pra Monetinha: apareceu um microfoninho ali do lado do campo de mensagem. Aperta, fala ("gastei trinta e dois reais no posto no pix") e solta — a Monetinha entende o que você disse e já escreve tudo pra você. Perfeito pra quando tá com a mão ocupada, saindo do mercado ou dentro do carro.
+- Você confere antes de mandar: o que você falou vira texto no campo de mensagem pra você dar aquela olhada e corrigir se precisar (às vezes um "trinta e dois" pode virar "quarenta e dois"), e só então envia. Nada vai pro registro sem você conferir.
+
 ## [3.2.0] - 2026-07-29
 
 Suas conexões bancárias agora se viram sozinhas — chega de abrir o painel só pra elas acordarem! 🎉
