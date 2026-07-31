@@ -711,6 +711,8 @@ export async function linkConnectionCardAction(
 export interface ConnectionCreditCard {
 	connectionId: string;
 	connectorName: string | null;
+	/** Apelido do usuário para a conexão (ex.: "Nubank") — precede connectorName. */
+	nickname: string | null;
 	pluggyAccountId: string;
 	/** Nome do cartão na Pluggy (ex.: "Mastercard Black") — desambigua "MeuPluggy". */
 	cardName: string;
@@ -742,6 +744,7 @@ export async function listConnectionCreditCardsAction(): Promise<
 			.select({
 				id: openFinanceConnections.id,
 				connectorName: openFinanceConnections.connectorName,
+				nickname: openFinanceConnections.nickname,
 				pluggyItemId: openFinanceConnections.pluggyItemId,
 			})
 			.from(openFinanceConnections)
@@ -755,6 +758,7 @@ export async function listConnectionCreditCardsAction(): Promise<
 					.map((a) => ({
 						connectionId: connection.id,
 						connectorName: connection.connectorName,
+						nickname: connection.nickname,
 						pluggyAccountId: a.id,
 						cardName: a.name ?? a.marketingName ?? "Cartão",
 					}));
@@ -783,5 +787,64 @@ export async function listConnectionCreditCardsAction(): Promise<
 			success: false,
 			error: "Não foi possível carregar os cartões do banco.",
 		};
+	}
+}
+
+const renameConnectionSchema = z.object({
+	connectionId: z.string().uuid("Conexão inválida"),
+	// Apelido: até 40 chars; vazio/espaços → limpa (volta a mostrar connectorName).
+	nickname: z.string().max(40, "Apelido muito longo").optional(),
+});
+
+/**
+ * Define/limpa o apelido de uma conexão Open Finance. No uso pessoal o
+ * connectorName é "MeuPluggy" para todas — o apelido ("Nubank", "Santander") é o
+ * que identifica de verdade no dropdown de vínculo de cartão. Ownership pela WHERE
+ * (id + userId). Apelido vazio/só-espaços vira null (volta a exibir connectorName).
+ */
+export async function renameConnectionAction(
+	input: z.input<typeof renameConnectionSchema>,
+): Promise<ActionResponse> {
+	try {
+		const session = await auth.api.getSession({ headers: await headers() });
+		if (!session?.user?.id) {
+			return { success: false, error: AUTH_ERROR };
+		}
+		if (!isOpenFinanceEnabled()) {
+			return { success: false, error: FLAG_ERROR };
+		}
+
+		const parsed = renameConnectionSchema.safeParse(input);
+		if (!parsed.success) {
+			return {
+				success: false,
+				error: parsed.error.issues[0]?.message ?? "Dados inválidos",
+			};
+		}
+		const { connectionId, nickname } = parsed.data;
+		const trimmed = nickname?.trim();
+		const value = trimmed && trimmed.length > 0 ? trimmed : null;
+
+		const updated = await db
+			.update(openFinanceConnections)
+			.set({ nickname: value, updatedAt: new Date() })
+			.where(
+				and(
+					eq(openFinanceConnections.id, connectionId),
+					eq(openFinanceConnections.userId, session.user.id),
+				),
+			)
+			.returning({ id: openFinanceConnections.id });
+
+		if (updated.length === 0) {
+			return { success: false, error: "Conexão não encontrada" };
+		}
+
+		revalidatePath("/settings");
+		revalidatePath("/cards");
+		return { success: true, message: "Apelido salvo." };
+	} catch (error) {
+		console.error("[renameConnectionAction]", error);
+		return { success: false, error: "Não foi possível salvar o apelido." };
 	}
 }

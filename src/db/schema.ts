@@ -733,6 +733,10 @@ export const openFinanceConnections = pgTable(
 		// Identificadores Pluggy — nível ITEM (PATCH futuro + consentimento)
 		pluggyItemId: text("pluggy_item_id").notNull(),
 		connectorName: text("connector_name"),
+		// Apelido definido pelo usuário para desambiguar conexões (Fase 2A.1). No uso
+		// pessoal o connectorName é "MeuPluggy" para todas — o apelido ("Nubank",
+		// "Santander") é o que identifica de verdade. Nullable: cai no connectorName.
+		nickname: text("apelido"),
 
 		// Vínculo conta local ↔ conta Pluggy — nível ACCOUNT
 		// (GET /v2/transactions?accountId=). Uma conta-corrente na F1.

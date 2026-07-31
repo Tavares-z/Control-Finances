@@ -288,6 +288,13 @@
       "when": 1785459923756,
       "tag": "0041_careless_mastermind",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1785517252679,
+      "tag": "0042_fuzzy_junta",
+      "breakpoints": true
     }
   ]
 }

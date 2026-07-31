@@ -1,0 +1,1 @@
+ALTER TABLE "openfinance_connections" ADD COLUMN "apelido" text;

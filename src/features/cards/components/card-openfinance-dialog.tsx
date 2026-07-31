@@ -175,9 +175,12 @@ export function CardOpenFinanceDialog({
 										key={encodeCardValue(card)}
 										value={encodeCardValue(card)}
 									>
-										{card.connectorName
-											? `${card.connectorName} · ${card.cardName}`
-											: card.cardName}
+										{(() => {
+											const bank = card.nickname || card.connectorName;
+											return bank
+												? `${bank} · ${card.cardName}`
+												: card.cardName;
+										})()}
 									</SelectItem>
 								))}
 							</SelectContent>

@@ -18,6 +18,7 @@ import {
 	type PluggyAccountOption,
 	reconnectConnectionAction,
 	registerConnectionAction,
+	renameConnectionAction,
 } from "@/features/openfinance/actions";
 import type { OpenFinanceConnectionListItem } from "@/features/openfinance/queries";
 import { Badge } from "@/shared/components/ui/badge";
@@ -30,6 +31,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/shared/components/ui/dialog";
+import { Input } from "@/shared/components/ui/input";
 import {
 	Select,
 	SelectContent,
@@ -105,6 +107,57 @@ function getStatusBadge(
 		label: "Aguardando sincronização",
 		Icon: RiTimeLine,
 	};
+}
+
+/**
+ * Campo de apelido de UMA conexão. No uso pessoal o connectorName é "MeuPluggy"
+ * para todas — o apelido ("Nubank", "Santander") é o que identifica a conexão no
+ * dropdown de vínculo de cartão. Salva ao sair do campo (onBlur) quando mudou.
+ */
+function ConnectionNicknameControl({
+	connection,
+}: {
+	connection: OpenFinanceConnectionListItem;
+}) {
+	const router = useRouter();
+	const [isPending, startTransition] = useTransition();
+	const [value, setValue] = useState(connection.nickname ?? "");
+
+	const inputId = `connection-nickname-${connection.id}`;
+	const original = connection.nickname ?? "";
+
+	const save = () => {
+		if (value.trim() === original) return; // nada mudou
+		startTransition(async () => {
+			const result = await renameConnectionAction({
+				connectionId: connection.id,
+				nickname: value,
+			});
+			if (!result.success) {
+				toast.error(result.error ?? "Não foi possível salvar o apelido.");
+				return;
+			}
+			toast.success(result.message ?? "Apelido salvo.");
+			router.refresh();
+		});
+	};
+
+	return (
+		<div className="space-y-2">
+			<label htmlFor={inputId} className="text-sm text-muted-foreground">
+				Apelido da conexão
+			</label>
+			<Input
+				id={inputId}
+				value={value}
+				onChange={(e) => setValue(e.target.value)}
+				onBlur={save}
+				maxLength={40}
+				placeholder="Ex.: Nubank, Santander…"
+				disabled={isPending}
+			/>
+		</div>
+	);
 }
 
 /**
@@ -332,7 +385,8 @@ export function ConnectionsTab({
 						});
 						// Título compõe conector + conta local vinculada para desambiguar
 						// vários cards do mesmo conector (ex. 4x "MeuPluggy" em prod).
-						const institution = connection.connectorName || "Instituição";
+						const institution =
+							connection.nickname || connection.connectorName || "Instituição";
 						const title = connection.accountName
 							? `${institution} · ${connection.accountName}`
 							: institution;
@@ -365,6 +419,10 @@ export function ConnectionsTab({
 											: "Nunca sincronizada"}
 									</p>
 									{consentDate && <p>Consentimento expira em {consentDate}</p>}
+								</div>
+
+								<div className="mt-3">
+									<ConnectionNicknameControl connection={connection} />
 								</div>
 
 								<div className="mt-3">
