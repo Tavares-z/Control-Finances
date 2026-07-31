@@ -137,6 +137,13 @@ export default async function Page({ params, searchParams }: PageProps) {
 		currentInvoiceAmount: 0,
 		currentInvoiceLabel: "",
 		currentInvoiceStatus: null,
+		// Estado Open Finance não é usado pelo CardDialog (form de edição); esta
+		// página não carrega o vínculo, então default de "não vinculado".
+		openFinance: {
+			connectionId: null,
+			connectorName: null,
+			lastSyncedAt: null,
+		},
 	};
 
 	const { totalAmount, invoiceStatus, paymentDate } = invoiceData;

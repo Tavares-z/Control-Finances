@@ -9,7 +9,13 @@ import {
 	or,
 	sql,
 } from "drizzle-orm";
-import { cards, financialAccounts, invoices, transactions } from "@/db/schema";
+import {
+	cards,
+	financialAccounts,
+	invoices,
+	openFinanceConnections,
+	transactions,
+} from "@/db/schema";
 import { db } from "@/shared/lib/db";
 import {
 	INVOICE_PAYMENT_STATUS,
@@ -40,6 +46,13 @@ type CardData = {
 	currentInvoiceStatus: InvoicePaymentStatus | null;
 	accountId: string;
 	accountName: string;
+	/** Estado do vínculo Open Finance deste cartão (Fase 2). */
+	openFinance: {
+		/** id da conexão vinculada, ou null se o cartão não está vinculado. */
+		connectionId: string | null;
+		connectorName: string | null;
+		lastSyncedAt: Date | null;
+	};
 };
 
 type AccountSimple = {
@@ -76,6 +89,7 @@ async function fetchCardsByStatus(
 		limitUsageRows,
 		invoiceTotalRows,
 		invoiceStatusRows,
+		openFinanceRows,
 	] = await Promise.all([
 		db.query.cards.findMany({
 			orderBy: (table, { desc }) => [desc(table.name)],
@@ -156,6 +170,20 @@ async function fetchCardsByStatus(
 			.where(
 				and(eq(invoices.userId, userId), eq(invoices.period, currentPeriod)),
 			),
+		db
+			.select({
+				cardId: openFinanceConnections.cardId,
+				connectionId: openFinanceConnections.id,
+				connectorName: openFinanceConnections.connectorName,
+				lastSyncedAt: openFinanceConnections.lastSyncedAt,
+			})
+			.from(openFinanceConnections)
+			.where(
+				and(
+					eq(openFinanceConnections.userId, userId),
+					isNotNull(openFinanceConnections.cardId),
+				),
+			),
 	]);
 
 	const usageMap = new Map<string, number>();
@@ -178,6 +206,22 @@ async function fetchCardsByStatus(
 		const status = parseInvoiceStatus(row.paymentStatus);
 		if (!status) return;
 		invoiceStatusMap.set(row.cardId, status);
+	});
+	const openFinanceMap = new Map<
+		string,
+		{
+			connectionId: string;
+			connectorName: string | null;
+			lastSyncedAt: Date | null;
+		}
+	>();
+	openFinanceRows.forEach((row) => {
+		if (!row.cardId) return;
+		openFinanceMap.set(row.cardId, {
+			connectionId: row.connectionId,
+			connectorName: row.connectorName,
+			lastSyncedAt: row.lastSyncedAt,
+		});
 	});
 
 	const cardList = cardRows.map((card) => ({
@@ -206,6 +250,11 @@ async function fetchCardsByStatus(
 		accountName:
 			(card.financialAccount as { name?: string } | null)?.name ??
 			"Conta não encontrada",
+		openFinance: {
+			connectionId: openFinanceMap.get(card.id)?.connectionId ?? null,
+			connectorName: openFinanceMap.get(card.id)?.connectorName ?? null,
+			lastSyncedAt: openFinanceMap.get(card.id)?.lastSyncedAt ?? null,
+		},
 	}));
 
 	const accounts = accountRows.map((account) => ({

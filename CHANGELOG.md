@@ -16,6 +16,16 @@ Cada release registra a base do upstream correspondente no corpo.
 > a dia. E na pegada da Monetinha: leve, animado, como uma amiga contando a novidade,
 > sem exagero de emojis (1 ou 2 por versão, no máximo).
 
+## [3.4.0] - 2026-07-31
+
+Agora o Open Finance também puxa a fatura do seu cartão de crédito! 💳
+
+### Adicionado
+- Puxe a fatura do cartão sozinha: em cada cartão apareceu o botão "puxar fatura". Aperta, escolhe o banco que você já conectou, e pronto — as compras daquele cartão passam a entrar no app automaticamente, sem você digitar nada. Antes o Open Finance só trazia as suas contas; agora traz o cartão também.
+- Cada compra cai na fatura certa sozinha: o app já sabe o dia de fechamento do seu cartão, então uma compra feita depois do fechamento entra na fatura do mês seguinte, exatamente como o banco faz. Você não precisa organizar nada.
+- Sem retrabalho e sem susto de duplicar: se uma compra que chegou pelo cartão já existia lá (porque você tinha lançado na mão ou importado antes), o app avisa marcando como "possível duplicata" em vez de somar duas vezes — e nunca apaga o que você já tinha.
+- Diferente das contas, a compra do cartão entra direto na fatura (não passa pela Caixa de entrada): como você conscientemente mandou puxar aquele cartão, não faz sentido pedir sua confirmação a cada compra. E vem tudo já categorizado quando o app reconhece a loja pelo seu histórico.
+
 ## [3.3.0] - 2026-07-29
 
 Agora você pode falar com a Monetinha! Registrar um gasto ficou tão fácil quanto mandar um áudio. 🎤
