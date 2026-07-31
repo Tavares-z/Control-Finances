@@ -17,6 +17,10 @@ import {
 } from "@/shared/components/ui/tabs";
 import { CardDialog } from "./card-dialog";
 import { CardItem } from "./card-item";
+import {
+	CardOpenFinanceDialog,
+	type LinkableConnection,
+} from "./card-openfinance-dialog";
 import type { Card as CreditCard } from "./types";
 
 type AccountOption = {
@@ -30,6 +34,9 @@ interface CardsPageProps {
 	archivedCards: CreditCard[];
 	accounts: AccountOption[];
 	logoOptions: string[];
+	/** Fase 2 (Open Finance): flag + conexões para o vínculo de cartão. */
+	openFinanceEnabled?: boolean;
+	openFinanceConnections?: LinkableConnection[];
 }
 
 export function CardsPage({
@@ -37,6 +44,8 @@ export function CardsPage({
 	archivedCards,
 	accounts,
 	logoOptions,
+	openFinanceEnabled = false,
+	openFinanceConnections = [],
 }: CardsPageProps) {
 	const router = useRouter();
 	const [activeTab, setActiveTab] = useState("ativos");
@@ -44,6 +53,7 @@ export function CardsPage({
 	const [selectedCard, setSelectedCard] = useState<CreditCard | null>(null);
 	const [removeOpen, setRemoveOpen] = useState(false);
 	const [cardToRemove, setCardToRemove] = useState<CreditCard | null>(null);
+	const [ofCard, setOfCard] = useState<CreditCard | null>(null);
 
 	const orderedCards = useMemo(
 		() =>
@@ -148,9 +158,12 @@ export function CardsPage({
 						accountName={card.accountName}
 						logo={card.logo}
 						note={card.note}
+						openFinanceEnabled={openFinanceEnabled}
+						openFinanceLinked={card.openFinance.connectionId !== null}
 						onEdit={() => handleEdit(card)}
 						onInvoice={() => handleInvoice(card)}
 						onRemove={() => handleRemoveRequest(card)}
+						onOpenFinance={() => setOfCard(card)}
 					/>
 				))}
 			</div>
@@ -209,6 +222,18 @@ export function CardsPage({
 				confirmVariant="destructive"
 				onConfirm={handleRemoveConfirm}
 			/>
+
+			{openFinanceEnabled && ofCard ? (
+				<CardOpenFinanceDialog
+					open={ofCard !== null}
+					onOpenChange={(open) => {
+						if (!open) setOfCard(null);
+					}}
+					cardId={ofCard.id}
+					cardName={ofCard.name}
+					connections={openFinanceConnections}
+				/>
+			) : null}
 		</>
 	);
 }

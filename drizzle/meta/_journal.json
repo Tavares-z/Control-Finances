@@ -281,6 +281,13 @@
       "when": 1785098031588,
       "tag": "0040_rainy_aqueduct",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1785459923756,
+      "tag": "0041_careless_mastermind",
+      "breakpoints": true
     }
   ]
 }

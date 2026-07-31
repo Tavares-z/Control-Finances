@@ -1,14 +1,23 @@
 import "server-only";
 
-import { and, eq, sql } from "drizzle-orm";
-import { inboxItems, openFinanceConnections } from "@/db/schema";
+import { and, eq, inArray, sql } from "drizzle-orm";
+import {
+	cards,
+	importCategoryMappings,
+	inboxItems,
+	openFinanceConnections,
+	transactions,
+} from "@/db/schema";
 import {
 	getItem,
 	listTransactions,
 	PluggyApiError,
 	type PluggyTransaction,
 } from "@/features/openfinance/lib/pluggy-client";
+import { deriveCreditCardPeriod } from "@/features/transactions/lib/form-helpers";
+import { normalizeDescriptionKey } from "@/features/transactions/lib/import-utils";
 import { db } from "@/shared/lib/db";
+import { getAdminPayerId } from "@/shared/lib/payers/get-admin-id";
 import { getBusinessDateString } from "@/shared/utils/date";
 
 /**
@@ -57,6 +66,46 @@ function toBusinessDay(date: Date): string {
 /** |valor| em centavos inteiros — comparação de dinheiro sem float cru. */
 function toCents(value: number): number {
 	return Math.round(Math.abs(value) * 100);
+}
+
+/**
+ * Dia (YYYY-MM-DD) de uma `purchaseDate` já persistida, por UTC-slice.
+ * O sync de cartão grava a data de compra ao meio-dia UTC do dia local; e
+ * transações de OFX/manual nascem à meia-noite local (= UTC no servidor Railway).
+ * Nos dois casos o slice UTC devolve o dia pretendido — usar toBusinessDay aqui
+ * deslocaria meia-noite UTC para o dia anterior em SP. Só para a Camada 2.
+ */
+function purchaseDayKey(date: Date): string {
+	return date.toISOString().slice(0, 10);
+}
+
+/**
+ * Mapa descrição-normalizada → categoryId do histórico de import do usuário.
+ * Espelha `fetchCategoryMappings` (transactions/actions/category-memory-action),
+ * mas recebe o `userId` explícito — o sync roda fora de um request HTTP, então
+ * não pode usar a versão que resolve o userId via headers()/sessão.
+ */
+async function fetchCategoryMappingsForUser(
+	userId: string,
+	descriptions: string[],
+): Promise<Record<string, string>> {
+	const keys = descriptions.map(normalizeDescriptionKey).filter(Boolean);
+	if (keys.length === 0) return {};
+
+	const rows = await db
+		.select({
+			descriptionKey: importCategoryMappings.descriptionKey,
+			categoryId: importCategoryMappings.categoryId,
+		})
+		.from(importCategoryMappings)
+		.where(
+			and(
+				eq(importCategoryMappings.userId, userId),
+				inArray(importCategoryMappings.descriptionKey, keys),
+			),
+		);
+
+	return Object.fromEntries(rows.map((r) => [r.descriptionKey, r.categoryId]));
 }
 
 /** Chave de conteúdo da Camada 2: dia local | centavos | descrição. */
@@ -119,6 +168,249 @@ export async function refreshConnectionStatus(connection: {
 	}
 }
 
+/** Conexão já carregada (linha inteira de openFinanceConnections). */
+type LoadedConnection = typeof openFinanceConnections.$inferSelect;
+
+const CARD_PAYMENT_METHOD = "Cartão de crédito";
+
+/**
+ * Sincroniza UMA conexão vinculada a um CARTÃO local (Fase 2).
+ *
+ * Diferente do caminho de conta (que joga em `inboxItems` para o usuário revisar),
+ * aqui a intenção já foi declarada no vínculo do cartão — as transações entram
+ * DIRETO em `transactions`, no cartão, no período de fatura correto. Espelha o
+ * insert do import de OFX (import-action.ts): paymentMethod="Cartão de crédito",
+ * condition="À vista", isSettled=false, ofxFitId=tx.id.
+ *
+ * Roteamento de fatura: `deriveCreditCardPeriod(dataDaCompra, closingDay, dueDay)`
+ * — a MESMA função do form de transação. A Pluggy entrega parcela-a-parcela no mês
+ * certo, então cada uma cai sozinha na fatura correta (parcelamento tratado como
+ * "À vista" — decisão da Fase 2A).
+ *
+ * Sinal do valor: usa o SINAL de `amount` (negativo = despesa), NÃO o `type` da
+ * transação (o client documenta que `type` é não-confiável em cartão).
+ *
+ * Dedup em 2 camadas, igual ao caminho de conta, mas contra `transactions`:
+ *   - Camada 1: `onConflictDoNothing` no uniqueIndex (userId, ofxFitId).
+ *   - Camada 2: chave de conteúdo (dia|centavos|descrição) contra transações já
+ *     existentes DO MESMO CARTÃO — insere assim mesmo com prefixo/nota
+ *     "[possível duplicata]". NUNCA suprime, NUNCA deleta.
+ */
+async function syncCardConnection(
+	connection: LoadedConnection,
+	options?: { force?: boolean },
+): Promise<SyncResult> {
+	const empty = {
+		fetched: 0,
+		inserted: 0,
+		duplicateFlagged: 0,
+		alreadyExisted: 0,
+	};
+
+	// Gate já garantiu pluggyAccountId + cardId. Reafirma para o narrowing.
+	const cardId = connection.cardId;
+	const pluggyAccountId = connection.pluggyAccountId;
+	if (!cardId || !pluggyAccountId) {
+		return {
+			status: "skipped",
+			...empty,
+			message: "Vínculo de cartão incompleto.",
+		};
+	}
+
+	// Throttle idêntico ao de conta (o webhook fura com force=true).
+	const { lastSyncedAt } = connection;
+	if (
+		!options?.force &&
+		lastSyncedAt &&
+		Date.now() - lastSyncedAt.getTime() < THROTTLE_MS
+	) {
+		return { status: "throttled", ...empty, message: "Sincronizado há < 1h." };
+	}
+
+	// Carrega o cartão (ownership implícito: só chega aqui por vínculo do usuário).
+	// closingDay/dueDay alimentam o roteamento de período.
+	const [card] = await db
+		.select({
+			closingDay: cards.closingDay,
+			dueDay: cards.dueDay,
+		})
+		.from(cards)
+		.where(and(eq(cards.id, cardId), eq(cards.userId, connection.userId)));
+	if (!card) {
+		return {
+			status: "skipped",
+			...empty,
+			message: "Cartão local não encontrado.",
+		};
+	}
+
+	// Janela de busca: backfill 90d no 1º sync, senão último sync −24h (overlap).
+	const fromDate = lastSyncedAt
+		? new Date(lastSyncedAt.getTime() - OVERLAP_HOURS * 60 * 60 * 1000)
+		: new Date(Date.now() - BACKFILL_DAYS * 24 * 60 * 60 * 1000);
+	const createdAtFrom = toBusinessDay(fromDate);
+
+	// Busca as transações da account CREDIT vinculada.
+	let pluggyTransactions: PluggyTransaction[];
+	let next: unknown;
+	try {
+		const page = await listTransactions(pluggyAccountId, { createdAtFrom });
+		pluggyTransactions = page.results;
+		next = page.next;
+	} catch (error) {
+		if (error instanceof PluggyApiError) {
+			console.error("[syncCardConnection] Pluggy error", {
+				connectionId: connection.id,
+				status: error.status,
+				code: error.code,
+				errorId: error.errorId,
+				message: error.message,
+			});
+			await refreshConnectionStatus({
+				id: connection.id,
+				pluggyItemId: connection.pluggyItemId,
+			});
+			return {
+				status: "error",
+				...empty,
+				message: `Pluggy respondeu HTTP ${error.status}.`,
+			};
+		}
+		const err = error as Error;
+		console.error("[syncCardConnection] network error", {
+			connectionId: connection.id,
+			name: err.name,
+			message: err.message,
+		});
+		return {
+			status: "error",
+			...empty,
+			message: "Falha de rede ao consultar a Pluggy.",
+		};
+	}
+
+	if (next !== null) {
+		console.warn(
+			"[syncCardConnection] resultado paginado (next != null) — janela excedeu uma página; seguindo apenas com a primeira",
+			{ connectionId: connection.id, count: pluggyTransactions.length },
+		);
+	}
+
+	// Camada 2: prefetch das transações JÁ existentes deste cartão para montar as
+	// chaves de conteúdo. Comparado contra qualquer transação do cartão (não só as
+	// de origem openfinance) — registro manual/OFX prévio também deve ser detectado.
+	const existing = await db
+		.select({
+			name: transactions.name,
+			amount: transactions.amount,
+			purchaseDate: transactions.purchaseDate,
+		})
+		.from(transactions)
+		.where(
+			and(
+				eq(transactions.userId, connection.userId),
+				eq(transactions.cardId, cardId),
+			),
+		);
+
+	const seenKeys = new Set<string>();
+	for (const row of existing) {
+		// `purchaseDate` é um `date` (sem hora) — o driver pg o traz à meia-noite
+		// UTC. Extrair o dia por UTC-slice (NÃO por toBusinessDay, que converteria
+		// para SP e voltaria um dia). Isso casa com o dia que gravamos abaixo, que
+		// é derivado do MESMO UTC-slice da data da transação Pluggy.
+		const localDay = purchaseDayKey(row.purchaseDate);
+		const cents = toCents(Number.parseFloat(row.amount));
+		seenKeys.add(contentKey(localDay, cents, row.name));
+	}
+
+	// Categorização: histórico exato (descrição → categoria). Sem match → null.
+	// NÃO reusar fetchCategoryMappings (transactions/actions): ela resolve o userId
+	// via getUserId()→headers(), que só existe dentro de um request HTTP — o sync
+	// roda fora disso (webhook/runner). Query direta com o userId da conexão.
+	const mappings = await fetchCategoryMappingsForUser(
+		connection.userId,
+		pluggyTransactions.map((tx) => tx.description ?? MISSING_DESCRIPTION),
+	);
+	const payerId = await getAdminPayerId(connection.userId);
+
+	const importBatchId = crypto.randomUUID();
+	let inserted = 0;
+	let duplicateFlagged = 0;
+	let alreadyExisted = 0;
+
+	for (const tx of pluggyTransactions) {
+		const description = tx.description ?? MISSING_DESCRIPTION;
+		// A Pluggy manda a data ISO UTC; derivamos o dia local (SP) e usamos ele
+		// como data de compra E como base do período de fatura.
+		const localDay = toBusinessDay(new Date(tx.date));
+		const purchaseDate = new Date(`${localDay}T12:00:00.000Z`);
+		const period = deriveCreditCardPeriod(
+			localDay,
+			card.closingDay,
+			card.dueDay,
+		);
+		const cents = toCents(tx.amount);
+		const key = contentKey(localDay, cents, description);
+		const isDuplicate = seenKeys.has(key);
+
+		// Sinal de amount = direção (negativo = despesa). NÃO usar tx.type.
+		const transactionType = tx.amount < 0 ? "Despesa" : "Receita";
+		const categoryId = mappings[normalizeDescriptionKey(description)] ?? null;
+
+		const [row] = await db
+			.insert(transactions)
+			.values({
+				name: isDuplicate ? DUPLICATE_PREFIX + description : description,
+				condition: "À vista",
+				paymentMethod: CARD_PAYMENT_METHOD,
+				amount: tx.amount.toFixed(2), // COM sinal
+				purchaseDate,
+				transactionType,
+				period,
+				isSettled: false, // fatura de cartão ainda não paga
+				userId: connection.userId,
+				cardId,
+				categoryId,
+				payerId,
+				ofxFitId: tx.id, // Camada 1: dedup por id externo
+				importBatchId,
+			})
+			.onConflictDoNothing({
+				target: [transactions.userId, transactions.ofxFitId],
+				where: sql`${transactions.ofxFitId} is not null`,
+			})
+			.returning({ id: transactions.id });
+
+		if (!row) {
+			alreadyExisted += 1;
+			continue;
+		}
+		if (isDuplicate) {
+			duplicateFlagged += 1;
+		} else {
+			inserted += 1;
+		}
+		seenKeys.add(key);
+	}
+
+	// Sucesso → carimba lastSyncedAt e limpa status (mesma semântica do de conta).
+	const now = new Date();
+	await db
+		.update(openFinanceConnections)
+		.set({ lastSyncedAt: now, updatedAt: now, status: "UPDATED" })
+		.where(eq(openFinanceConnections.id, connection.id));
+
+	return {
+		status: "ok",
+		fetched: pluggyTransactions.length,
+		inserted,
+		duplicateFlagged,
+		alreadyExisted,
+	};
+}
+
 export async function syncOpenFinanceConnection(
 	connectionId: string,
 	options?: { force?: boolean },
@@ -139,11 +431,27 @@ export async function syncOpenFinanceConnection(
 	if (!connection) {
 		return { status: "skipped", ...empty, message: "Conexão não encontrada." };
 	}
-	if (!connection.pluggyAccountId || !connection.accountId) {
+	// Sem account Pluggy escolhida → nada a sincronizar em nenhum dos caminhos.
+	if (!connection.pluggyAccountId) {
 		return {
 			status: "skipped",
 			...empty,
-			message: "Conexão sem conta Pluggy/local vinculada.",
+			message: "Conexão sem conta Pluggy vinculada.",
+		};
+	}
+	// Ramificação por tipo de vínculo. Uma conexão aponta para um CARTÃO ou uma
+	// CONTA (o vínculo limpa o outro lado — ver linkConnectionCardAction). O
+	// caminho de cartão é uma função própria (transações direto no cartão, sem
+	// Inbox); o caminho de conta (Inbox) segue INTOCADO abaixo — a separação
+	// preserva por construção a invariante "conta continua indo pro Inbox".
+	if (connection.cardId) {
+		return syncCardConnection(connection, options);
+	}
+	if (!connection.accountId) {
+		return {
+			status: "skipped",
+			...empty,
+			message: "Conexão sem conta local vinculada.",
 		};
 	}
 

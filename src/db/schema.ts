@@ -658,17 +658,18 @@ export const inboxItems = pgTable(
 		// itens de outras fontes (Companion, assinatura).
 		externalSourceId: text("external_source_id"),
 
-		connectionId: uuid("conexao_id").references(() => openFinanceConnections.id, {
-			onDelete: "set null",
-		}),
+		connectionId: uuid("conexao_id").references(
+			() => openFinanceConnections.id,
+			{
+				onDelete: "set null",
+			},
+		),
 
 		// Marca de "possível duplicata" da Camada 2 do sync Open Finance: item
 		// cujo id externo é novo (passou da Camada 1) mas cujo CONTEÚDO já existe
 		// (caso pending→posted que troca id). NUNCA suprime — só sinaliza. Fonte
 		// de verdade da marcação; o prefixo em original_title é só visibilidade.
-		possibleDuplicate: boolean("possible_duplicate")
-			.notNull()
-			.default(false),
+		possibleDuplicate: boolean("possible_duplicate").notNull().default(false),
 
 		// Metadados de processamento
 		processedAt: timestamp("processed_at", {
@@ -738,6 +739,12 @@ export const openFinanceConnections = pgTable(
 		accountId: uuid("conta_id").references(() => financialAccounts.id, {
 			onDelete: "set null",
 		}),
+		// Vínculo CARTÃO local ↔ account Pluggy type=CREDIT (Fase 2). Uma conexão
+		// aponta para uma conta OU um cartão; o `pluggyAccountId` guarda a account
+		// Pluggy escolhida (BANK para conta, CREDIT para cartão).
+		cardId: uuid("cartao_id").references(() => cards.id, {
+			onDelete: "set null",
+		}),
 		pluggyAccountId: text("pluggy_account_id"),
 
 		// Status/consentimento do item — F1 só armazena, não age
@@ -771,6 +778,7 @@ export const openFinanceConnections = pgTable(
 		pluggyItemIdUnique: uniqueIndex(
 			"openfinance_connections_user_id_pluggy_item_id_key",
 		).on(table.userId, table.pluggyItemId),
+		cardIdIdx: index("openfinance_connections_cartao_id_idx").on(table.cardId),
 	}),
 );
 

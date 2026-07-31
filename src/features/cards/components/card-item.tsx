@@ -1,9 +1,11 @@
 "use client";
 
 import {
+	RiBankLine,
 	RiCalendarCloseLine,
 	RiCalendarScheduleLine,
 	RiChat3Line,
+	RiCheckboxCircleLine,
 	RiDeleteBin5Line,
 	RiFileList2Line,
 	RiPencilLine,
@@ -46,9 +48,14 @@ interface CardItemProps {
 	accountName: string;
 	logo?: string | null;
 	note?: string | null;
+	/** Fase 2: botão de vínculo Open Finance só aparece com a flag ativa. */
+	openFinanceEnabled?: boolean;
+	/** True quando o cartão já está vinculado a uma conexão Open Finance. */
+	openFinanceLinked?: boolean;
 	onEdit?: () => void;
 	onInvoice?: () => void;
 	onRemove?: () => void;
+	onOpenFinance?: () => void;
 }
 
 const formatDay = (value: string) => value.padStart(2, "0");
@@ -68,9 +75,12 @@ export function CardItem({
 	accountName: _accountName,
 	logo,
 	note,
+	openFinanceEnabled,
+	openFinanceLinked,
 	onEdit,
 	onInvoice,
 	onRemove,
+	onOpenFinance,
 }: CardItemProps) {
 	void _accountName;
 
@@ -265,6 +275,33 @@ export function CardItem({
 					<RiDeleteBin5Line className="size-4" aria-hidden />
 					remover
 				</button>
+				{openFinanceEnabled ? (
+					<button
+						type="button"
+						onClick={onOpenFinance}
+						className={cn(
+							"flex items-center gap-1 font-medium transition-opacity hover:opacity-80",
+							openFinanceLinked ? "text-success" : "text-primary",
+						)}
+						aria-label={
+							openFinanceLinked
+								? "Cartão vinculado ao Open Finance — gerenciar"
+								: "Puxar fatura via Open Finance"
+						}
+					>
+						{openFinanceLinked ? (
+							<>
+								<RiCheckboxCircleLine className="size-4" aria-hidden />
+								Open Finance
+							</>
+						) : (
+							<>
+								<RiBankLine className="size-4" aria-hidden />
+								puxar fatura
+							</>
+						)}
+					</button>
+				) : null}
 			</CardFooter>
 		</Card>
 	);

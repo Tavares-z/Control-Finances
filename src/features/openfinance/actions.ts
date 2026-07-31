@@ -4,7 +4,7 @@ import { and, eq, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { z } from "zod";
-import { financialAccounts, openFinanceConnections } from "@/db/schema";
+import { cards, financialAccounts, openFinanceConnections } from "@/db/schema";
 import {
 	createConnectToken,
 	deleteItem,
@@ -524,6 +524,185 @@ export async function linkConnectionAccountAction(
 		return {
 			success: false,
 			error: "Não foi possível vincular a conta.",
+		};
+	}
+}
+
+const linkConnectionCardSchema = z.object({
+	connectionId: z.string().uuid("Conexão inválida"),
+	localCardId: z.string().uuid("Cartão inválido"),
+	// Presente só no 2º passo (desambiguação quando o item tem 2+ cartões CREDIT).
+	// Re-validado contra listAccounts no servidor — nunca confiado cru.
+	pluggyAccountId: z.string().optional(),
+});
+
+/**
+ * Vincula uma conexão Open Finance a um CARTÃO local (Fase 2), fechando o gate do
+ * sync para o caminho de cartão (que exige cardId + pluggyAccountId). Espelha a
+ * `linkConnectionAccountAction`, com três diferenças:
+ *   - filtra a account Pluggy por `type === "CREDIT"` (o OPOSTO da de conta);
+ *   - valida ownership de CARTÃO (não há checagem de VR/VA — cartão não tem
+ *     accountType; VR/VA é conta, não cartão);
+ *   - grava `cardId` (e limpa `accountId` para não deixar a conexão apontando para
+ *     os dois — uma conexão de cartão é de cartão).
+ *
+ * Colapso de 2 níveis idêntico: 1 cartão CREDIT no item → grava direto; 2+ →
+ * devolve as opções (needsPluggyChoice) para o cliente escolher; a 2ª chamada traz
+ * o pluggyAccountId, re-validado aqui.
+ *
+ * Regra 1 cartão local = 1 conexão validada em código (não há unique constraint em
+ * cartao_id — mesma decisão consciente da de conta). Auto-sync best-effort
+ * pós-vínculo: falha não desfaz o vínculo.
+ */
+export async function linkConnectionCardAction(
+	input: z.input<typeof linkConnectionCardSchema>,
+): Promise<
+	ActionResponse<{ needsPluggyChoice: true; options: PluggyAccountOption[] }>
+> {
+	try {
+		const session = await auth.api.getSession({ headers: await headers() });
+		if (!session?.user?.id) {
+			return { success: false, error: AUTH_ERROR };
+		}
+		if (!isOpenFinanceEnabled()) {
+			return { success: false, error: FLAG_ERROR };
+		}
+
+		const parsed = linkConnectionCardSchema.safeParse(input);
+		if (!parsed.success) {
+			return {
+				success: false,
+				error: parsed.error.issues[0]?.message ?? "Dados inválidos",
+			};
+		}
+		const { connectionId, localCardId, pluggyAccountId } = parsed.data;
+		const userId = session.user.id;
+
+		// 1. Conexão do usuário (ownership + pega o pluggyItemId para listAccounts).
+		const [connection] = await db
+			.select({
+				id: openFinanceConnections.id,
+				pluggyItemId: openFinanceConnections.pluggyItemId,
+			})
+			.from(openFinanceConnections)
+			.where(
+				and(
+					eq(openFinanceConnections.id, connectionId),
+					eq(openFinanceConnections.userId, userId),
+				),
+			);
+		if (!connection) {
+			return { success: false, error: "Conexão não encontrada" };
+		}
+
+		// 2. Ownership do cartão local.
+		const [localCard] = await db
+			.select({ id: cards.id })
+			.from(cards)
+			.where(and(eq(cards.id, localCardId), eq(cards.userId, userId)));
+		if (!localCard) {
+			return { success: false, error: "Cartão não encontrado" };
+		}
+
+		// 3. Regra 1 cartão local = 1 conexão: bloqueia se OUTRA conexão já usa o
+		//    cartão (permite re-vincular a mesma conexão ao mesmo cartão).
+		const [conflict] = await db
+			.select({ id: openFinanceConnections.id })
+			.from(openFinanceConnections)
+			.where(
+				and(
+					eq(openFinanceConnections.userId, userId),
+					eq(openFinanceConnections.cardId, localCardId),
+					ne(openFinanceConnections.id, connectionId),
+				),
+			);
+		if (conflict) {
+			return {
+				success: false,
+				error: "Este cartão já está vinculado a outra conexão.",
+			};
+		}
+
+		// 4. Lista as accounts do item e filtra SÓ cartão (type === "CREDIT").
+		let creditAccounts: Awaited<ReturnType<typeof listAccounts>>;
+		try {
+			const accounts = await listAccounts(connection.pluggyItemId);
+			creditAccounts = accounts.filter((a) => a.type === "CREDIT");
+		} catch (error) {
+			// pluggy-client já garante que PluggyApiError não carrega credencial.
+			console.error("[linkConnectionCardAction] listAccounts", error);
+			return {
+				success: false,
+				error: "Não foi possível ler os cartões do banco.",
+			};
+		}
+
+		if (creditAccounts.length === 0) {
+			return {
+				success: false,
+				error: "Nenhum cartão de crédito encontrado neste banco.",
+			};
+		}
+
+		// 5. Resolve QUAL cartão Pluggy vincular.
+		let chosenPluggyAccountId: string;
+		if (creditAccounts.length === 1) {
+			// Colapso para 1 nível.
+			chosenPluggyAccountId = creditAccounts[0].id;
+		} else if (pluggyAccountId) {
+			// 2º passo: re-valida o id vindo do cliente contra a lista real.
+			const match = creditAccounts.find((a) => a.id === pluggyAccountId);
+			if (!match) {
+				return { success: false, error: "Cartão inválido." };
+			}
+			chosenPluggyAccountId = match.id;
+		} else {
+			// 1º passo com ambiguidade: devolve as opções para o cliente escolher.
+			return {
+				success: true,
+				data: {
+					needsPluggyChoice: true,
+					options: creditAccounts.map((a) => ({
+						pluggyAccountId: a.id,
+						label: a.name ?? a.marketingName ?? "Cartão",
+					})),
+				},
+			};
+		}
+
+		// 6. Grava o vínculo. Seta cardId e LIMPA accountId — uma conexão vinculada a
+		//    cartão não deve também apontar para conta (o sync ramifica por qual está
+		//    preenchido; deixar os dois setados é ambíguo).
+		await db
+			.update(openFinanceConnections)
+			.set({
+				cardId: localCardId,
+				accountId: null,
+				pluggyAccountId: chosenPluggyAccountId,
+				updatedAt: new Date(),
+			})
+			.where(
+				and(
+					eq(openFinanceConnections.id, connectionId),
+					eq(openFinanceConnections.userId, userId),
+				),
+			);
+
+		// 7. Auto-sync best-effort: falha aqui NÃO desfaz o vínculo.
+		try {
+			await syncOpenFinanceConnection(connectionId);
+		} catch (error) {
+			console.error("[linkConnectionCardAction] auto-sync", error);
+		}
+
+		revalidatePath("/settings");
+		revalidatePath("/cards");
+		return { success: true, message: "Cartão vinculado." };
+	} catch (error) {
+		console.error("[linkConnectionCardAction]", error);
+		return {
+			success: false,
+			error: "Não foi possível vincular o cartão.",
 		};
 	}
 }

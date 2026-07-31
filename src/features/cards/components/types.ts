@@ -17,6 +17,11 @@ export type Card = {
 	currentInvoiceAmount: number;
 	currentInvoiceLabel: string;
 	currentInvoiceStatus: InvoicePaymentStatus | null;
+	openFinance: {
+		connectionId: string | null;
+		connectorName: string | null;
+		lastSyncedAt: Date | null;
+	};
 };
 
 export type CardFormValues = {
