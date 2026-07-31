@@ -17,10 +17,7 @@ import {
 } from "@/shared/components/ui/tabs";
 import { CardDialog } from "./card-dialog";
 import { CardItem } from "./card-item";
-import {
-	CardOpenFinanceDialog,
-	type LinkableConnection,
-} from "./card-openfinance-dialog";
+import { CardOpenFinanceDialog } from "./card-openfinance-dialog";
 import type { Card as CreditCard } from "./types";
 
 type AccountOption = {
@@ -34,9 +31,9 @@ interface CardsPageProps {
 	archivedCards: CreditCard[];
 	accounts: AccountOption[];
 	logoOptions: string[];
-	/** Fase 2 (Open Finance): flag + conexões para o vínculo de cartão. */
+	/** Fase 2 (Open Finance): flag + se há conexões para o vínculo de cartão. */
 	openFinanceEnabled?: boolean;
-	openFinanceConnections?: LinkableConnection[];
+	openFinanceHasConnections?: boolean;
 }
 
 export function CardsPage({
@@ -45,7 +42,7 @@ export function CardsPage({
 	accounts,
 	logoOptions,
 	openFinanceEnabled = false,
-	openFinanceConnections = [],
+	openFinanceHasConnections = false,
 }: CardsPageProps) {
 	const router = useRouter();
 	const [activeTab, setActiveTab] = useState("ativos");
@@ -231,7 +228,7 @@ export function CardsPage({
 					}}
 					cardId={ofCard.id}
 					cardName={ofCard.name}
-					connections={openFinanceConnections}
+					hasConnections={openFinanceHasConnections}
 				/>
 			) : null}
 		</>

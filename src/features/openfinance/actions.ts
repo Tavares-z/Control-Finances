@@ -706,3 +706,82 @@ export async function linkConnectionCardAction(
 		};
 	}
 }
+
+/** Um cartão Pluggy (account CREDIT) de uma conexão, para o dialog de vínculo. */
+export interface ConnectionCreditCard {
+	connectionId: string;
+	connectorName: string | null;
+	pluggyAccountId: string;
+	/** Nome do cartão na Pluggy (ex.: "Mastercard Black") — desambigua "MeuPluggy". */
+	cardName: string;
+}
+
+/**
+ * Lista TODOS os cartões Pluggy (accounts type=CREDIT) de TODAS as conexões do
+ * usuário, achatados em uma lista para o dialog de vínculo de cartão. Resolve o
+ * problema de N conexões "MeuPluggy" indistinguíveis: o rótulo real é o nome do
+ * cartão (connectorName é compartilhado no uso pessoal e não desambigua).
+ *
+ * Uma chamada `listAccounts` por conexão, em paralelo e TOLERANTE a falha
+ * individual (allSettled): uma conexão com erro na Pluggy some da lista sem
+ * derrubar as demais. Conexões sem cartão CREDIT (só-conta) não entram.
+ */
+export async function listConnectionCreditCardsAction(): Promise<
+	ActionResponse<{ cards: ConnectionCreditCard[] }>
+> {
+	try {
+		const session = await auth.api.getSession({ headers: await headers() });
+		if (!session?.user?.id) {
+			return { success: false, error: AUTH_ERROR };
+		}
+		if (!isOpenFinanceEnabled()) {
+			return { success: false, error: FLAG_ERROR };
+		}
+
+		const connections = await db
+			.select({
+				id: openFinanceConnections.id,
+				connectorName: openFinanceConnections.connectorName,
+				pluggyItemId: openFinanceConnections.pluggyItemId,
+			})
+			.from(openFinanceConnections)
+			.where(eq(openFinanceConnections.userId, session.user.id));
+
+		const settled = await Promise.allSettled(
+			connections.map(async (connection) => {
+				const accounts = await listAccounts(connection.pluggyItemId);
+				return accounts
+					.filter((a) => a.type === "CREDIT")
+					.map((a) => ({
+						connectionId: connection.id,
+						connectorName: connection.connectorName,
+						pluggyAccountId: a.id,
+						cardName: a.name ?? a.marketingName ?? "Cartão",
+					}));
+			}),
+		);
+
+		const cards: ConnectionCreditCard[] = [];
+		for (const result of settled) {
+			if (result.status === "fulfilled") {
+				cards.push(...result.value);
+			} else {
+				// Uma conexão falhou na Pluggy — loga sem credencial e segue.
+				console.error(
+					"[listConnectionCreditCardsAction] listAccounts",
+					result.reason instanceof PluggyApiError
+						? { status: result.reason.status, code: result.reason.code }
+						: result.reason,
+				);
+			}
+		}
+
+		return { success: true, data: { cards } };
+	} catch (error) {
+		console.error("[listConnectionCreditCardsAction]", error);
+		return {
+			success: false,
+			error: "Não foi possível carregar os cartões do banco.",
+		};
+	}
+}

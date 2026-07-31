@@ -16,6 +16,13 @@ Cada release registra a base do upstream correspondente no corpo.
 > a dia. E na pegada da Monetinha: leve, animado, como uma amiga contando a novidade,
 > sem exagero de emojis (1 ou 2 por versão, no máximo).
 
+## [3.4.1] - 2026-07-31
+
+Um ajustezinho pra facilitar a vida de quem tem vários bancos conectados.
+
+### Corrigido
+- Na hora de puxar a fatura de um cartão, agora dá pra saber qual é qual: se você tem vários bancos conectados, a lista mostra o nome do cartão de cada um (tipo "Mercado Pago", "Santander") em vez de aparecer tudo com o mesmo nome. Bem mais fácil escolher o certo.
+
 ## [3.4.0] - 2026-07-31
 
 Agora o Open Finance também puxa a fatura do seu cartão de crédito! 💳
