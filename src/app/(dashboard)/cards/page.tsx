@@ -12,14 +12,13 @@ export default async function Page() {
 
 	// Fase 2 (Open Finance p/ cartões): gate server-side pela mesma flag da aba de
 	// Configurações. Sem ela, o botão de vínculo não aparece e nada é carregado.
+	// Só precisamos saber SE há conexões (o dialog busca os cartões Pluggy de cada
+	// uma sob demanda, para rotulá-los pelo nome do cartão — ver o dialog).
 	const openFinanceEnabled =
 		process.env.OPENFINANCE_ENABLED?.trim().toLowerCase() === "true";
-	const openFinanceConnections = openFinanceEnabled
-		? (await listOpenFinanceConnections(userId)).map((c) => ({
-				id: c.id,
-				connectorName: c.connectorName,
-			}))
-		: [];
+	const openFinanceHasConnections = openFinanceEnabled
+		? (await listOpenFinanceConnections(userId)).length > 0
+		: false;
 
 	return (
 		<main className="flex flex-col gap-6">
@@ -29,7 +28,7 @@ export default async function Page() {
 				accounts={accounts}
 				logoOptions={logoOptions}
 				openFinanceEnabled={openFinanceEnabled}
-				openFinanceConnections={openFinanceConnections}
+				openFinanceHasConnections={openFinanceHasConnections}
 			/>
 		</main>
 	);
