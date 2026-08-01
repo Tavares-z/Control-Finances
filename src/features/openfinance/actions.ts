@@ -842,9 +842,9 @@ export async function renameConnectionAction(
 
 		revalidatePath("/settings");
 		revalidatePath("/cards");
-		return { success: true, message: "Apelido salvo." };
+		return { success: true, message: "Nome salvo." };
 	} catch (error) {
 		console.error("[renameConnectionAction]", error);
-		return { success: false, error: "Não foi possível salvar o apelido." };
+		return { success: false, error: "Não foi possível salvar o nome." };
 	}
 }

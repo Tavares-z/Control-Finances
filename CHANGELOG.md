@@ -21,7 +21,7 @@ Cada release registra a base do upstream correspondente no corpo.
 Agora você dá um nome pra cada banco conectado — nunca mais confundir qual é qual! 🏷️
 
 ### Adicionado
-- Apelido nas conexões: em Ajustes → Open Finance, cada banco que você conectou ganhou um campinho de apelido. Escreve "Nubank", "Santander", "Mercado Pago" — o que fizer sentido pra você. Esse nome aparece na hora de puxar a fatura de um cartão, então em vez de vários "MeuPluggy" iguais, você vê exatamente de qual banco é cada cartão. Deixou em branco? Volta a mostrar o nome padrão, sem problema.
+- Nome do banco nas conexões: em Ajustes → Open Finance, cada banco que você conectou ganhou um campinho "Nome do banco". Escreve "Nubank", "Santander", "Mercado Pago" — o que fizer sentido pra você. Esse nome aparece na hora de puxar a fatura de um cartão, então em vez de vários "MeuPluggy" iguais, você vê exatamente de qual banco é cada cartão. Deixou em branco? Volta a mostrar o nome padrão, sem problema.
 
 ## [3.4.1] - 2026-07-31
 

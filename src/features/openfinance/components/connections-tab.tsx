@@ -134,10 +134,10 @@ function ConnectionNicknameControl({
 				nickname: value,
 			});
 			if (!result.success) {
-				toast.error(result.error ?? "Não foi possível salvar o apelido.");
+				toast.error(result.error ?? "Não foi possível salvar o nome.");
 				return;
 			}
-			toast.success(result.message ?? "Apelido salvo.");
+			toast.success(result.message ?? "Nome salvo.");
 			router.refresh();
 		});
 	};
@@ -145,7 +145,7 @@ function ConnectionNicknameControl({
 	return (
 		<div className="space-y-2">
 			<label htmlFor={inputId} className="text-sm text-muted-foreground">
-				Apelido da conexão
+				Nome do banco
 			</label>
 			<Input
 				id={inputId}
