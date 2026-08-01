@@ -21,7 +21,7 @@ Cada release registra a base do upstream correspondente no corpo.
 Agora você dá nome pros seus bancos e cartões conectados — nunca mais aquele "MeuPluggy" sem sentido! 🏷️
 
 ### Adicionado
-- Nome do banco: em Ajustes → Open Finance (que antes se chamava "Conexões bancárias"), cada banco conectado ganhou um campo "Nome do banco". Escreve "Nubank", "Santander" — o que fizer sentido pra você.
+- Nome do banco: em Ajustes → Open Finance (que antes se chamava "Conexões bancárias"), cada banco conectado ganhou um campo "Nome do banco". Escreve "Nubank", "Santander" — o que fizer sentido pra você. Depois de nomeado, o campo se recolhe pra não ficar repetindo o nome que já aparece no topo do card — é só clicar em "Editar nome do banco" quando quiser mudar.
 - Nome do cartão: dentro de cada banco tem agora "Cartões deste banco", onde você renomeia cada cartão do jeito que quiser (aquele "gold" ou "FREE MASTERCARD" esquisito vira "Nubank Platinum", por exemplo). Esses nomes aparecem na hora de puxar a fatura, então você escolhe o cartão certo de olhos fechados.
 
 ### Alterado

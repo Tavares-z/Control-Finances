@@ -13,6 +13,8 @@ export interface OpenFinanceConnectionListItem {
 	pluggyItemId: string;
 	/** conta_id local vinculado (null = não vinculada). Fonte de "vinculada?". */
 	accountId: string | null;
+	/** cartao_id local vinculado (null = não vinculado). Também conta como vínculo. */
+	cardId: string | null;
 	/** Nome da conta local vinculada (LEFT JOIN — pode ser null). */
 	accountName: string | null;
 }
@@ -35,6 +37,7 @@ export async function listOpenFinanceConnections(
 			consentExpiresAt: openFinanceConnections.consentExpiresAt,
 			pluggyItemId: openFinanceConnections.pluggyItemId,
 			accountId: openFinanceConnections.accountId,
+			cardId: openFinanceConnections.cardId,
 			accountName: financialAccounts.name,
 		})
 		.from(openFinanceConnections)
