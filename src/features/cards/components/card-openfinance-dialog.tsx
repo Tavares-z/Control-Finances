@@ -176,10 +176,11 @@ export function CardOpenFinanceDialog({
 										value={encodeCardValue(card)}
 									>
 										{(() => {
-											const bank = card.nickname || card.connectorName;
-											return bank
-												? `${bank} · ${card.cardName}`
-												: card.cardName;
+											// Banco: só o apelido do usuário — NUNCA connectorName
+											// ("MeuPluggy"). Cartão: nome custom > nome cru.
+											const bank = card.nickname;
+											const cardLabel = card.customName || card.cardName;
+											return bank ? `${bank} · ${cardLabel}` : cardLabel;
 										})()}
 									</SelectItem>
 								))}

@@ -16,12 +16,16 @@ Cada release registra a base do upstream correspondente no corpo.
 > a dia. E na pegada da Monetinha: leve, animado, como uma amiga contando a novidade,
 > sem exagero de emojis (1 ou 2 por versão, no máximo).
 
-## [3.5.0] - 2026-07-31
+## [3.5.0] - 2026-08-01
 
-Agora você dá um nome pra cada banco conectado — nunca mais confundir qual é qual! 🏷️
+Agora você dá nome pros seus bancos e cartões conectados — nunca mais aquele "MeuPluggy" sem sentido! 🏷️
 
 ### Adicionado
-- Nome do banco nas conexões: em Ajustes → Open Finance, cada banco que você conectou ganhou um campinho "Nome do banco". Escreve "Nubank", "Santander", "Mercado Pago" — o que fizer sentido pra você. Esse nome aparece na hora de puxar a fatura de um cartão, então em vez de vários "MeuPluggy" iguais, você vê exatamente de qual banco é cada cartão. Deixou em branco? Volta a mostrar o nome padrão, sem problema.
+- Nome do banco: em Ajustes → Open Finance (que antes se chamava "Conexões bancárias"), cada banco conectado ganhou um campo "Nome do banco". Escreve "Nubank", "Santander" — o que fizer sentido pra você.
+- Nome do cartão: dentro de cada banco tem agora "Cartões deste banco", onde você renomeia cada cartão do jeito que quiser (aquele "gold" ou "FREE MASTERCARD" esquisito vira "Nubank Platinum", por exemplo). Esses nomes aparecem na hora de puxar a fatura, então você escolhe o cartão certo de olhos fechados.
+
+### Alterado
+- Adeus "MeuPluggy": aquele nome técnico que aparecia nas conexões e na hora de puxar a fatura sumiu de vez. Agora é tudo com os nomes que você deu.
 
 ## [3.4.1] - 2026-07-31
 

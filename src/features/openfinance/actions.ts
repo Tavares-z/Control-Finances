@@ -1,10 +1,15 @@
 "use server";
 
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { z } from "zod";
-import { cards, financialAccounts, openFinanceConnections } from "@/db/schema";
+import {
+	cards,
+	financialAccounts,
+	openFinanceCardNames,
+	openFinanceConnections,
+} from "@/db/schema";
 import {
 	createConnectToken,
 	deleteItem,
@@ -714,8 +719,10 @@ export interface ConnectionCreditCard {
 	/** Apelido do usuário para a conexão (ex.: "Nubank") — precede connectorName. */
 	nickname: string | null;
 	pluggyAccountId: string;
-	/** Nome do cartão na Pluggy (ex.: "Mastercard Black") — desambigua "MeuPluggy". */
+	/** Nome do cartão na Pluggy (ex.: "gold") — cru, feio; fallback. */
 	cardName: string;
+	/** Nome custom que o usuário deu ao cartão (precede cardName). */
+	customName: string | null;
 }
 
 /**
@@ -761,6 +768,7 @@ export async function listConnectionCreditCardsAction(): Promise<
 						nickname: connection.nickname,
 						pluggyAccountId: a.id,
 						cardName: a.name ?? a.marketingName ?? "Cartão",
+						customName: null as string | null,
 					}));
 			}),
 		);
@@ -777,6 +785,27 @@ export async function listConnectionCreditCardsAction(): Promise<
 						? { status: result.reason.status, code: result.reason.code }
 						: result.reason,
 				);
+			}
+		}
+
+		// Mescla os nomes custom (por pluggyAccountId) que o usuário definiu.
+		const pluggyIds = cards.map((c) => c.pluggyAccountId);
+		if (pluggyIds.length > 0) {
+			const nameRows = await db
+				.select({
+					pluggyAccountId: openFinanceCardNames.pluggyAccountId,
+					name: openFinanceCardNames.name,
+				})
+				.from(openFinanceCardNames)
+				.where(
+					and(
+						eq(openFinanceCardNames.userId, session.user.id),
+						inArray(openFinanceCardNames.pluggyAccountId, pluggyIds),
+					),
+				);
+			const nameMap = new Map(nameRows.map((r) => [r.pluggyAccountId, r.name]));
+			for (const card of cards) {
+				card.customName = nameMap.get(card.pluggyAccountId) ?? null;
 			}
 		}
 
@@ -845,6 +874,177 @@ export async function renameConnectionAction(
 		return { success: true, message: "Nome salvo." };
 	} catch (error) {
 		console.error("[renameConnectionAction]", error);
+		return { success: false, error: "Não foi possível salvar o nome." };
+	}
+}
+
+/** Um cartão de UMA conexão, para a sub-seção "Cartões deste banco" (Settings). */
+export interface ConnectionCard {
+	pluggyAccountId: string;
+	/** Nome cru da Pluggy (ex.: "gold"). */
+	cardNameRaw: string;
+	/** Nome custom do usuário, se houver. */
+	customName: string | null;
+}
+
+const listConnectionCardsSchema = z.object({
+	connectionId: z.string().uuid("Conexão inválida"),
+});
+
+/**
+ * Lista os cartões (accounts CREDIT) de UMA conexão, com o nome custom do usuário
+ * já mesclado. Alimenta a sub-seção "Cartões deste banco" na aba de Conexões,
+ * carregada SOB DEMANDA (ao expandir) — por isso é por-conexão, não varre todas
+ * (essa é a `listConnectionCreditCardsAction`, que alimenta o dialog de vínculo).
+ * Ownership da conexão por (id + userId).
+ */
+export async function listConnectionCardsAction(
+	input: z.input<typeof listConnectionCardsSchema>,
+): Promise<ActionResponse<{ cards: ConnectionCard[] }>> {
+	try {
+		const session = await auth.api.getSession({ headers: await headers() });
+		if (!session?.user?.id) {
+			return { success: false, error: AUTH_ERROR };
+		}
+		if (!isOpenFinanceEnabled()) {
+			return { success: false, error: FLAG_ERROR };
+		}
+
+		const parsed = listConnectionCardsSchema.safeParse(input);
+		if (!parsed.success) {
+			return {
+				success: false,
+				error: parsed.error.issues[0]?.message ?? "Dados inválidos",
+			};
+		}
+
+		const [connection] = await db
+			.select({ pluggyItemId: openFinanceConnections.pluggyItemId })
+			.from(openFinanceConnections)
+			.where(
+				and(
+					eq(openFinanceConnections.id, parsed.data.connectionId),
+					eq(openFinanceConnections.userId, session.user.id),
+				),
+			);
+		if (!connection) {
+			return { success: false, error: "Conexão não encontrada" };
+		}
+
+		let creditAccounts: Awaited<ReturnType<typeof listAccounts>>;
+		try {
+			const accounts = await listAccounts(connection.pluggyItemId);
+			creditAccounts = accounts.filter((a) => a.type === "CREDIT");
+		} catch (error) {
+			console.error("[listConnectionCardsAction] listAccounts", error);
+			return {
+				success: false,
+				error: "Não foi possível carregar os cartões do banco.",
+			};
+		}
+
+		const pluggyIds = creditAccounts.map((a) => a.id);
+		const nameMap = new Map<string, string>();
+		if (pluggyIds.length > 0) {
+			const nameRows = await db
+				.select({
+					pluggyAccountId: openFinanceCardNames.pluggyAccountId,
+					name: openFinanceCardNames.name,
+				})
+				.from(openFinanceCardNames)
+				.where(
+					and(
+						eq(openFinanceCardNames.userId, session.user.id),
+						inArray(openFinanceCardNames.pluggyAccountId, pluggyIds),
+					),
+				);
+			for (const r of nameRows) nameMap.set(r.pluggyAccountId, r.name);
+		}
+
+		const cards: ConnectionCard[] = creditAccounts.map((a) => ({
+			pluggyAccountId: a.id,
+			cardNameRaw: a.name ?? a.marketingName ?? "Cartão",
+			customName: nameMap.get(a.id) ?? null,
+		}));
+
+		return { success: true, data: { cards } };
+	} catch (error) {
+		console.error("[listConnectionCardsAction]", error);
+		return {
+			success: false,
+			error: "Não foi possível carregar os cartões do banco.",
+		};
+	}
+}
+
+const renameCardSchema = z.object({
+	pluggyAccountId: z.string().min(1, "Cartão inválido"),
+	// Nome do cartão: até 40 chars; vazio/espaços → limpa (volta ao nome cru).
+	name: z.string().max(40, "Nome muito longo").optional(),
+});
+
+/**
+ * Define/limpa o nome custom de um cartão-Pluggy (por pluggyAccountId). Upsert na
+ * PK (userId, pluggyAccountId); vazio/só-espaços → deleta a linha (volta ao nome
+ * cru da Pluggy). Ownership implícito: a linha é sempre escopada pelo userId da
+ * sessão, então um usuário nunca toca no nome de cartão de outro.
+ */
+export async function renameCardAction(
+	input: z.input<typeof renameCardSchema>,
+): Promise<ActionResponse> {
+	try {
+		const session = await auth.api.getSession({ headers: await headers() });
+		if (!session?.user?.id) {
+			return { success: false, error: AUTH_ERROR };
+		}
+		if (!isOpenFinanceEnabled()) {
+			return { success: false, error: FLAG_ERROR };
+		}
+
+		const parsed = renameCardSchema.safeParse(input);
+		if (!parsed.success) {
+			return {
+				success: false,
+				error: parsed.error.issues[0]?.message ?? "Dados inválidos",
+			};
+		}
+		const { pluggyAccountId, name } = parsed.data;
+		const trimmed = name?.trim();
+		const userId = session.user.id;
+
+		if (trimmed && trimmed.length > 0) {
+			await db
+				.insert(openFinanceCardNames)
+				.values({
+					userId,
+					pluggyAccountId,
+					name: trimmed,
+					updatedAt: new Date(),
+				})
+				.onConflictDoUpdate({
+					target: [
+						openFinanceCardNames.userId,
+						openFinanceCardNames.pluggyAccountId,
+					],
+					set: { name: trimmed, updatedAt: new Date() },
+				});
+		} else {
+			// Vazio → limpa o nome custom (volta ao cru).
+			await db
+				.delete(openFinanceCardNames)
+				.where(
+					and(
+						eq(openFinanceCardNames.userId, userId),
+						eq(openFinanceCardNames.pluggyAccountId, pluggyAccountId),
+					),
+				);
+		}
+
+		revalidatePath("/settings");
+		revalidatePath("/cards");
+		return { success: true, message: "Nome salvo." };
+	} catch (error) {
+		console.error("[renameCardAction]", error);
 		return { success: false, error: "Não foi possível salvar o nome." };
 	}
 }
