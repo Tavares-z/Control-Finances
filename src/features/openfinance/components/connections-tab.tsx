@@ -117,9 +117,10 @@ function getStatusBadge(
 }
 
 /**
- * Campo de apelido de UMA conexão. No uso pessoal o connectorName é "MeuPluggy"
- * para todas — o apelido ("Nubank", "Santander") é o que identifica a conexão no
- * dropdown de vínculo de cartão. Salva ao sair do campo (onBlur) quando mudou.
+ * Campo de nome de UMA conexão ("Nome do banco"). O nome também vira o TÍTULO do
+ * card acima — por isso, quando já preenchido, o campo fica RECOLHIDO (evita a
+ * duplicidade título+campo que confundia); um botão discreto "Editar nome" reabre.
+ * Quando vazio, fica aberto com orientação, convidando a nomear. Salva no onBlur.
  */
 function ConnectionNicknameControl({
 	connection,
@@ -129,12 +130,18 @@ function ConnectionNicknameControl({
 	const router = useRouter();
 	const [isPending, startTransition] = useTransition();
 	const [value, setValue] = useState(connection.nickname ?? "");
+	// Sem nome ainda → abre direto (convida a nomear). Com nome → recolhido.
+	const [editing, setEditing] = useState(!connection.nickname);
 
 	const inputId = `connection-nickname-${connection.id}`;
 	const original = connection.nickname ?? "";
 
 	const save = () => {
-		if (value.trim() === original) return; // nada mudou
+		// Recolhe de volta se já havia nome e nada mudou.
+		if (value.trim() === original) {
+			if (original) setEditing(false);
+			return;
+		}
 		startTransition(async () => {
 			const result = await renameConnectionAction({
 				connectionId: connection.id,
@@ -145,9 +152,23 @@ function ConnectionNicknameControl({
 				return;
 			}
 			toast.success(result.message ?? "Nome salvo.");
+			if (value.trim()) setEditing(false);
 			router.refresh();
 		});
 	};
+
+	// Recolhido: só um link discreto pra reabrir (o nome já aparece no título).
+	if (!editing) {
+		return (
+			<button
+				type="button"
+				onClick={() => setEditing(true)}
+				className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+			>
+				Editar nome do banco
+			</button>
+		);
+	}
 
 	return (
 		<div className="space-y-2">
@@ -162,7 +183,11 @@ function ConnectionNicknameControl({
 				maxLength={40}
 				placeholder="Ex.: Nubank, Santander…"
 				disabled={isPending}
+				autoFocus
 			/>
+			<p className="text-xs text-muted-foreground">
+				Esse nome aparece no topo do card e no menu de vincular cartões.
+			</p>
 		</div>
 	);
 }
@@ -512,12 +537,15 @@ export function ConnectionsTab({
 							year: "numeric",
 						});
 						// Título = nome do banco que o usuário deu. NUNCA cai em
-						// connectorName ("MeuPluggy" no uso pessoal — lixo técnico); sem
-						// nome, convida a nomear (o campo "Nome do banco" fica logo abaixo).
-						const institution = connection.nickname || "Banco sem nome";
-						const title = connection.accountName
-							? `${institution} · ${connection.accountName}`
-							: institution;
+						// connectorName ("MeuPluggy" no uso pessoal — lixo técnico) nem no
+						// nome cru da Pluggy. Sem nome: "Banco sem vínculo" quando ainda não
+						// há conta/cartão amarrado, senão "Banco sem nome" (convida a nomear,
+						// campo "Nome do banco" logo abaixo).
+						const isLinked =
+							connection.accountId !== null || connection.cardId !== null;
+						const title =
+							connection.nickname ||
+							(isLinked ? "Banco sem nome" : "Banco sem vínculo");
 
 						return (
 							<li
