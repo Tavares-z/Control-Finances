@@ -67,7 +67,9 @@ export default async function Page() {
 							<TabsTrigger value="preferencias">Preferências</TabsTrigger>
 							<TabsTrigger value="companion">Companion</TabsTrigger>
 							{openFinanceEnabled && (
-								<TabsTrigger value="conexoes">Conexões bancárias</TabsTrigger>
+								<TabsTrigger value="conexoes">
+									Conexões Open Finance
+								</TabsTrigger>
 							)}
 							<TabsTrigger value="nome">Alterar nome</TabsTrigger>
 							<TabsTrigger value="senha">Alterar senha</TabsTrigger>
@@ -151,11 +153,11 @@ export default async function Page() {
 							<div className="space-y-4">
 								<div>
 									<h2 className="text-xl font-semibold mb-1">
-										Conexões bancárias
+										Conexões Open Finance
 									</h2>
 									<p className="text-sm text-muted-foreground">
-										Gerencie as conexões de Open Finance que importam seus
-										lançamentos para a Caixa de entrada.
+										Gerencie os bancos conectados via Open Finance, dê um nome a
+										cada banco e cartão, e vincule contas e cartões.
 									</p>
 								</div>
 								<Separator />

@@ -2,6 +2,8 @@
 
 import {
 	RiAlertLine,
+	RiArrowDownSLine,
+	RiBankCardLine,
 	RiBankLine,
 	RiCheckboxCircleLine,
 	RiErrorWarningLine,
@@ -12,12 +14,16 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
+	type ConnectionCard,
 	createConnectTokenAction,
 	disconnectConnectionAction,
 	linkConnectionAccountAction,
+	listConnectionCardsAction,
 	type PluggyAccountOption,
 	reconnectConnectionAction,
 	registerConnectionAction,
+	renameCardAction,
+	renameConnectionAction,
 } from "@/features/openfinance/actions";
 import type { OpenFinanceConnectionListItem } from "@/features/openfinance/queries";
 import { Badge } from "@/shared/components/ui/badge";
@@ -30,6 +36,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/shared/components/ui/dialog";
+import { Input } from "@/shared/components/ui/input";
 import {
 	Select,
 	SelectContent,
@@ -37,7 +44,9 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/shared/components/ui/select";
+import { Skeleton } from "@/shared/components/ui/skeleton";
 import { formatDateTime } from "@/shared/utils/date";
+import { cn } from "@/shared/utils/ui";
 
 // Widget browser-only: carregado via dynamic ssr:false para não rodar no SSR
 // do App Router (o pluggy-connect-sdk depende de APIs de janela).
@@ -105,6 +114,178 @@ function getStatusBadge(
 		label: "Aguardando sincronização",
 		Icon: RiTimeLine,
 	};
+}
+
+/**
+ * Campo de apelido de UMA conexão. No uso pessoal o connectorName é "MeuPluggy"
+ * para todas — o apelido ("Nubank", "Santander") é o que identifica a conexão no
+ * dropdown de vínculo de cartão. Salva ao sair do campo (onBlur) quando mudou.
+ */
+function ConnectionNicknameControl({
+	connection,
+}: {
+	connection: OpenFinanceConnectionListItem;
+}) {
+	const router = useRouter();
+	const [isPending, startTransition] = useTransition();
+	const [value, setValue] = useState(connection.nickname ?? "");
+
+	const inputId = `connection-nickname-${connection.id}`;
+	const original = connection.nickname ?? "";
+
+	const save = () => {
+		if (value.trim() === original) return; // nada mudou
+		startTransition(async () => {
+			const result = await renameConnectionAction({
+				connectionId: connection.id,
+				nickname: value,
+			});
+			if (!result.success) {
+				toast.error(result.error ?? "Não foi possível salvar o nome.");
+				return;
+			}
+			toast.success(result.message ?? "Nome salvo.");
+			router.refresh();
+		});
+	};
+
+	return (
+		<div className="space-y-2">
+			<label htmlFor={inputId} className="text-sm text-muted-foreground">
+				Nome do banco
+			</label>
+			<Input
+				id={inputId}
+				value={value}
+				onChange={(e) => setValue(e.target.value)}
+				onBlur={save}
+				maxLength={40}
+				placeholder="Ex.: Nubank, Santander…"
+				disabled={isPending}
+			/>
+		</div>
+	);
+}
+
+/**
+ * Campo de nome de UM cartão-Pluggy. O nome cru da Pluggy ("gold") é feio; aqui o
+ * usuário dá o próprio ("Nubank Platinum"). Salva no blur quando muda. Vazio limpa
+ * (volta ao cru). Só afeta o rótulo no dropdown de vínculo (decisão de escopo).
+ */
+function CardNameControl({ card }: { card: ConnectionCard }) {
+	const [isPending, startTransition] = useTransition();
+	const [value, setValue] = useState(card.customName ?? "");
+	const original = card.customName ?? "";
+	const inputId = `card-name-${card.pluggyAccountId}`;
+
+	const save = () => {
+		if (value.trim() === original) return;
+		startTransition(async () => {
+			const result = await renameCardAction({
+				pluggyAccountId: card.pluggyAccountId,
+				name: value,
+			});
+			if (!result.success) {
+				toast.error(result.error ?? "Não foi possível salvar o nome.");
+				return;
+			}
+			toast.success(result.message ?? "Nome salvo.");
+		});
+	};
+
+	return (
+		<div className="flex items-center gap-2">
+			<span
+				className="w-28 shrink-0 truncate text-sm text-muted-foreground"
+				title={card.cardNameRaw}
+			>
+				{card.cardNameRaw}
+			</span>
+			<Input
+				id={inputId}
+				value={value}
+				onChange={(e) => setValue(e.target.value)}
+				onBlur={save}
+				maxLength={40}
+				placeholder="Dê um nome a este cartão"
+				disabled={isPending}
+				aria-label={`Nome para o cartão ${card.cardNameRaw}`}
+			/>
+		</div>
+	);
+}
+
+/**
+ * Sub-seção "Cartões deste banco" de UMA conexão, carregada SOB DEMANDA ao expandir
+ * (não pesa a aba pra quem não usa). Lista os cartões-Pluggy (CREDIT) do item e
+ * deixa nomear cada um. Estados loading/erro/vazio tratados.
+ */
+function ConnectionCardsSection({ connectionId }: { connectionId: string }) {
+	const [open, setOpen] = useState(false);
+	const [loaded, setLoaded] = useState(false);
+	const [isLoading, setIsLoading] = useState(false);
+	const [error, setError] = useState(false);
+	const [cards, setCards] = useState<ConnectionCard[]>([]);
+
+	const toggle = () => {
+		const next = !open;
+		setOpen(next);
+		// Busca só na 1ª abertura (sob demanda).
+		if (next && !loaded && !isLoading) {
+			setIsLoading(true);
+			setError(false);
+			listConnectionCardsAction({ connectionId }).then((result) => {
+				if (!result.success || !result.data) {
+					setError(true);
+				} else {
+					setCards(result.data.cards);
+					setLoaded(true);
+				}
+				setIsLoading(false);
+			});
+		}
+	};
+
+	return (
+		<div className="space-y-2">
+			<button
+				type="button"
+				onClick={toggle}
+				aria-expanded={open}
+				className="flex items-center gap-1 text-sm font-medium text-primary transition-opacity hover:opacity-80"
+			>
+				<RiBankCardLine className="size-4" aria-hidden="true" />
+				Cartões deste banco
+				<RiArrowDownSLine
+					className={cn("size-4 transition-transform", open && "rotate-180")}
+					aria-hidden="true"
+				/>
+			</button>
+
+			{open && (
+				<div className="space-y-2 rounded-lg border border-border p-3">
+					{isLoading ? (
+						<div className="space-y-2">
+							<Skeleton className="h-9 w-full" />
+							<Skeleton className="h-9 w-full" />
+						</div>
+					) : error ? (
+						<p className="text-sm text-destructive">
+							Não foi possível carregar os cartões. Tente novamente.
+						</p>
+					) : cards.length === 0 ? (
+						<p className="text-sm text-muted-foreground">
+							Este banco não expõe nenhum cartão de crédito.
+						</p>
+					) : (
+						cards.map((card) => (
+							<CardNameControl key={card.pluggyAccountId} card={card} />
+						))
+					)}
+				</div>
+			)}
+		</div>
+	);
 }
 
 /**
@@ -311,7 +492,7 @@ export function ConnectionsTab({
 						className="size-8 text-muted-foreground"
 						aria-hidden="true"
 					/>
-					<p className="font-medium">Nenhuma conexão bancária</p>
+					<p className="font-medium">Nenhuma conexão Open Finance</p>
 					<p className="max-w-sm text-sm text-muted-foreground">
 						Conecte uma conta via Open Finance para importar seus lançamentos
 						automaticamente para a Caixa de entrada.
@@ -330,9 +511,10 @@ export function ConnectionsTab({
 							month: "2-digit",
 							year: "numeric",
 						});
-						// Título compõe conector + conta local vinculada para desambiguar
-						// vários cards do mesmo conector (ex. 4x "MeuPluggy" em prod).
-						const institution = connection.connectorName || "Instituição";
+						// Título = nome do banco que o usuário deu. NUNCA cai em
+						// connectorName ("MeuPluggy" no uso pessoal — lixo técnico); sem
+						// nome, convida a nomear (o campo "Nome do banco" fica logo abaixo).
+						const institution = connection.nickname || "Banco sem nome";
 						const title = connection.accountName
 							? `${institution} · ${connection.accountName}`
 							: institution;
@@ -365,6 +547,14 @@ export function ConnectionsTab({
 											: "Nunca sincronizada"}
 									</p>
 									{consentDate && <p>Consentimento expira em {consentDate}</p>}
+								</div>
+
+								<div className="mt-3">
+									<ConnectionNicknameControl connection={connection} />
+								</div>
+
+								<div className="mt-3">
+									<ConnectionCardsSection connectionId={connection.id} />
 								</div>
 
 								<div className="mt-3">
@@ -443,10 +633,8 @@ export function ConnectionsTab({
 						<DialogTitle>Desconectar banco?</DialogTitle>
 						<DialogDescription>
 							A conexão com{" "}
-							<strong>
-								{toDisconnect?.connectorName || "esta instituição"}
-							</strong>{" "}
-							será removida e novos lançamentos deixarão de ser importados. Os
+							<strong>{toDisconnect?.nickname || "este banco"}</strong> será
+							removida e novos lançamentos deixarão de ser importados. Os
 							lançamentos já criados na sua Caixa de entrada permanecem.
 						</DialogDescription>
 					</DialogHeader>

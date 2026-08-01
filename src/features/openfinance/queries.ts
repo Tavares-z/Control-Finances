@@ -5,6 +5,7 @@ import { db } from "@/shared/lib/db";
 export interface OpenFinanceConnectionListItem {
 	id: string;
 	connectorName: string | null;
+	nickname: string | null;
 	status: string | null;
 	lastSyncedAt: Date | null;
 	consentExpiresAt: Date | null;
@@ -28,6 +29,7 @@ export async function listOpenFinanceConnections(
 		.select({
 			id: openFinanceConnections.id,
 			connectorName: openFinanceConnections.connectorName,
+			nickname: openFinanceConnections.nickname,
 			status: openFinanceConnections.status,
 			lastSyncedAt: openFinanceConnections.lastSyncedAt,
 			consentExpiresAt: openFinanceConnections.consentExpiresAt,

@@ -733,6 +733,10 @@ export const openFinanceConnections = pgTable(
 		// Identificadores Pluggy — nível ITEM (PATCH futuro + consentimento)
 		pluggyItemId: text("pluggy_item_id").notNull(),
 		connectorName: text("connector_name"),
+		// Apelido definido pelo usuário para desambiguar conexões (Fase 2A.1). No uso
+		// pessoal o connectorName é "MeuPluggy" para todas — o apelido ("Nubank",
+		// "Santander") é o que identifica de verdade. Nullable: cai no connectorName.
+		nickname: text("apelido"),
 
 		// Vínculo conta local ↔ conta Pluggy — nível ACCOUNT
 		// (GET /v2/transactions?accountId=). Uma conta-corrente na F1.
@@ -1303,6 +1307,31 @@ export const establishmentLogos = pgTable(
 );
 
 export type EstablishmentLogo = typeof establishmentLogos.$inferSelect;
+
+// Nome custom que o usuário dá a um cartão-Pluggy (account CREDIT), por
+// pluggyAccountId. Uma conexão pode ter VÁRIOS cartões; o vínculo guarda só um
+// pluggyAccountId, então o nome é por cartão e independe de vínculo. Usado no
+// dropdown de "puxar fatura" para o usuário reconhecer o cartão (o nome cru da
+// Pluggy é ruim: "gold", "FREE MASTERCARD"). Mesmo padrão de
+// importCategoryMappings/establishmentLogos: PK composta (userId, chave).
+export const openFinanceCardNames = pgTable(
+	"openfinance_card_names",
+	{
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		pluggyAccountId: text("pluggy_account_id").notNull(),
+		name: text("nome").notNull(),
+		updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true })
+			.notNull()
+			.defaultNow(),
+	},
+	(table) => ({
+		pk: primaryKey({ columns: [table.userId, table.pluggyAccountId] }),
+	}),
+);
+
+export type OpenFinanceCardName = typeof openFinanceCardNames.$inferSelect;
 
 export type User = typeof user.$inferSelect;
 export type NewUser = typeof user.$inferInsert;
