@@ -355,8 +355,17 @@ async function syncCardConnection(
 		const key = contentKey(localDay, cents, description);
 		const isDuplicate = seenKeys.has(key);
 
-		// Sinal de amount = direção (negativo = despesa). NÃO usar tx.type.
-		const transactionType = tx.amount < 0 ? "Despesa" : "Receita";
+		// ⚠️ Convenção de sinal do CARTÃO de crédito na Pluggy é o OPOSTO da conta:
+		// amount POSITIVO = compra (despesa/dívida), NEGATIVO = pagamento/estorno
+		// (crédito que abate a fatura). Confirmado com dados reais (banco Santander
+		// via MeuPluggy): compra vinha "+", pagamento "−". NÃO usar tx.type
+		// (não-confiável em cartão). Alinhamos à convenção do SISTEMA — igual ao
+		// import de OFX (import-action.ts): Despesa → amount NEGATIVO; Receita →
+		// amount POSITIVO. Derivamos o tipo e aplicamos o sinal coerente (não
+		// gravamos o sinal cru da Pluggy, que invertia tudo).
+		const isExpense = tx.amount > 0;
+		const transactionType = isExpense ? "Despesa" : "Receita";
+		const signedAmount = isExpense ? -Math.abs(tx.amount) : Math.abs(tx.amount);
 		const categoryId = mappings[normalizeDescriptionKey(description)] ?? null;
 
 		const [row] = await db
@@ -365,7 +374,7 @@ async function syncCardConnection(
 				name: isDuplicate ? DUPLICATE_PREFIX + description : description,
 				condition: "À vista",
 				paymentMethod: CARD_PAYMENT_METHOD,
-				amount: tx.amount.toFixed(2), // COM sinal
+				amount: signedAmount.toFixed(2), // sinal alinhado à convenção do sistema
 				purchaseDate,
 				transactionType,
 				period,
