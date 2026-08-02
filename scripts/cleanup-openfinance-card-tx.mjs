@@ -26,7 +26,14 @@
 import { config } from "dotenv";
 import pg from "pg";
 
-config();
+// Só carrega o .env se você NÃO passar --no-env-file. Para mirar PROD, exporte a
+// DATABASE_URL pública de prod na sessão e rode com --no-env-file — senão o .env
+// (staging) sobrescreve a URL e você limparia o banco errado.
+if (!process.argv.includes("--no-env-file")) {
+	config();
+} else {
+	console.log("(--no-env-file: usando só a DATABASE_URL da sessão)");
+}
 
 function arg(name) {
 	const hit = process.argv.find((a) => a.startsWith(`--${name}=`));

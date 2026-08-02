@@ -154,6 +154,20 @@ export interface PluggyItem {
   consent?: PluggyConsent | null;
 }
 
+/**
+ * Fatura de cartão (`GET /bills/{id}`). Modelamos conservadoramente só o que o
+ * roteamento de período (Fase 2) usa: `id` e `dueDate` (vencimento, ISO 8601) —
+ * o período da fatura é derivado do mês do `dueDate`. `billClosingDate` fica
+ * disponível mas não é usado no roteamento. Não inventamos os demais campos.
+ */
+export interface PluggyBill {
+  id: string;
+  /** Vencimento da fatura (ISO 8601). Fonte de verdade do período. */
+  dueDate: string | null;
+  /** Fechamento da fatura (ISO 8601); opcional, não usado no roteamento. */
+  billClosingDate?: string | null;
+}
+
 /** Envelope paginado por página de `GET /accounts`. */
 interface PluggyAccountsEnvelope {
   total: number;
@@ -480,6 +494,18 @@ export async function deleteItem(itemId: string): Promise<unknown> {
  */
 export async function getItem(itemId: string): Promise<PluggyItem> {
   return pluggyGet<PluggyItem>(`/items/${encodeURIComponent(itemId)}`);
+}
+
+/**
+ * Lê uma fatura de cartão: `GET /bills/{id}`. Usado pelo roteamento de período
+ * (Fase 2): o `dueDate` da fatura define o período (YYYY-MM) da transação, em vez
+ * da heurística `deriveCreditCardPeriod` (que erra quando o fechamento real varia
+ * mês a mês). Não há endpoint de LISTAR bills — só este retrieve por id (o id vem
+ * de `transaction.creditCardMetadata.billId`). Reusa `pluggyGet`. Erros viram
+ * `PluggyApiError` (sem credenciais).
+ */
+export async function getBill(billId: string): Promise<PluggyBill> {
+  return pluggyGet<PluggyBill>(`/bills/${encodeURIComponent(billId)}`);
 }
 
 // ---------------------------------------------------------------------------

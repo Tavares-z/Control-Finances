@@ -84,6 +84,21 @@ async function listTransactions(apiKey, accountId, createdAtFrom) {
 	return res.json();
 }
 
+async function getBill(apiKey, billId) {
+	const res = await fetch(
+		`${PLUGGY_API_URL}/bills/${encodeURIComponent(billId)}`,
+		{ method: "GET", headers: { "X-API-KEY": apiKey }, cache: "no-store" },
+	);
+	if (!res.ok) return { error: `HTTP ${res.status}` };
+	return res.json();
+}
+
+// Deriva o período (YYYY-MM) de uma data ISO — igual derivePeriodFromDate do app.
+function periodFromISO(iso) {
+	if (!iso) return "—";
+	return String(iso).slice(0, 7);
+}
+
 function createdAtFromForDays(days) {
 	const d = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 	return d.toISOString().slice(0, 10);
@@ -156,6 +171,30 @@ for (const itemId of itemIds) {
 			const hasDesc = t.description ? "sim" : "não";
 			console.log(
 				`      ${sign} | ${String(t.status).padEnd(9)} | ${t.date} | ${hasDesc} | ${bill} | ${forecast} | ${inst}`,
+			);
+		}
+
+		// Roteamento por billId: para cada billId DISTINTO, busca GET /bills/{id} e
+		// mostra dueDate/closing + o período derivado do dueDate. É a prova de que
+		// dá pra rotear a fatura pelo banco em vez da heurística.
+		const distinctBillIds = [
+			...new Set(
+				txs.map((t) => t.creditCardMetadata?.billId).filter(Boolean),
+			),
+		];
+		console.log(`\n    ${distinctBillIds.length} billId(s) distinto(s). Detalhe de cada:`);
+		console.log("    (billId mascarado | dueDate | closing | período do dueDate)");
+		for (const billId of distinctBillIds) {
+			const bill = await getBill(apiKey, billId);
+			const bm = `${String(billId).slice(0, 8)}…`;
+			if (bill.error) {
+				console.log(`      ${bm} | ERRO: ${bill.error}`);
+				continue;
+			}
+			const due = bill.dueDate ?? "—";
+			const closing = bill.billClosingDate ?? bill.closeDate ?? "—";
+			console.log(
+				`      ${bm} | ${due} | ${closing} | ${periodFromISO(bill.dueDate)}`,
 			);
 		}
 	}

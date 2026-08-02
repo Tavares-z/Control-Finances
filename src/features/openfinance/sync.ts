@@ -9,6 +9,7 @@ import {
 	transactions,
 } from "@/db/schema";
 import {
+	getBill,
 	getItem,
 	listTransactions,
 	PluggyApiError,
@@ -19,6 +20,7 @@ import { normalizeDescriptionKey } from "@/features/transactions/lib/import-util
 import { db } from "@/shared/lib/db";
 import { getAdminPayerId } from "@/shared/lib/payers/get-admin-id";
 import { getBusinessDateString } from "@/shared/utils/date";
+import { derivePeriodFromDate } from "@/shared/utils/period";
 
 /**
  * Sincronização pura de UMA conexão Open Finance (Pluggy) → Inbox.
@@ -335,6 +337,45 @@ async function syncCardConnection(
 	);
 	const payerId = await getAdminPayerId(connection.userId);
 
+	// Roteamento de período pelo BANCO (fonte de verdade), não pela heurística.
+	// Cada transação traz creditCardMetadata.billId; o bill (GET /bills/{id}) tem
+	// o dueDate (vencimento), cujo mês É o período da fatura. A heurística
+	// deriveCreditCardPeriod erra quando o fechamento real varia mês a mês
+	// (confirmado com dados reais: fechamento oscilava 29–31). Buscamos cada
+	// billId DISTINTO uma vez (cache no lote — evita N chamadas repetidas para
+	// transações da mesma fatura). Uma falha em /bills não derruba o sync: a
+	// transação cai no fallback da heurística (ver o cálculo de `period` no loop).
+	const billPeriodCache = new Map<string, string>();
+	const distinctBillIds = [
+		...new Set(
+			pluggyTransactions
+				.map((tx) => tx.creditCardMetadata?.billId)
+				.filter((id): id is string => Boolean(id)),
+		),
+	];
+	for (const billId of distinctBillIds) {
+		try {
+			const bill = await getBill(billId);
+			if (bill.dueDate) {
+				billPeriodCache.set(billId, derivePeriodFromDate(bill.dueDate.slice(0, 10)));
+			}
+		} catch (billError) {
+			// Best-effort: sem o bill, a transação usa o fallback da heurística.
+			// Loga sem PII (só o status/nome do erro) e segue.
+			if (billError instanceof PluggyApiError) {
+				console.warn("[syncCardConnection] getBill falhou", {
+					connectionId: connection.id,
+					status: billError.status,
+				});
+			} else {
+				console.warn("[syncCardConnection] getBill erro de rede", {
+					connectionId: connection.id,
+					name: (billError as Error).name,
+				});
+			}
+		}
+	}
+
 	const importBatchId = crypto.randomUUID();
 	let inserted = 0;
 	let duplicateFlagged = 0;
@@ -346,11 +387,13 @@ async function syncCardConnection(
 		// como data de compra E como base do período de fatura.
 		const localDay = toBusinessDay(new Date(tx.date));
 		const purchaseDate = new Date(`${localDay}T12:00:00.000Z`);
-		const period = deriveCreditCardPeriod(
-			localDay,
-			card.closingDay,
-			card.dueDay,
-		);
+		// Período pelo billId (banco) quando disponível; senão, fallback na
+		// heurística (transação sem billId ou /bills que falhou). O billId é o
+		// primary porque acerta o fechamento real; a heurística é rede de segurança.
+		const billId = tx.creditCardMetadata?.billId;
+		const period =
+			(billId && billPeriodCache.get(billId)) ||
+			deriveCreditCardPeriod(localDay, card.closingDay, card.dueDay);
 		const cents = toCents(tx.amount);
 		const key = contentKey(localDay, cents, description);
 		const isDuplicate = seenKeys.has(key);
