@@ -1,6 +1,6 @@
 "use client";
 
-import { RiEditLine, RiEqualizerLine } from "@remixicon/react";
+import { RiEditLine, RiEqualizerLine, RiHandCoinLine } from "@remixicon/react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
@@ -47,6 +47,7 @@ import { formatCurrency } from "@/shared/utils/currency";
 import { formatDateOnly } from "@/shared/utils/date";
 import { cn } from "@/shared/utils/ui";
 import { AdjustInvoiceDialog } from "./adjust-invoice-dialog";
+import { AdvanceInvoiceDialog } from "./advance-invoice-dialog";
 import { EditPaymentDateDialog } from "./edit-payment-date-dialog";
 
 type PaymentAccountOption = {
@@ -68,6 +69,7 @@ type InvoiceSummaryCardProps = {
 	limitAmount: number | null;
 	invoiceStatus: InvoicePaymentStatus;
 	paymentDate: Date | null;
+	advancedAmount: number;
 	defaultPaymentAccountId: string | null;
 	paymentAccountOptions: PaymentAccountOption[];
 	logo?: string | null;
@@ -115,6 +117,7 @@ export function InvoiceSummaryCard({
 	limitAmount,
 	invoiceStatus,
 	paymentDate: initialPaymentDate,
+	advancedAmount,
 	defaultPaymentAccountId,
 	paymentAccountOptions,
 	logo,
@@ -144,9 +147,12 @@ export function InvoiceSummaryCard({
 	const brandAsset = resolveCardBrandAsset(cardBrand);
 	const isPaid = invoiceStatus === INVOICE_PAYMENT_STATUS.PAID;
 	const paymentDateLabel = isPaid ? formatPaymentDate(paymentDate) : null;
+	const hasAdvance = advancedAmount > 0;
 	const actionDescription = isPaid
 		? `Pagamento registrado em ${paymentDateLabel}.`
-		: INVOICE_STATUS_DESCRIPTION[invoiceStatus];
+		: hasAdvance
+			? `${formatCurrency(advancedAmount)} já adiantados neste período.`
+			: INVOICE_STATUS_DESCRIPTION[invoiceStatus];
 
 	const targetStatus = isPaid
 		? INVOICE_PAYMENT_STATUS.PENDING
@@ -333,6 +339,27 @@ export function InvoiceSummaryCard({
 							</p>
 						</div>
 						<div className="flex shrink-0 items-center gap-1.5">
+							{!isPaid ? (
+								<AdvanceInvoiceDialog
+									cardId={cardId}
+									period={period}
+									currentTotal={totalAmount}
+									advancedAmount={advancedAmount}
+									defaultPaymentAccountId={defaultPaymentAccountId}
+									paymentAccountOptions={paymentAccountOptions}
+									trigger={
+										<Button
+											type="button"
+											size="sm"
+											variant="outline"
+											disabled={isPending}
+										>
+											<RiHandCoinLine className="size-4" />
+											{hasAdvance ? "Editar adiantamento" : "Adiantar"}
+										</Button>
+									}
+								/>
+							) : null}
 							{isPaid ? (
 								<Button
 									type="button"

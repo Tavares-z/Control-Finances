@@ -10,8 +10,10 @@ import {
 	transactions,
 } from "@/db/schema";
 import {
+	buildInvoiceAdvanceNote,
 	buildInvoicePaymentNote,
 	INVOICE_ADJUSTMENT_NAME,
+	INVOICE_ADVANCE_NAME,
 } from "@/shared/lib/accounts/constants";
 import { revalidateForEntity } from "@/shared/lib/actions/helpers";
 import { getUser } from "@/shared/lib/auth/server";
@@ -291,6 +293,195 @@ export async function updatePaymentDateAction(
 		revalidateForEntity("cards", user.id);
 
 		return { success: true, message: "Data de pagamento atualizada." };
+	} catch (error) {
+		if (error instanceof z.ZodError) {
+			return {
+				success: false,
+				error: error.issues[0]?.message ?? "Dados inválidos.",
+			};
+		}
+
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : "Erro inesperado.",
+		};
+	}
+}
+
+const advanceInvoiceSchema = z.object({
+	cardId: z.string({ message: "Cartão inválido." }).uuid("Cartão inválido."),
+	period: z
+		.string({ message: "Período inválido." })
+		.regex(PERIOD_FORMAT_REGEX, "Período inválido."),
+	amount: z.number({ message: "Valor inválido." }),
+	accountId: z
+		.string({ message: "Conta inválida." })
+		.uuid("Conta inválida.")
+		.nullable()
+		.optional(),
+	paymentDate: z
+		.string()
+		.optional()
+		.refine((value) => !value || isValidPaymentDate(value), {
+			message: "Data inválida.",
+		}),
+});
+
+type AdvanceInvoiceInput = z.infer<typeof advanceInvoiceSchema>;
+
+/**
+ * Adiantamento de fatura: registra um pagamento antecipado/parcial da fatura.
+ * Cria um PAR de lançamentos ligados (ver buildInvoiceAdvanceNote):
+ *   1. perna "card"    — crédito (+) no período do cartão → abate o total da
+ *      fatura, que é sum(amount) do período (ver cards/queries.ts). Sem accountId.
+ *   2. perna "account" — débito (−) na conta escolhida → o dinheiro que saiu.
+ *
+ * Idempotente por chave-base: reenviar sobrescreve as duas pernas; amount 0
+ * remove ambas. Interação com "Marcar como paga" é automática — o pagamento lê
+ * sum(amount) do período, que já inclui a perna-cartão, então cobra só o
+ * restante (sem dupla contagem).
+ */
+export async function advanceInvoiceAction(
+	input: AdvanceInvoiceInput,
+): Promise<ActionResult> {
+	try {
+		const user = await getUser();
+		const data = advanceInvoiceSchema.parse(input);
+		const adminPayerId = await getAdminPayerId(user.id);
+
+		const amount = Math.round(data.amount * 100) / 100;
+		if (amount < 0) {
+			return { success: false, error: "Informe um valor positivo." };
+		}
+
+		const cardNote = buildInvoiceAdvanceNote(data.cardId, data.period, "card");
+		const accountNote = buildInvoiceAdvanceNote(
+			data.cardId,
+			data.period,
+			"account",
+		);
+
+		let message = "Adiantamento registrado.";
+
+		await db.transaction(async (tx: typeof db) => {
+			const card = await tx.query.cards.findFirst({
+				columns: { id: true, name: true },
+				where: and(eq(cards.id, data.cardId), eq(cards.userId, user.id)),
+			});
+
+			if (!card) {
+				throw new Error("Cartão não encontrado.");
+			}
+
+			const upsertLeg = async (
+				note: string,
+				payload: typeof transactions.$inferInsert,
+			) => {
+				const existing = await tx.query.transactions.findFirst({
+					columns: { id: true },
+					where: and(
+						eq(transactions.userId, user.id),
+						eq(transactions.note, note),
+					),
+				});
+
+				if (existing) {
+					await tx
+						.update(transactions)
+						.set(payload)
+						.where(eq(transactions.id, existing.id));
+				} else {
+					await tx.insert(transactions).values(payload);
+				}
+			};
+
+			const removeLeg = async (note: string) => {
+				await tx
+					.delete(transactions)
+					.where(
+						and(eq(transactions.userId, user.id), eq(transactions.note, note)),
+					);
+			};
+
+			// amount 0 = remover o adiantamento (as duas pernas).
+			if (amount === 0) {
+				await removeLeg(cardNote);
+				await removeLeg(accountNote);
+				message = "Adiantamento removido.";
+				return;
+			}
+
+			const paymentAccountId = data.accountId ?? null;
+			if (!paymentAccountId) {
+				throw new Error("Selecione uma conta para o adiantamento.");
+			}
+
+			const paymentAccount = await tx.query.financialAccounts.findFirst({
+				columns: { id: true },
+				where: and(
+					eq(financialAccounts.id, paymentAccountId),
+					eq(financialAccounts.userId, user.id),
+				),
+			});
+
+			if (!paymentAccount) {
+				throw new Error("Conta não encontrada.");
+			}
+
+			const paymentCategory = await tx.query.categories.findFirst({
+				columns: { id: true },
+				where: and(
+					eq(categories.userId, user.id),
+					eq(categories.name, "Pagamentos"),
+				),
+			});
+
+			const advanceDate = data.paymentDate
+				? parseLocalDateString(data.paymentDate)
+				: getBusinessTodayDate();
+
+			const formattedAmount = formatDecimalForDbRequired(amount);
+			const advanceName = `${INVOICE_ADVANCE_NAME} - ${card.name}`;
+
+			// Perna cartão: crédito no período → abate o total da fatura.
+			await upsertLeg(cardNote, {
+				condition: "À vista",
+				name: advanceName,
+				paymentMethod: "Cartão de crédito",
+				note: cardNote,
+				amount: formattedAmount,
+				purchaseDate: advanceDate,
+				transactionType: "Receita",
+				period: data.period,
+				isSettled: true,
+				userId: user.id,
+				cardId: data.cardId,
+				accountId: null,
+				categoryId: paymentCategory?.id ?? null,
+				payerId: adminPayerId,
+			});
+
+			// Perna conta: débito na conta → o dinheiro que saiu.
+			await upsertLeg(accountNote, {
+				condition: "À vista",
+				name: advanceName,
+				paymentMethod: "Pix",
+				note: accountNote,
+				amount: `-${formattedAmount}`,
+				purchaseDate: advanceDate,
+				transactionType: "Despesa",
+				period: data.period,
+				isSettled: true,
+				userId: user.id,
+				accountId: paymentAccountId,
+				categoryId: paymentCategory?.id ?? null,
+				payerId: adminPayerId,
+			});
+		});
+
+		revalidateForEntity("cards", user.id);
+
+		return { success: true, message };
 	} catch (error) {
 		if (error instanceof z.ZodError) {
 			return {

@@ -1,7 +1,10 @@
 import { and, eq, type SQL, sum } from "drizzle-orm";
 import { cards, invoices, transactions } from "@/db/schema";
 import { fetchTransactionsWithRelations } from "@/features/transactions/queries";
-import { buildInvoicePaymentNote } from "@/shared/lib/accounts/constants";
+import {
+	buildInvoiceAdvanceNote,
+	buildInvoicePaymentNote,
+} from "@/shared/lib/accounts/constants";
 import { db } from "@/shared/lib/db";
 import {
 	INVOICE_PAYMENT_STATUS,
@@ -47,8 +50,14 @@ export async function fetchInvoiceData(
 	totalAmount: number;
 	invoiceStatus: InvoicePaymentStatus;
 	paymentDate: Date | null;
+	advancedAmount: number;
 }> {
-	const [invoiceRow, totalRow] = await Promise.all([
+	const advanceCardNote = buildInvoiceAdvanceNote(
+		cardId,
+		selectedPeriod,
+		"card",
+	);
+	const [invoiceRow, totalRow, advanceRow] = await Promise.all([
 		db.query.invoices.findFirst({
 			columns: {
 				id: true,
@@ -71,12 +80,24 @@ export async function fetchInvoiceData(
 					eq(transactions.period, selectedPeriod),
 					// Saldo devedor: soma com sinal (compras − estornos). Sem filtro de
 					// tipo — estornos abatem. Pagamento de fatura não entra (o sync não
-					// o traz). Ver cards/queries.ts.
+					// o traz). O adiantamento (perna-cartão) É um crédito no período e
+					// ENTRA nesta soma de propósito — abate o total. Ver cards/queries.ts.
+				),
+			),
+		// Quanto já foi adiantado neste período (perna-cartão do adiantamento).
+		db
+			.select({ total: sum(transactions.amount) })
+			.from(transactions)
+			.where(
+				and(
+					eq(transactions.userId, userId),
+					eq(transactions.note, advanceCardNote),
 				),
 			),
 	]);
 
 	const totalAmount = toNumber(totalRow[0]?.totalAmount);
+	const advancedAmount = Math.abs(toNumber(advanceRow[0]?.total));
 	const isInvoiceStatus = (
 		value: string | null | undefined,
 	): value is InvoicePaymentStatus =>
@@ -104,7 +125,7 @@ export async function fetchInvoiceData(
 			: null;
 	}
 
-	return { totalAmount, invoiceStatus, paymentDate };
+	return { totalAmount, invoiceStatus, paymentDate, advancedAmount };
 }
 
 export async function fetchCardTransactions(filters: SQL[]) {

@@ -146,7 +146,8 @@ export default async function Page({ params, searchParams }: PageProps) {
 		},
 	};
 
-	const { totalAmount, invoiceStatus, paymentDate } = invoiceData;
+	const { totalAmount, invoiceStatus, paymentDate, advancedAmount } =
+		invoiceData;
 
 	const periodLabel = `${monthName.charAt(0).toUpperCase()}${monthName.slice(
 		1,
@@ -170,6 +171,7 @@ export default async function Page({ params, searchParams }: PageProps) {
 					limitAmount={limitAmount}
 					invoiceStatus={invoiceStatus}
 					paymentDate={paymentDate}
+					advancedAmount={advancedAmount}
 					defaultPaymentAccountId={card.accountId}
 					paymentAccountOptions={accountOptions.map((option) => ({
 						value: option.value,

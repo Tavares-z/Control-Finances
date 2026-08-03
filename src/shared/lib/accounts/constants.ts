@@ -22,6 +22,23 @@ export const buildInvoicePaymentNote = (cardId: string, period: string) =>
 
 export const INVOICE_ADJUSTMENT_NAME = "Ajuste de fatura";
 
+/**
+ * Adiantamento de fatura: par de lançamentos ligados pela mesma chave-base
+ * (cardId:period), com sufixo distinguindo a perna. A perna "card" é um crédito
+ * no período do cartão (abate o total, que é sum(amount) — ver cards/queries.ts);
+ * a perna "account" é o débito na conta (o dinheiro que saiu). As duas notas
+ * permitem localizar/atualizar/remover o par de forma idempotente.
+ */
+export const ACCOUNT_ADVANCE_NOTE_PREFIX = "AUTO_ADIANTAMENTO:";
+
+export const buildInvoiceAdvanceNote = (
+	cardId: string,
+	period: string,
+	leg: "card" | "account",
+) => `${ACCOUNT_ADVANCE_NOTE_PREFIX}${cardId}:${period}:${leg}`;
+
+export const INVOICE_ADVANCE_NAME = "Adiantamento de fatura";
+
 export const ACCOUNT_BALANCE_ADJUSTMENT_NAME = "Ajuste de saldo";
 
 export const REFUND_NOTE_PREFIX = "AUTO_REEMBOLSO:";
