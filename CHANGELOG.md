@@ -16,6 +16,15 @@ Cada release registra a base do upstream correspondente no corpo.
 > a dia. E na pegada da Monetinha: leve, animado, como uma amiga contando a novidade,
 > sem exagero de emojis (1 ou 2 por versão, no máximo).
 
+## [3.6.0] - 2026-08-03
+
+Chegou o que tinha prometido: dá pra adiantar a fatura do cartão direto pelo app. 💳
+
+### Adicionado
+- Adiantamento de fatura: pagou uma parte da fatura antes da hora, ou quitou adiantado? Agora tem um botão "Adiantar" na tela da fatura pra registrar isso. Você escolhe o valor, a conta de onde o dinheiro saiu e a data — o valor sai da conta e já abate o total da fatura na hora.
+- Some tudo certinho na hora de pagar: se você adiantou um pedaço e depois marcar a fatura como paga, o app cobra só o que ainda falta — sem pagar em dobro. Adiantado mais o restante bate sempre com o valor cheio da fatura.
+- Dá pra editar ou desfazer: enquanto a fatura não está paga, o botão vira "Editar adiantamento" e mostra quanto você já adiantou; zerar o valor remove o adiantamento e o total volta ao cheio.
+
 ## [3.5.1] - 2026-08-02
 
 Um acerto importante pra quem puxa a fatura do cartão pelo Open Finance: agora as compras entram do jeito certo. 💳
