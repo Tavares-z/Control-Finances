@@ -46,6 +46,26 @@ const OVERLAP_HOURS = 24; // folga generosa nos syncs seguintes (dedup absorve)
 const DUPLICATE_PREFIX = "[possível duplicata] ";
 const MISSING_DESCRIPTION = "(sem descrição)";
 
+/**
+ * Termos que indicam PAGAMENTO/QUITAÇÃO de fatura na descrição da Pluggy.
+ * Pagamento de fatura NÃO é uma transação da fatura — é a quitação dela, e o app
+ * já tem fluxo próprio ("Marcar como paga"). Além disso é AMBÍGUO por Open Finance:
+ * o mesmo "PAGAMENTO DE FATURA" pode quitar a fatura anterior OU adiantar a atual,
+ * com o MESMO billId/nome — nem a Pluggy nem o banco distinguem (só o usuário sabe).
+ * Trazê-lo como transação do cartão bagunçava o total. Por isso o sync o IGNORA.
+ * Estornos (crédito SEM esses termos) continuam entrando — são ajustes de compra
+ * daquela fatura e devem abater o total.
+ * ⚠️ Casa por texto — cobre o padrão do Santander/MeuPluggy. Se outro banco nomear
+ * o pagamento diferente, ampliar esta lista.
+ */
+const INVOICE_PAYMENT_TERMS = ["pagamento de fatura", "pagamento cartao"];
+
+/** True se a descrição indica pagamento/quitação de fatura (não estorno). */
+function isInvoicePayment(description: string): boolean {
+	const normalized = description.toLowerCase();
+	return INVOICE_PAYMENT_TERMS.some((term) => normalized.includes(term));
+}
+
 export interface SyncResult {
 	status: "ok" | "throttled" | "skipped" | "error";
 	/** total de transações vindas do Pluggy */
@@ -380,6 +400,7 @@ async function syncCardConnection(
 	let inserted = 0;
 	let duplicateFlagged = 0;
 	let alreadyExisted = 0;
+	let skippedPayments = 0; // pagamentos de fatura ignorados (não são compra/estorno)
 
 	for (const tx of pluggyTransactions) {
 		const description = tx.description ?? MISSING_DESCRIPTION;
@@ -407,6 +428,17 @@ async function syncCardConnection(
 		// amount POSITIVO. Derivamos o tipo e aplicamos o sinal coerente (não
 		// gravamos o sinal cru da Pluggy, que invertia tudo).
 		const isExpense = tx.amount > 0;
+
+		// PAGAMENTO DE FATURA não é transação da fatura — é a quitação dela, e é
+		// ambíguo por Open Finance (pode quitar a anterior ou adiantar a atual, com
+		// o mesmo billId). O app trata quitação/adiantamento pelo fluxo próprio.
+		// Pulamos: só créditos (não-despesa) cujo nome indica pagamento. Estornos
+		// (crédito sem esses termos) seguem entrando e abatem o total normalmente.
+		if (!isExpense && isInvoicePayment(description)) {
+			skippedPayments += 1;
+			continue;
+		}
+
 		const transactionType = isExpense ? "Despesa" : "Receita";
 		const signedAmount = isExpense ? -Math.abs(tx.amount) : Math.abs(tx.amount);
 		const categoryId = mappings[normalizeDescriptionKey(description)] ?? null;
@@ -453,6 +485,13 @@ async function syncCardConnection(
 		.update(openFinanceConnections)
 		.set({ lastSyncedAt: now, updatedAt: now, status: "UPDATED" })
 		.where(eq(openFinanceConnections.id, connection.id));
+
+	if (skippedPayments > 0) {
+		console.info("[syncCardConnection] pagamentos de fatura ignorados", {
+			connectionId: connection.id,
+			skippedPayments,
+		});
+	}
 
 	return {
 		status: "ok",

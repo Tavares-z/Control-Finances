@@ -69,10 +69,9 @@ export async function fetchInvoiceData(
 					eq(transactions.userId, userId),
 					eq(transactions.cardId, cardId),
 					eq(transactions.period, selectedPeriod),
-					// Total da fatura = só COMPRAS (despesas). Créditos (pagamento/
-					// estorno do Open Finance) ficam fora da soma mas seguem na
-					// listagem. Ver comentário em cards/queries.ts.
-					eq(transactions.transactionType, "Despesa"),
+					// Saldo devedor: soma com sinal (compras − estornos). Sem filtro de
+					// tipo — estornos abatem. Pagamento de fatura não entra (o sync não
+					// o traz). Ver cards/queries.ts.
 				),
 			),
 	]);

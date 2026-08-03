@@ -158,13 +158,13 @@ async function fetchCardsByStatus(
 				and(
 					eq(transactions.userId, userId),
 					eq(transactions.period, currentPeriod),
-					// Valor da fatura = total de COMPRAS. Só despesas — créditos
-					// (pagamento/estorno que o Open Finance traz como transação do
-					// cartão) NÃO abatem o total exibido, senão a fatura mostraria
-					// "compras − pagamentos" em vez do total de compras. Os créditos
-					// continuam aparecendo na LISTAGEM (query separada), só ficam fora
-					// desta SOMA. "Transferência" nunca tem cardId (é entre contas).
-					eq(transactions.transactionType, "Despesa"),
+					// Valor da fatura = SALDO DEVEDOR: soma com sinal (compras negativas
+					// − estornos positivos), para bater com o "valor da fatura" do banco.
+					// Não filtra por tipo: estornos DEVEM abater. O sync já NÃO traz
+					// pagamento de fatura (quitação/adiantamento é fluxo à parte e é
+					// ambíguo por Open Finance — ver isInvoicePayment em openfinance/sync.ts),
+					// então aqui só há compras e estornos. O Math.abs no consumo torna o
+					// saldo positivo para exibição.
 				),
 			)
 			.groupBy(transactions.cardId),
