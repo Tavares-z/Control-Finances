@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
 	cards,
@@ -313,12 +313,10 @@ const advanceInvoiceSchema = z.object({
 	period: z
 		.string({ message: "Período inválido." })
 		.regex(PERIOD_FORMAT_REGEX, "Período inválido."),
-	amount: z.number({ message: "Valor inválido." }),
-	accountId: z
-		.string({ message: "Conta inválida." })
-		.uuid("Conta inválida.")
-		.nullable()
-		.optional(),
+	amount: z
+		.number({ message: "Valor inválido." })
+		.positive("Informe um valor."),
+	accountId: z.string({ message: "Conta inválida." }).uuid("Conta inválida."),
 	paymentDate: z
 		.string()
 		.optional()
@@ -330,16 +328,19 @@ const advanceInvoiceSchema = z.object({
 type AdvanceInvoiceInput = z.infer<typeof advanceInvoiceSchema>;
 
 /**
- * Adiantamento de fatura: registra um pagamento antecipado/parcial da fatura.
- * Cria um PAR de lançamentos ligados (ver buildInvoiceAdvanceNote):
+ * Adiantamento de fatura: registra UM pagamento antecipado/parcial da fatura.
+ * Cada chamada ADICIONA um adiantamento novo (não sobrescreve) — dá pra ter
+ * vários no mesmo período, cada um com sua data/valor/conta. As duas pernas do
+ * par compartilham um `id` único (crypto.randomUUID) na nota:
  *   1. perna "card"    — crédito (+) no período do cartão → abate o total da
  *      fatura, que é sum(amount) do período (ver cards/queries.ts). Sem accountId.
+ *      A nota começa com AUTO_FATURA: → some das receitas do dashboard (herda as
+ *      exclusões de nota; ver buildInvoiceAdvanceNote), sem inflar receita real.
  *   2. perna "account" — débito (−) na conta escolhida → o dinheiro que saiu.
  *
- * Idempotente por chave-base: reenviar sobrescreve as duas pernas; amount 0
- * remove ambas. Interação com "Marcar como paga" é automática — o pagamento lê
- * sum(amount) do período, que já inclui a perna-cartão, então cobra só o
- * restante (sem dupla contagem).
+ * Remoção é por adiantamento (removeInvoiceAdvanceAction), não por "zerar".
+ * Interação com "Marcar como paga" é automática — o pagamento lê sum(amount) do
+ * período, que já inclui as pernas-cartão, então cobra só o restante.
  */
 export async function advanceInvoiceAction(
 	input: AdvanceInvoiceInput,
@@ -350,18 +351,23 @@ export async function advanceInvoiceAction(
 		const adminPayerId = await getAdminPayerId(user.id);
 
 		const amount = Math.round(data.amount * 100) / 100;
-		if (amount < 0) {
+		if (amount <= 0) {
 			return { success: false, error: "Informe um valor positivo." };
 		}
 
-		const cardNote = buildInvoiceAdvanceNote(data.cardId, data.period, "card");
+		const advanceId = crypto.randomUUID();
+		const cardNote = buildInvoiceAdvanceNote(
+			data.cardId,
+			data.period,
+			"card",
+			advanceId,
+		);
 		const accountNote = buildInvoiceAdvanceNote(
 			data.cardId,
 			data.period,
 			"account",
+			advanceId,
 		);
-
-		let message = "Adiantamento registrado.";
 
 		await db.transaction(async (tx: typeof db) => {
 			const card = await tx.query.cards.findFirst({
@@ -373,53 +379,10 @@ export async function advanceInvoiceAction(
 				throw new Error("Cartão não encontrado.");
 			}
 
-			const upsertLeg = async (
-				note: string,
-				payload: typeof transactions.$inferInsert,
-			) => {
-				const existing = await tx.query.transactions.findFirst({
-					columns: { id: true },
-					where: and(
-						eq(transactions.userId, user.id),
-						eq(transactions.note, note),
-					),
-				});
-
-				if (existing) {
-					await tx
-						.update(transactions)
-						.set(payload)
-						.where(eq(transactions.id, existing.id));
-				} else {
-					await tx.insert(transactions).values(payload);
-				}
-			};
-
-			const removeLeg = async (note: string) => {
-				await tx
-					.delete(transactions)
-					.where(
-						and(eq(transactions.userId, user.id), eq(transactions.note, note)),
-					);
-			};
-
-			// amount 0 = remover o adiantamento (as duas pernas).
-			if (amount === 0) {
-				await removeLeg(cardNote);
-				await removeLeg(accountNote);
-				message = "Adiantamento removido.";
-				return;
-			}
-
-			const paymentAccountId = data.accountId ?? null;
-			if (!paymentAccountId) {
-				throw new Error("Selecione uma conta para o adiantamento.");
-			}
-
 			const paymentAccount = await tx.query.financialAccounts.findFirst({
 				columns: { id: true },
 				where: and(
-					eq(financialAccounts.id, paymentAccountId),
+					eq(financialAccounts.id, data.accountId),
 					eq(financialAccounts.userId, user.id),
 				),
 			});
@@ -444,7 +407,7 @@ export async function advanceInvoiceAction(
 			const advanceName = `${INVOICE_ADVANCE_NAME} - ${card.name}`;
 
 			// Perna cartão: crédito no período → abate o total da fatura.
-			await upsertLeg(cardNote, {
+			await tx.insert(transactions).values({
 				condition: "À vista",
 				name: advanceName,
 				paymentMethod: "Cartão de crédito",
@@ -462,7 +425,7 @@ export async function advanceInvoiceAction(
 			});
 
 			// Perna conta: débito na conta → o dinheiro que saiu.
-			await upsertLeg(accountNote, {
+			await tx.insert(transactions).values({
 				condition: "À vista",
 				name: advanceName,
 				paymentMethod: "Pix",
@@ -473,7 +436,7 @@ export async function advanceInvoiceAction(
 				period: data.period,
 				isSettled: true,
 				userId: user.id,
-				accountId: paymentAccountId,
+				accountId: data.accountId,
 				categoryId: paymentCategory?.id ?? null,
 				payerId: adminPayerId,
 			});
@@ -481,7 +444,70 @@ export async function advanceInvoiceAction(
 
 		revalidateForEntity("cards", user.id);
 
-		return { success: true, message };
+		return { success: true, message: "Adiantamento registrado." };
+	} catch (error) {
+		if (error instanceof z.ZodError) {
+			return {
+				success: false,
+				error: error.issues[0]?.message ?? "Dados inválidos.",
+			};
+		}
+
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : "Erro inesperado.",
+		};
+	}
+}
+
+const removeInvoiceAdvanceSchema = z.object({
+	cardId: z.string({ message: "Cartão inválido." }).uuid("Cartão inválido."),
+	period: z
+		.string({ message: "Período inválido." })
+		.regex(PERIOD_FORMAT_REGEX, "Período inválido."),
+	advanceId: z
+		.string({ message: "Adiantamento inválido." })
+		.uuid("Adiantamento inválido."),
+});
+
+type RemoveInvoiceAdvanceInput = z.infer<typeof removeInvoiceAdvanceSchema>;
+
+/**
+ * Remove UM adiantamento (as duas pernas) pela chave-id. Apaga tanto a perna
+ * "card" quanto a "account" que compartilham o mesmo advanceId na nota.
+ */
+export async function removeInvoiceAdvanceAction(
+	input: RemoveInvoiceAdvanceInput,
+): Promise<ActionResult> {
+	try {
+		const user = await getUser();
+		const data = removeInvoiceAdvanceSchema.parse(input);
+
+		const cardNote = buildInvoiceAdvanceNote(
+			data.cardId,
+			data.period,
+			"card",
+			data.advanceId,
+		);
+		const accountNote = buildInvoiceAdvanceNote(
+			data.cardId,
+			data.period,
+			"account",
+			data.advanceId,
+		);
+
+		await db
+			.delete(transactions)
+			.where(
+				and(
+					eq(transactions.userId, user.id),
+					inArray(transactions.note, [cardNote, accountNote]),
+				),
+			);
+
+		revalidateForEntity("cards", user.id);
+
+		return { success: true, message: "Adiantamento removido." };
 	} catch (error) {
 		if (error instanceof z.ZodError) {
 			return {

@@ -1,10 +1,15 @@
 "use client";
 
+import { RiDeleteBinLine } from "@remixicon/react";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { advanceInvoiceAction } from "@/features/invoices/actions";
+import {
+	advanceInvoiceAction,
+	removeInvoiceAdvanceAction,
+} from "@/features/invoices/actions";
+import type { InvoiceAdvance } from "@/features/invoices/queries";
 import { AccountCardSelectContent } from "@/features/transactions/components/select-items";
 import { Button } from "@/shared/components/ui/button";
 import { CurrencyInput } from "@/shared/components/ui/currency-input";
@@ -27,6 +32,7 @@ import {
 	SelectValue,
 } from "@/shared/components/ui/select";
 import { formatCurrency } from "@/shared/utils/currency";
+import { formatDateOnly } from "@/shared/utils/date";
 
 type PaymentAccountOption = {
 	value: string;
@@ -40,18 +46,21 @@ type AdvanceInvoiceDialogProps = {
 	period: string;
 	/** Total a pagar da fatura (com sinal). Usado só para orientar o usuário. */
 	currentTotal: number;
-	/** Quanto já foi adiantado neste período (0 se ainda não houver). */
-	advancedAmount: number;
+	/** Adiantamentos já registrados neste período. */
+	advances: InvoiceAdvance[];
 	defaultPaymentAccountId: string | null;
 	paymentAccountOptions: PaymentAccountOption[];
 };
+
+const formatAdvanceDate = (value: Date) =>
+	formatDateOnly(value, { day: "2-digit", month: "short" }) ?? "";
 
 export function AdvanceInvoiceDialog({
 	trigger,
 	cardId,
 	period,
 	currentTotal,
-	advancedAmount,
+	advances,
 	defaultPaymentAccountId,
 	paymentAccountOptions,
 }: AdvanceInvoiceDialogProps) {
@@ -59,10 +68,9 @@ export function AdvanceInvoiceDialog({
 	const [open, setOpen] = useState(false);
 	const [isPending, startTransition] = useTransition();
 
-	const hasAdvance = advancedAmount > 0;
 	const remaining = Math.abs(currentTotal);
 
-	const [amount, setAmount] = useState<string>(advancedAmount.toFixed(2));
+	const [amount, setAmount] = useState<string>("");
 	const [accountId, setAccountId] = useState<string>(
 		defaultPaymentAccountId ?? paymentAccountOptions[0]?.value ?? "",
 	);
@@ -70,13 +78,13 @@ export function AdvanceInvoiceDialog({
 
 	useEffect(() => {
 		if (open) {
-			setAmount(advancedAmount.toFixed(2));
+			setAmount("");
 			setAccountId(
 				defaultPaymentAccountId ?? paymentAccountOptions[0]?.value ?? "",
 			);
 			setPaymentDate(new Date());
 		}
-	}, [open, advancedAmount, defaultPaymentAccountId, paymentAccountOptions]);
+	}, [open, defaultPaymentAccountId, paymentAccountOptions]);
 
 	const targetAmount = Number(amount);
 	const paymentDateValue = paymentDate.toISOString().split("T")[0] ?? "";
@@ -84,22 +92,14 @@ export function AdvanceInvoiceDialog({
 		(option) => option.value === accountId,
 	);
 
-	const helperLabel = !Number.isFinite(targetAmount)
-		? "Informe um valor."
-		: targetAmount === 0
-			? hasAdvance
-				? "O adiantamento deste período será removido."
-				: "Informe quanto deseja adiantar."
-			: `Sairão ${formatCurrency(targetAmount)} da conta e o valor da fatura será abatido.`;
-
-	const handleSave = () => {
-		if (!Number.isFinite(targetAmount) || targetAmount < 0) {
+	const handleAdd = () => {
+		if (!Number.isFinite(targetAmount) || targetAmount <= 0) {
 			toast.error("Informe um valor válido.");
 			return;
 		}
 
-		if (targetAmount > 0 && !accountId) {
-			toast.error("Selecione uma conta para o adiantamento.");
+		if (!accountId) {
+			toast.error("Selecione uma conta.");
 			return;
 		}
 
@@ -108,14 +108,31 @@ export function AdvanceInvoiceDialog({
 				cardId,
 				period,
 				amount: targetAmount,
-				accountId: targetAmount > 0 ? accountId : undefined,
-				paymentDate:
-					targetAmount > 0 ? (paymentDateValue ?? undefined) : undefined,
+				accountId,
+				paymentDate: paymentDateValue,
 			});
 
 			if (result.success) {
 				toast.success(result.message);
-				setOpen(false);
+				setAmount("");
+				router.refresh();
+				return;
+			}
+
+			toast.error(result.error);
+		});
+	};
+
+	const handleRemove = (advanceId: string) => {
+		startTransition(async () => {
+			const result = await removeInvoiceAdvanceAction({
+				cardId,
+				period,
+				advanceId,
+			});
+
+			if (result.success) {
+				toast.success(result.message);
 				router.refresh();
 				return;
 			}
@@ -131,7 +148,7 @@ export function AdvanceInvoiceDialog({
 				<DialogHeader>
 					<DialogTitle>Adiantar fatura</DialogTitle>
 					<DialogDescription>
-						Registre um pagamento antecipado ou parcial. O valor sai da conta
+						Registre pagamentos antecipados ou parciais. Cada valor sai da conta
 						escolhida e abate o total da fatura.
 					</DialogDescription>
 				</DialogHeader>
@@ -144,64 +161,110 @@ export function AdvanceInvoiceDialog({
 						</p>
 					</div>
 
-					<div className="space-y-2">
-						<Label htmlFor="advance-amount">Valor a adiantar</Label>
-						<CurrencyInput
-							id="advance-amount"
-							value={amount}
-							onValueChange={setAmount}
-							autoFocus
-						/>
-						<p className="text-xs text-muted-foreground">{helperLabel}</p>
-					</div>
-
-					{targetAmount > 0 ? (
-						<>
-							<div className="space-y-2">
-								<Label htmlFor="advance-account">Conta de origem</Label>
-								<Select
-									value={accountId}
-									onValueChange={setAccountId}
-									disabled={isPending || paymentAccountOptions.length === 0}
-								>
-									<SelectTrigger id="advance-account" className="w-full">
-										<SelectValue placeholder="Selecione uma conta">
-											{selectedAccount ? (
-												<AccountCardSelectContent
-													label={selectedAccount.label}
-													logo={selectedAccount.logo}
-												/>
-											) : null}
-										</SelectValue>
-									</SelectTrigger>
-									<SelectContent>
-										{paymentAccountOptions.map((option) => (
-											<SelectItem key={option.value} value={option.value}>
-												<AccountCardSelectContent
-													label={option.label}
-													logo={option.logo}
-												/>
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
-
-							<div className="space-y-2">
-								<Label htmlFor="advance-date">Data do adiantamento</Label>
-								<DatePicker
-									id="advance-date"
-									value={paymentDateValue}
-									onChange={(value) => {
-										if (value) {
-											setPaymentDate(new Date(`${value}T00:00:00`));
-										}
-									}}
-									disabled={isPending}
-								/>
-							</div>
-						</>
+					{advances.length > 0 ? (
+						<div className="space-y-2">
+							<p className="text-sm font-medium text-foreground">
+								Adiantamentos deste período
+							</p>
+							<ul className="space-y-1.5">
+								{advances.map((advance) => (
+									<li
+										key={advance.id}
+										className="flex items-center justify-between gap-2 rounded-md border border-border/60 px-3 py-2 text-sm"
+									>
+										<div className="min-w-0">
+											<span className="font-medium text-foreground">
+												{formatCurrency(advance.amount)}
+											</span>
+											<span className="text-muted-foreground">
+												{" · "}
+												{formatAdvanceDate(advance.date)} ·{" "}
+												{advance.accountName}
+											</span>
+										</div>
+										<Button
+											type="button"
+											variant="ghost"
+											size="icon-sm"
+											className="shrink-0 text-muted-foreground hover:text-destructive"
+											disabled={isPending}
+											onClick={() => handleRemove(advance.id)}
+											aria-label={`Remover adiantamento de ${formatCurrency(advance.amount)}`}
+										>
+											<RiDeleteBinLine className="size-4" />
+										</Button>
+									</li>
+								))}
+							</ul>
+						</div>
 					) : null}
+
+					<div className="space-y-3 rounded-md border border-dashed px-3 py-3">
+						<p className="text-sm font-medium text-foreground">
+							Novo adiantamento
+						</p>
+						<div className="space-y-2">
+							<Label htmlFor="advance-amount">Valor</Label>
+							<CurrencyInput
+								id="advance-amount"
+								value={amount}
+								onValueChange={setAmount}
+							/>
+						</div>
+
+						<div className="space-y-2">
+							<Label htmlFor="advance-account">Conta de origem</Label>
+							<Select
+								value={accountId}
+								onValueChange={setAccountId}
+								disabled={isPending || paymentAccountOptions.length === 0}
+							>
+								<SelectTrigger id="advance-account" className="w-full">
+									<SelectValue placeholder="Selecione uma conta">
+										{selectedAccount ? (
+											<AccountCardSelectContent
+												label={selectedAccount.label}
+												logo={selectedAccount.logo}
+											/>
+										) : null}
+									</SelectValue>
+								</SelectTrigger>
+								<SelectContent>
+									{paymentAccountOptions.map((option) => (
+										<SelectItem key={option.value} value={option.value}>
+											<AccountCardSelectContent
+												label={option.label}
+												logo={option.logo}
+											/>
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+
+						<div className="space-y-2">
+							<Label htmlFor="advance-date">Data</Label>
+							<DatePicker
+								id="advance-date"
+								value={paymentDateValue}
+								onChange={(value) => {
+									if (value) {
+										setPaymentDate(new Date(`${value}T00:00:00`));
+									}
+								}}
+								disabled={isPending}
+							/>
+						</div>
+
+						<Button
+							type="button"
+							className="w-full"
+							onClick={handleAdd}
+							disabled={isPending || paymentAccountOptions.length === 0}
+						>
+							{isPending ? "Salvando..." : "Adicionar adiantamento"}
+						</Button>
+					</div>
 				</div>
 
 				<DialogFooter>
@@ -211,10 +274,7 @@ export function AdvanceInvoiceDialog({
 						onClick={() => setOpen(false)}
 						disabled={isPending}
 					>
-						Cancelar
-					</Button>
-					<Button type="button" onClick={handleSave} disabled={isPending}>
-						{isPending ? "Salvando..." : "Salvar"}
+						Fechar
 					</Button>
 				</DialogFooter>
 			</DialogContent>

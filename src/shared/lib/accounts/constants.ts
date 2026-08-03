@@ -23,19 +23,46 @@ export const buildInvoicePaymentNote = (cardId: string, period: string) =>
 export const INVOICE_ADJUSTMENT_NAME = "Ajuste de fatura";
 
 /**
- * Adiantamento de fatura: par de lançamentos ligados pela mesma chave-base
- * (cardId:period), com sufixo distinguindo a perna. A perna "card" é um crédito
- * no período do cartão (abate o total, que é sum(amount) — ver cards/queries.ts);
- * a perna "account" é o débito na conta (o dinheiro que saiu). As duas notas
- * permitem localizar/atualizar/remover o par de forma idempotente.
+ * Adiantamento de fatura: PAR de lançamentos (perna "card" + perna "account")
+ * ligados por um `id` único por adiantamento — permite VÁRIOS adiantamentos no
+ * mesmo período, cada um com sua data/valor/conta.
+ *
+ * ⚠️ A nota começa com ACCOUNT_AUTO_INVOICE_NOTE_PREFIX ("AUTO_FATURA:") DE
+ * PROPÓSITO: assim herda as ~15 exclusões espalhadas pelo app (NOT LIKE
+ * 'AUTO_FATURA:%' em receitas/despesas/relatórios/orçamento) sem tocar em cada
+ * uma — a perna "card" é um crédito (Receita) que NÃO pode contar como receita
+ * real. O segmento ":adv:" e o formato de 6 partes distinguem do pagamento de
+ * fatura (3 partes, "AUTO_FATURA:cardId:period"). O único ponto que precisa
+ * separar os dois é o paymentMap em dashboard/invoices/invoices-queries.ts, que
+ * exige `parts.length === 3` (pagamento) e ignora os 6-partes (adiantamento).
+ *
+ * O prefixo NÃO afeta o abate do total da fatura: as somas de fatura
+ * (currentInvoiceAmount, fetchInvoiceData, adminShare) somam por cardId+period
+ * SEM filtrar nota, então a perna "card" abate o total de qualquer forma.
  */
-export const ACCOUNT_ADVANCE_NOTE_PREFIX = "AUTO_ADIANTAMENTO:";
-
 export const buildInvoiceAdvanceNote = (
 	cardId: string,
 	period: string,
 	leg: "card" | "account",
-) => `${ACCOUNT_ADVANCE_NOTE_PREFIX}${cardId}:${period}:${leg}`;
+	id: string,
+) => `${ACCOUNT_AUTO_INVOICE_NOTE_PREFIX}${cardId}:${period}:adv:${leg}:${id}`;
+
+/** True se a nota é de um adiantamento (formato de 6 partes com ":adv:"). */
+export const isInvoiceAdvanceNote = (note: string | null | undefined) => {
+	if (!note?.startsWith(ACCOUNT_AUTO_INVOICE_NOTE_PREFIX)) return false;
+	const parts = note.split(":");
+	return parts.length === 6 && parts[3] === "adv";
+};
+
+/** Extrai { id, leg } de uma nota de adiantamento, ou null se não for. */
+export const parseInvoiceAdvanceNote = (note: string | null | undefined) => {
+	if (!isInvoiceAdvanceNote(note)) return null;
+	const parts = (note as string).split(":");
+	const leg = parts[4];
+	const id = parts[5];
+	if ((leg !== "card" && leg !== "account") || !id) return null;
+	return { leg, id } as { leg: "card" | "account"; id: string };
+};
 
 export const INVOICE_ADVANCE_NAME = "Adiantamento de fatura";
 

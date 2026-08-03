@@ -10,6 +10,7 @@ import {
 	updateInvoicePaymentStatusAction,
 	updatePaymentDateAction,
 } from "@/features/invoices/actions";
+import type { InvoiceAdvance } from "@/features/invoices/queries";
 import { AccountCardSelectContent } from "@/features/transactions/components/select-items";
 import StatusDot from "@/shared/components/feedback/status-dot";
 import MoneyValues from "@/shared/components/money-values";
@@ -69,7 +70,7 @@ type InvoiceSummaryCardProps = {
 	limitAmount: number | null;
 	invoiceStatus: InvoicePaymentStatus;
 	paymentDate: Date | null;
-	advancedAmount: number;
+	advances: InvoiceAdvance[];
 	defaultPaymentAccountId: string | null;
 	paymentAccountOptions: PaymentAccountOption[];
 	logo?: string | null;
@@ -117,7 +118,7 @@ export function InvoiceSummaryCard({
 	limitAmount,
 	invoiceStatus,
 	paymentDate: initialPaymentDate,
-	advancedAmount,
+	advances,
 	defaultPaymentAccountId,
 	paymentAccountOptions,
 	logo,
@@ -147,6 +148,10 @@ export function InvoiceSummaryCard({
 	const brandAsset = resolveCardBrandAsset(cardBrand);
 	const isPaid = invoiceStatus === INVOICE_PAYMENT_STATUS.PAID;
 	const paymentDateLabel = isPaid ? formatPaymentDate(paymentDate) : null;
+	const advancedAmount = advances.reduce(
+		(total, advance) => total + advance.amount,
+		0,
+	);
 	const hasAdvance = advancedAmount > 0;
 	const actionDescription = isPaid
 		? `Pagamento registrado em ${paymentDateLabel}.`
@@ -344,7 +349,7 @@ export function InvoiceSummaryCard({
 									cardId={cardId}
 									period={period}
 									currentTotal={totalAmount}
-									advancedAmount={advancedAmount}
+									advances={advances}
 									defaultPaymentAccountId={defaultPaymentAccountId}
 									paymentAccountOptions={paymentAccountOptions}
 									trigger={

@@ -139,7 +139,11 @@ export async function fetchDashboardInvoices(
 			continue;
 		}
 		const parts = note.split(":");
-		if (parts.length < 3) {
+		// Pagamento de fatura tem EXATAMENTE 3 partes (AUTO_FATURA:cardId:period).
+		// Adiantamentos usam o mesmo prefixo mas 6 partes
+		// (AUTO_FATURA:cardId:period:adv:leg:id) — ignorar aqui pra não poluir o
+		// mapa de datas de pagamento. Ver buildInvoiceAdvanceNote.
+		if (parts.length !== 3) {
 			continue;
 		}
 		const cardIdPart = parts[1];

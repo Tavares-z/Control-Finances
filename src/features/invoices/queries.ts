@@ -1,9 +1,10 @@
-import { and, eq, type SQL, sum } from "drizzle-orm";
-import { cards, invoices, transactions } from "@/db/schema";
+import { and, eq, ilike, type SQL, sum } from "drizzle-orm";
+import { cards, financialAccounts, invoices, transactions } from "@/db/schema";
 import { fetchTransactionsWithRelations } from "@/features/transactions/queries";
 import {
-	buildInvoiceAdvanceNote,
+	ACCOUNT_AUTO_INVOICE_NOTE_PREFIX,
 	buildInvoicePaymentNote,
+	parseInvoiceAdvanceNote,
 } from "@/shared/lib/accounts/constants";
 import { db } from "@/shared/lib/db";
 import {
@@ -42,6 +43,13 @@ export async function fetchCardData(userId: string, cardId: string) {
 	return card;
 }
 
+export type InvoiceAdvance = {
+	id: string;
+	amount: number;
+	date: Date;
+	accountName: string;
+};
+
 export async function fetchInvoiceData(
 	userId: string,
 	cardId: string,
@@ -50,14 +58,13 @@ export async function fetchInvoiceData(
 	totalAmount: number;
 	invoiceStatus: InvoicePaymentStatus;
 	paymentDate: Date | null;
-	advancedAmount: number;
+	advances: InvoiceAdvance[];
 }> {
-	const advanceCardNote = buildInvoiceAdvanceNote(
-		cardId,
-		selectedPeriod,
-		"card",
-	);
-	const [invoiceRow, totalRow, advanceRow] = await Promise.all([
+	// Prefixo da perna "account" do adiantamento deste cartão/período. A nota é
+	// AUTO_FATURA:{cardId}:{period}:adv:account:{id} — usamos a perna account
+	// porque ela carrega o accountId; o valor dela é o débito (negativo).
+	const advanceAccountPrefix = `${ACCOUNT_AUTO_INVOICE_NOTE_PREFIX}${cardId}:${selectedPeriod}:adv:account:`;
+	const [invoiceRow, totalRow, advanceRows] = await Promise.all([
 		db.query.invoices.findFirst({
 			columns: {
 				id: true,
@@ -84,20 +91,41 @@ export async function fetchInvoiceData(
 					// ENTRA nesta soma de propósito — abate o total. Ver cards/queries.ts.
 				),
 			),
-		// Quanto já foi adiantado neste período (perna-cartão do adiantamento).
+		// Adiantamentos individuais do período (perna account = tem conta+data).
 		db
-			.select({ total: sum(transactions.amount) })
+			.select({
+				note: transactions.note,
+				amount: transactions.amount,
+				purchaseDate: transactions.purchaseDate,
+				accountName: financialAccounts.name,
+			})
 			.from(transactions)
+			.leftJoin(
+				financialAccounts,
+				eq(transactions.accountId, financialAccounts.id),
+			)
 			.where(
 				and(
 					eq(transactions.userId, userId),
-					eq(transactions.note, advanceCardNote),
+					ilike(transactions.note, `${advanceAccountPrefix}%`),
 				),
 			),
 	]);
 
 	const totalAmount = toNumber(totalRow[0]?.totalAmount);
-	const advancedAmount = Math.abs(toNumber(advanceRow[0]?.total));
+	const advances: InvoiceAdvance[] = advanceRows
+		.map((row) => {
+			const parsed = parseInvoiceAdvanceNote(row.note);
+			if (!parsed) return null;
+			return {
+				id: parsed.id,
+				amount: Math.abs(toNumber(row.amount)),
+				date: new Date(row.purchaseDate),
+				accountName: row.accountName ?? "Conta",
+			};
+		})
+		.filter((advance): advance is InvoiceAdvance => advance !== null)
+		.sort((a, b) => a.date.getTime() - b.date.getTime());
 	const isInvoiceStatus = (
 		value: string | null | undefined,
 	): value is InvoicePaymentStatus =>
@@ -125,7 +153,7 @@ export async function fetchInvoiceData(
 			: null;
 	}
 
-	return { totalAmount, invoiceStatus, paymentDate, advancedAmount };
+	return { totalAmount, invoiceStatus, paymentDate, advances };
 }
 
 export async function fetchCardTransactions(filters: SQL[]) {
