@@ -226,6 +226,9 @@ export async function fetchDashboardInvoices(
 					eq(transactions.userId, userId),
 					inArray(transactions.period, [period, previousPeriod]),
 					isNotNull(transactions.cardId),
+					// Total da fatura = só COMPRAS (despesas). Créditos (pagamento/
+					// estorno do Open Finance) ficam fora da soma. Ver cards/queries.ts.
+					eq(transactions.transactionType, "Despesa"),
 				),
 			)
 			.groupBy(

@@ -158,6 +158,13 @@ async function fetchCardsByStatus(
 				and(
 					eq(transactions.userId, userId),
 					eq(transactions.period, currentPeriod),
+					// Valor da fatura = total de COMPRAS. Só despesas — créditos
+					// (pagamento/estorno que o Open Finance traz como transação do
+					// cartão) NÃO abatem o total exibido, senão a fatura mostraria
+					// "compras − pagamentos" em vez do total de compras. Os créditos
+					// continuam aparecendo na LISTAGEM (query separada), só ficam fora
+					// desta SOMA. "Transferência" nunca tem cardId (é entre contas).
+					eq(transactions.transactionType, "Despesa"),
 				),
 			)
 			.groupBy(transactions.cardId),

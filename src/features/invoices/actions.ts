@@ -130,6 +130,12 @@ export async function updateInvoicePaymentStatusAction(
 									eq(transactions.cardId, card.id),
 									eq(transactions.period, data.period),
 									eq(transactions.payerId, adminPayerId),
+									// Valor a pagar = só COMPRAS (despesas). Sem este filtro,
+									// os créditos que o Open Finance traz (pagamento/estorno,
+									// amount positivo) abateriam o adminShare e o Math.min
+									// calcularia um valor a pagar MENOR que o devido. Ver a
+									// decisão registrada em cards/queries.ts.
+									eq(transactions.transactionType, "Despesa"),
 								),
 							)
 					: [{ total: 0 }];

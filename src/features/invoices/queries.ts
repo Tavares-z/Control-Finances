@@ -69,6 +69,10 @@ export async function fetchInvoiceData(
 					eq(transactions.userId, userId),
 					eq(transactions.cardId, cardId),
 					eq(transactions.period, selectedPeriod),
+					// Total da fatura = só COMPRAS (despesas). Créditos (pagamento/
+					// estorno do Open Finance) ficam fora da soma mas seguem na
+					// listagem. Ver comentário em cards/queries.ts.
+					eq(transactions.transactionType, "Despesa"),
 				),
 			),
 	]);
