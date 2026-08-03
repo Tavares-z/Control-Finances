@@ -24,6 +24,14 @@ Um acerto importante pra quem puxa a fatura do cartão pelo Open Finance: agora 
 - Compra não vira mais "entrada": tinha um errinho em que as compras do cartão apareciam como se fossem dinheiro que entrou, em vez de gasto. Agora cada compra entra como despesa e cada pagamento/estorno da fatura entra como crédito — tudo na direção correta.
 - Cada compra na fatura certa, de verdade: em vez de o app adivinhar em qual fatura uma compra deveria cair, agora ele usa a própria fatura que o banco informa. Aquele caso chato de uma compra ou pagamento feito bem no dia do fechamento ir parar no mês errado deixou de acontecer — vai sempre pra fatura em que o banco colocou.
 
+## [3.5.3] - 2026-08-02
+
+Mais um acerto no valor da fatura do cartão puxada pelo Open Finance — agora sim, redondo.
+
+### Corrigido
+- Valor da fatura mais fiel: os pagamentos/adiantamentos de fatura que o banco trazia junto das compras deixaram de virar lançamento no cartão — eles não são uma compra, são a quitação da fatura, e vinham de um jeito confuso (um pagamento de um mês podia aparecer no mês seguinte). Agora a fatura mostra as compras já descontando os estornos, sem esses pagamentos se misturarem. Em breve chega uma forma dedicada de registrar adiantamento de fatura.
+- Estorno abate a fatura: quando uma compra é estornada/cancelada, o crédito do estorno agora reduz o valor da fatura, como deveria.
+
 ## [3.5.2] - 2026-08-02
 
 Deixei o valor da fatura do cartão certinho de novo pra quem usa o Open Finance.
