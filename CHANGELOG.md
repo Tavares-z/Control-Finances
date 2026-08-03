@@ -16,22 +16,21 @@ Cada release registra a base do upstream correspondente no corpo.
 > a dia. E na pegada da Monetinha: leve, animado, como uma amiga contando a novidade,
 > sem exagero de emojis (1 ou 2 por versão, no máximo).
 
+## [3.6.1] - 2026-08-03
+
+Uns ajustes no adiantamento de fatura pra deixar do jeitinho certo.
+
+### Corrigido
+- Vários adiantamentos, cada um do seu jeito: agora dá pra registrar quantos adiantamentos quiser na mesma fatura — cada um com seu valor, sua data e sua conta. Antes só cabia um, e um novo acabava por cima do anterior. Todos aparecem numa listinha na tela de adiantar, e é só clicar na lixeira pra remover um sem mexer nos outros.
+- Adiantamento não infla mais suas receitas: o adiantamento deixou de aparecer como se fosse dinheiro que entrou no seu total de receitas do mês. Ele continua abatendo a fatura e saindo da conta certinho — só não conta como receita, que nunca foi.
+
 ## [3.6.0] - 2026-08-03
 
 Chegou o que tinha prometido: dá pra adiantar a fatura do cartão direto pelo app. 💳
 
 ### Adicionado
-- Adiantamento de fatura: pagou uma parte da fatura antes da hora, ou quitou adiantado? Agora tem um botão "Adiantar" na tela da fatura pra registrar isso. Você escolhe o valor, a conta de onde o dinheiro saiu e a data — o valor sai da conta e já abate o total da fatura na hora.
+- Adiantamento de fatura: pagou uma parte da fatura antes da hora, ou quitou adiantado? Agora tem um botão "Adiantamento da fatura" na tela da fatura pra registrar isso. Você escolhe o valor, a conta de onde o dinheiro saiu e a data — o valor sai da conta e já abate o total da fatura na hora.
 - Some tudo certinho na hora de pagar: se você adiantou um pedaço e depois marcar a fatura como paga, o app cobra só o que ainda falta — sem pagar em dobro. Adiantado mais o restante bate sempre com o valor cheio da fatura.
-- Dá pra editar ou desfazer: enquanto a fatura não está paga, o botão vira "Editar adiantamento" e mostra quanto você já adiantou; zerar o valor remove o adiantamento e o total volta ao cheio.
-
-## [3.5.1] - 2026-08-02
-
-Um acerto importante pra quem puxa a fatura do cartão pelo Open Finance: agora as compras entram do jeito certo. 💳
-
-### Corrigido
-- Compra não vira mais "entrada": tinha um errinho em que as compras do cartão apareciam como se fossem dinheiro que entrou, em vez de gasto. Agora cada compra entra como despesa e cada pagamento/estorno da fatura entra como crédito — tudo na direção correta.
-- Cada compra na fatura certa, de verdade: em vez de o app adivinhar em qual fatura uma compra deveria cair, agora ele usa a própria fatura que o banco informa. Aquele caso chato de uma compra ou pagamento feito bem no dia do fechamento ir parar no mês errado deixou de acontecer — vai sempre pra fatura em que o banco colocou.
 
 ## [3.5.3] - 2026-08-02
 
@@ -47,6 +46,14 @@ Deixei o valor da fatura do cartão certinho de novo pra quem usa o Open Finance
 
 ### Corrigido
 - Valor da fatura mostra o total de compras: quando o banco traz pagamentos e estornos junto das compras do cartão, o valor da fatura passou a somar só as compras — como sempre foi. Antes, um pagamento adiantado que você tivesse feito acabava descontando do total e o número aparecia menor do que o real. Os pagamentos e estornos continuam aparecendo na lista de lançamentos do cartão; eles só não mexem mais no valor total da fatura.
+
+## [3.5.1] - 2026-08-02
+
+Um acerto importante pra quem puxa a fatura do cartão pelo Open Finance: agora as compras entram do jeito certo. 💳
+
+### Corrigido
+- Compra não vira mais "entrada": tinha um errinho em que as compras do cartão apareciam como se fossem dinheiro que entrou, em vez de gasto. Agora cada compra entra como despesa e cada pagamento/estorno da fatura entra como crédito — tudo na direção correta.
+- Cada compra na fatura certa, de verdade: em vez de o app adivinhar em qual fatura uma compra deveria cair, agora ele usa a própria fatura que o banco informa. Aquele caso chato de uma compra ou pagamento feito bem no dia do fechamento ir parar no mês errado deixou de acontecer — vai sempre pra fatura em que o banco colocou.
 
 ## [3.5.0] - 2026-08-01
 

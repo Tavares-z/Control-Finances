@@ -360,7 +360,7 @@ export function InvoiceSummaryCard({
 											disabled={isPending}
 										>
 											<RiHandCoinLine className="size-4" />
-											{hasAdvance ? "Editar adiantamento" : "Adiantar"}
+											Adiantamento da fatura
 										</Button>
 									}
 								/>
