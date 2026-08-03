@@ -21,8 +21,15 @@ Cada release registra a base do upstream correspondente no corpo.
 Um acerto importante pra quem puxa a fatura do cartão pelo Open Finance: agora as compras entram do jeito certo. 💳
 
 ### Corrigido
-- Compra não vira mais "entrada": tinha um errinho em que as compras do cartão apareciam como se fossem dinheiro que entrou, em vez de gasto. Agora cada compra entra como despesa e cada pagamento/estorno da fatura entra como crédito que abate o valor — tudo na direção correta.
+- Compra não vira mais "entrada": tinha um errinho em que as compras do cartão apareciam como se fossem dinheiro que entrou, em vez de gasto. Agora cada compra entra como despesa e cada pagamento/estorno da fatura entra como crédito — tudo na direção correta.
 - Cada compra na fatura certa, de verdade: em vez de o app adivinhar em qual fatura uma compra deveria cair, agora ele usa a própria fatura que o banco informa. Aquele caso chato de uma compra ou pagamento feito bem no dia do fechamento ir parar no mês errado deixou de acontecer — vai sempre pra fatura em que o banco colocou.
+
+## [3.5.2] - 2026-08-02
+
+Deixei o valor da fatura do cartão certinho de novo pra quem usa o Open Finance.
+
+### Corrigido
+- Valor da fatura mostra o total de compras: quando o banco traz pagamentos e estornos junto das compras do cartão, o valor da fatura passou a somar só as compras — como sempre foi. Antes, um pagamento adiantado que você tivesse feito acabava descontando do total e o número aparecia menor do que o real. Os pagamentos e estornos continuam aparecendo na lista de lançamentos do cartão; eles só não mexem mais no valor total da fatura.
 
 ## [3.5.0] - 2026-08-01
 
