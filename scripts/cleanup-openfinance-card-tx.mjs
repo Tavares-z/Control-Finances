@@ -43,6 +43,21 @@ function arg(name) {
 const cardId = arg("cardId");
 const userId = arg("userId");
 const apply = process.argv.includes("--apply");
+// Opcional: só apaga transações dos últimos N dias (data_compra >= hoje - N).
+// Use pra casar com a janela de backfill do sync (90d) e não apagar faturas
+// antigas que o repuxar NÃO recupera. Sem o flag, apaga TODAS (comportamento
+// original). N é dias corridos.
+const sinceDaysRaw = arg("sinceDays");
+const sinceDays = sinceDaysRaw ? Number.parseInt(sinceDaysRaw, 10) : null;
+if (sinceDaysRaw && (!Number.isFinite(sinceDays) || sinceDays <= 0)) {
+	console.error("--sinceDays deve ser um inteiro positivo.");
+	process.exit(1);
+}
+const sinceDate = sinceDays
+	? new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000)
+			.toISOString()
+			.slice(0, 10)
+	: null;
 
 if (!cardId || !userId) {
 	console.error(
@@ -68,20 +83,27 @@ console.log(`Banco alvo (host): ${dbHost}`);
 console.log(`Cartão: ${cardId}`);
 console.log(`Usuário: ${userId}`);
 console.log(`Modo: ${apply ? "APPLY (vai DELETAR)" : "DRY-RUN (não deleta)"}`);
+console.log(
+	`Janela: ${sinceDate ? `só data_compra >= ${sinceDate} (últimos ${sinceDays}d)` : "TODAS as datas"}`,
+);
 
 const client = new pg.Client({ connectionString: DATABASE_URL });
 await client.connect();
 
 try {
-	// Candidatas: cartão + usuário + ofx_fit_id preenchido.
+	// Filtro de data opcional (mesmo nos dois: select e delete).
+	const dateFilter = sinceDate ? " and data_compra >= $3" : "";
+	const params = sinceDate ? [cardId, userId, sinceDate] : [cardId, userId];
+
+	// Candidatas: cartão + usuário + ofx_fit_id preenchido (+ data, se --sinceDays).
 	const { rows } = await client.query(
 		`select id, nome, tipo_transacao, periodo, data_compra, ofx_fit_id
 		   from lancamentos
 		  where cartao_id = $1
 		    and user_id = $2
-		    and ofx_fit_id is not null
+		    and ofx_fit_id is not null${dateFilter}
 		  order by data_compra desc`,
-		[cardId, userId],
+		params,
 	);
 
 	console.log(
@@ -115,9 +137,9 @@ try {
 			`delete from lancamentos
 			  where cartao_id = $1
 			    and user_id = $2
-			    and ofx_fit_id is not null
+			    and ofx_fit_id is not null${dateFilter}
 			returning id`,
-			[cardId, userId],
+			params,
 		);
 		console.log(`\n✅ Deletadas ${del.rowCount} transação(ões).`);
 		console.log(
