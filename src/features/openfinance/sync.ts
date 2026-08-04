@@ -377,7 +377,10 @@ async function syncCardConnection(
 		try {
 			const bill = await getBill(billId);
 			if (bill.dueDate) {
-				billPeriodCache.set(billId, derivePeriodFromDate(bill.dueDate.slice(0, 10)));
+				billPeriodCache.set(
+					billId,
+					derivePeriodFromDate(bill.dueDate.slice(0, 10)),
+				);
 			}
 		} catch (billError) {
 			// Best-effort: sem o bill, a transação usa o fallback da heurística.
@@ -443,11 +446,24 @@ async function syncCardConnection(
 		const signedAmount = isExpense ? -Math.abs(tx.amount) : Math.abs(tx.amount);
 		const categoryId = mappings[normalizeDescriptionKey(description)] ?? null;
 
+		// Parcelamento: a Pluggy entrega parcela-a-parcela no mês certo (o `amount`
+		// já é o valor DA PARCELA, não o total), mas informa qual parcela é via
+		// creditCardMetadata. Só rotulamos "Parcelado" com total >= 2 (igual ao
+		// form manual, que exige >= 2); parcela única segue "À vista". É só rótulo
+		// (condition + parcela_atual/qtde_parcela) — NÃO muda valor nem período.
+		const meta = tx.creditCardMetadata;
+		const totalInstallments = meta?.totalInstallments ?? null;
+		const installmentNumber = meta?.installmentNumber ?? null;
+		const isInstallment =
+			isExpense && totalInstallments !== null && totalInstallments >= 2;
+
 		const [row] = await db
 			.insert(transactions)
 			.values({
 				name: isDuplicate ? DUPLICATE_PREFIX + description : description,
-				condition: "À vista",
+				condition: isInstallment ? "Parcelado" : "À vista",
+				installmentCount: isInstallment ? totalInstallments : null,
+				currentInstallment: isInstallment ? installmentNumber : null,
 				paymentMethod: CARD_PAYMENT_METHOD,
 				amount: signedAmount.toFixed(2), // sinal alinhado à convenção do sistema
 				purchaseDate,
