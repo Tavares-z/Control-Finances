@@ -16,6 +16,13 @@ Cada release registra a base do upstream correspondente no corpo.
 > a dia. E na pegada da Monetinha: leve, animado, como uma amiga contando a novidade,
 > sem exagero de emojis (1 ou 2 por versão, no máximo).
 
+## [3.6.2] - 2026-08-04
+
+Suas compras parceladas no cartão agora aparecem certinhas pelo Open Finance. 🧾
+
+### Adicionado
+- Parcela na fatura do cartão: quando o banco informa que uma compra é parcelada, ela passa a aparecer marcada como "2 de 6" (ou o número que for), em vez de "À vista". Como o banco já manda cada parcela no mês em que ela cai, o valor e o mês continuam iguais — a novidade é só você ver de onde vem cada pedaço. Vale pras compras novas; pras faturas antigas, aparece assim que elas forem atualizadas.
+
 ## [3.6.1] - 2026-08-03
 
 Uns ajustes no adiantamento de fatura pra deixar do jeitinho certo.
