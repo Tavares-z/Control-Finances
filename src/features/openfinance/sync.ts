@@ -43,7 +43,16 @@ import { derivePeriodFromDate } from "@/shared/utils/period";
 const SOURCE_APP = "openfinance";
 const THROTTLE_MS = 60 * 60 * 1000; // 1h
 const BACKFILL_DAYS = 90; // primeiro sync
-const OVERLAP_HOURS = 24; // folga generosa nos syncs seguintes (dedup absorve)
+// Overlap dos syncs seguintes ao 1º. Filtramos a Pluggy por `createdAtFrom`, que
+// é a data de CRIAÇÃO do registro na Pluggy (não a data da transação) — e a Pluggy
+// pode criar/re-criar histórico em LOTE dias depois do vínculo (item recém-conectado
+// popula aos poucos; pending→posted troca id e createdAt). Uma janela de 24h assume
+// "só chega o criado nas últimas 24h" e PERDE o histórico criado antes do último
+// last_synced_at (bug real: Nubank/MP puxaram só 1-2 de 440/310 tx — todo o histórico
+// tinha createdAt 26/07–03/08, mas o last_synced_at foi carimbado em 04/08). 7 dias
+// cobrem o atraso de criação com folga; o dedup de 2 camadas absorve a sobreposição
+// (Camada 1 = onConflictDoNothing por id externo → nada duplica).
+const OVERLAP_DAYS = 7;
 const DUPLICATE_PREFIX = "[possível duplicata] ";
 const MISSING_DESCRIPTION = "(sem descrição)";
 
@@ -296,9 +305,9 @@ async function syncCardConnection(
 		};
 	}
 
-	// Janela de busca: backfill 90d no 1º sync, senão último sync −24h (overlap).
+	// Janela de busca: backfill 90d no 1º sync, senão último sync − OVERLAP_DAYS.
 	const fromDate = lastSyncedAt
-		? new Date(lastSyncedAt.getTime() - OVERLAP_HOURS * 60 * 60 * 1000)
+		? new Date(lastSyncedAt.getTime() - OVERLAP_DAYS * 24 * 60 * 60 * 1000)
 		: new Date(Date.now() - BACKFILL_DAYS * 24 * 60 * 60 * 1000);
 	const createdAtFrom = toBusinessDay(fromDate);
 
@@ -618,9 +627,11 @@ export async function syncOpenFinanceConnection(
 		return { status: "throttled", ...empty, message: "Sincronizado há < 1h." };
 	}
 
-	// 3. Janela de busca. Primeiro sync = backfill 90d; seguintes = último sync −24h.
+	// 3. Janela de busca. Primeiro sync = backfill 90d; seguintes = último sync
+	//    − OVERLAP_DAYS (ver comentário da constante — 24h perdia histórico criado
+	//    em lote pela Pluggy dias depois do vínculo).
 	const fromDate = lastSyncedAt
-		? new Date(lastSyncedAt.getTime() - OVERLAP_HOURS * 60 * 60 * 1000)
+		? new Date(lastSyncedAt.getTime() - OVERLAP_DAYS * 24 * 60 * 60 * 1000)
 		: new Date(Date.now() - BACKFILL_DAYS * 24 * 60 * 60 * 1000);
 	const createdAtFrom = toBusinessDay(fromDate);
 
