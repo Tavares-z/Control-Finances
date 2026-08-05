@@ -23,6 +23,21 @@ export const buildInvoicePaymentNote = (cardId: string, period: string) =>
 export const INVOICE_ADJUSTMENT_NAME = "Ajuste de fatura";
 
 /**
+ * Ajuste de fatura: nota técnica que começa com AUTO_FATURA: para o lançamento
+ * HERDAR as ~15 exclusões `NOT LIKE 'AUTO_FATURA:%'` do app (receitas/despesas/
+ * relatórios/orçamento/chat) — assim o ajuste corrige o total DA FATURA sem contar
+ * como despesa/receita real no dashboard (bug real: ajuste entrava como "Outras
+ * despesas" e inflava o gasto geral). Formato: AUTO_FATURA:{cardId}:{period}:adj.
+ * O `:adj` (4 partes) garante `parts.length !== 3` (pagamento) e `!== 6`
+ * (adiantamento) — não colide com o paymentMap nem com isInvoiceAdvanceNote. Nota
+ * técnica pura, sem texto livre: o ajuste é localizado por name =
+ * INVOICE_ADJUSTMENT_NAME (não pela nota), e o texto "era X, correto Y" vai no
+ * toast de sucesso, não na nota — assim o prefixo nunca vaza na UI.
+ */
+export const buildInvoiceAdjustmentNote = (cardId: string, period: string) =>
+	`${ACCOUNT_AUTO_INVOICE_NOTE_PREFIX}${cardId}:${period}:adj`;
+
+/**
  * Adiantamento de fatura: PAR de lançamentos (perna "card" + perna "account")
  * ligados por um `id` único por adiantamento — permite VÁRIOS adiantamentos no
  * mesmo período, cada um com sua data/valor/conta.

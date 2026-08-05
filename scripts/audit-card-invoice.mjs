@@ -45,7 +45,7 @@ const client = new pg.Client({ connectionString: DATABASE_URL });
 await client.connect();
 try {
 	const { rows } = await client.query(
-		`select data_compra, tipo_transacao, valor, nome, periodo, ofx_fit_id,
+		`select data_compra, tipo_transacao, valor, nome, anotacao, periodo, ofx_fit_id,
 		        case when ofx_fit_id is not null then 'OF/OFX' else 'manual' end as origem,
 		        qtde_parcela, parcela_atual
 		   from lancamentos
@@ -65,17 +65,19 @@ try {
 			r.qtde_parcela && r.parcela_atual
 				? `${r.parcela_atual}/${r.qtde_parcela}`
 				: "—";
+		const nota = r.anotacao ? ` | nota: ${r.anotacao}` : "";
 		console.log(
-			`${d} | ${String(r.tipo_transacao).padEnd(7)} | ${v.toFixed(2).padStart(10)} | ${r.origem.padEnd(6)} | ${parcela.padEnd(7)} | ${r.nome}`,
+			`${d} | ${String(r.tipo_transacao).padEnd(7)} | ${v.toFixed(2).padStart(10)} | ${r.origem.padEnd(6)} | ${parcela.padEnd(7)} | ${r.nome}${nota}`,
 		);
 		if (r.tipo_transacao === "Despesa") compras += v;
 		else creditos += v;
 	}
+	console.log(`\nTotal COMPRAS (despesas): ${Math.abs(compras).toFixed(2)}`);
+	console.log(`Total CRÉDITOS (receitas, inclui adiantamento): ${creditos.toFixed(2)}`);
+	const liquido = compras + creditos; // soma com sinal
 	console.log(
-		`\nTotal COMPRAS (despesas): ${Math.abs(compras).toFixed(2)}` +
-			`  ← é isso que a fatura mostra`,
+		`\nSALDO LÍQUIDO (sum com sinal = o que o app mostra): ${Math.abs(liquido).toFixed(2)}`,
 	);
-	console.log(`Total CRÉDITOS (receitas): ${creditos.toFixed(2)}`);
 	console.log(`Contagem: ${rows.length} linha(s)`);
 } finally {
 	await client.end();

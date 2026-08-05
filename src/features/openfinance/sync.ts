@@ -65,10 +65,18 @@ const MISSING_DESCRIPTION = "(sem descrição)";
  * Trazê-lo como transação do cartão bagunçava o total. Por isso o sync o IGNORA.
  * Estornos (crédito SEM esses termos) continuam entrando — são ajustes de compra
  * daquela fatura e devem abater o total.
- * ⚠️ Casa por texto — cobre o padrão do Santander/MeuPluggy. Se outro banco nomear
- * o pagamento diferente, ampliar esta lista.
+ * ⚠️ Casa por texto — cobre o padrão de vários bancos via MeuPluggy. Se outro
+ * banco nomear o pagamento diferente, ampliar esta lista.
+ * - "pagamento de fatura"/"pagamento cartao": Santander.
+ * - "pagamento recebido": Mercado Pago (confirmado com dado real de prod — o MP
+ *   nomeia TODO pagamento de fatura como "Pagamento recebido"; sem este termo o
+ *   pagamento entrava como crédito e abatia a fatura indevidamente).
  */
-const INVOICE_PAYMENT_TERMS = ["pagamento de fatura", "pagamento cartao"];
+const INVOICE_PAYMENT_TERMS = [
+	"pagamento de fatura",
+	"pagamento cartao",
+	"pagamento recebido",
+];
 
 /** True se a descrição indica pagamento/quitação de fatura (não estorno). */
 function isInvoicePayment(description: string): boolean {
@@ -442,6 +450,7 @@ async function syncCardConnection(
 	let duplicateFlagged = 0;
 	let alreadyExisted = 0;
 	let skippedPayments = 0; // pagamentos de fatura ignorados (não são compra/estorno)
+	let skippedCreditDuplicates = 0; // créditos-contrapartida de compra (não abatem)
 
 	for (const tx of pluggyTransactions) {
 		const description = tx.description ?? MISSING_DESCRIPTION;
@@ -477,6 +486,23 @@ async function syncCardConnection(
 		// (crédito sem esses termos) seguem entrando e abatem o total normalmente.
 		if (!isExpense && isInvoicePayment(description)) {
 			skippedPayments += 1;
+			continue;
+		}
+
+		// ⚠️ CRÉDITO-CONTRAPARTIDA de uma compra já existente → PULA (não abate).
+		// A Pluggy emite, para o MESMO item (parcelamento, pending→posted,
+		// reprocessamento), um par débito+crédito de mesmo valor/descrição/dia: a
+		// compra (amount>0) E um crédito (amount<0) que é só a contrapartida contábil,
+		// NÃO um estorno real. Como a chave de conteúdo usa |valor| (toCents faz abs),
+		// esse crédito casa a chave da compra e hoje entrava como "[possível
+		// duplicata]" COM sinal de crédito — abatendo a fatura sem que houvesse
+		// devolução (confirmado com dado real: MP ASUS/HUST tinham compra −X e crédito
+		// +X de mesmo billId). Regra: crédito (!isExpense) que casa uma compra já vista
+		// (isDuplicate) é contrapartida → pula. Um ESTORNO REAL não casa a chave de
+		// nenhuma compra (valor/descrição diferentes), então NÃO é isDuplicate e segue
+		// entrando e abatendo — o comportamento de estorno é preservado.
+		if (!isExpense && isDuplicate) {
+			skippedCreditDuplicates += 1;
 			continue;
 		}
 
@@ -554,10 +580,11 @@ async function syncCardConnection(
 		})
 		.where(eq(openFinanceConnections.id, connection.id));
 
-	if (skippedPayments > 0) {
-		console.info("[syncCardConnection] pagamentos de fatura ignorados", {
+	if (skippedPayments > 0 || skippedCreditDuplicates > 0) {
+		console.info("[syncCardConnection] créditos ignorados", {
 			connectionId: connection.id,
-			skippedPayments,
+			skippedPayments, // pagamentos de fatura (nome casa INVOICE_PAYMENT_TERMS)
+			skippedCreditDuplicates, // contrapartida de compra já existente
 		});
 	}
 

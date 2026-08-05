@@ -10,6 +10,7 @@ import {
 	transactions,
 } from "@/db/schema";
 import {
+	buildInvoiceAdjustmentNote,
 	buildInvoiceAdvanceNote,
 	buildInvoicePaymentNote,
 	INVOICE_ADJUSTMENT_NAME,
@@ -582,6 +583,8 @@ export async function adjustInvoiceAction(
 				return;
 			}
 
+			message = `Fatura ajustada: o valor era ${formatCurrency(Math.abs(baseTotal))} e agora é ${formatCurrency(data.targetAmount)}.`;
+
 			const isExpense = adjustmentAmount < 0;
 			const categoryName = isExpense ? "Outras despesas" : "Outras receitas";
 
@@ -595,7 +598,13 @@ export async function adjustInvoiceAction(
 
 			const amount = formatDecimalForDbRequired(adjustmentAmount);
 
-			const note = `O valor era ${formatCurrency(Math.abs(baseTotal))} mas o correto é ${formatCurrency(data.targetAmount)}.`;
+			// Nota com prefixo AUTO_FATURA: → o ajuste corrige o total da fatura mas
+			// NÃO conta como despesa/receita real no dashboard (herda as exclusões
+			// NOT LIKE 'AUTO_FATURA:%'), e fica readonly na lista de lançamentos
+			// (page-helpers) — a remoção correta é pelo dialog de fatura. Nota técnica
+			// pura (sem texto livre) pra não vazar o prefixo na UI nem variar a
+			// contagem de ":". O "era X, correto Y" fica no toast de sucesso.
+			const note = buildInvoiceAdjustmentNote(data.cardId, data.period);
 
 			const payload = {
 				condition: "À vista",
