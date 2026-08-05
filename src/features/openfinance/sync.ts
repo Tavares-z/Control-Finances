@@ -90,7 +90,11 @@ export interface SyncResult {
 	fetched: number;
 	/** Camada 1: inseridos novos e NÃO marcados como duplicata */
 	inserted: number;
-	/** inseridos MAS marcados como possível duplicata (Camada 2) */
+	/**
+	 * Camada 2. Cartão: duplicatas REAIS suprimidas (mesma parcela reinserida —
+	 * não são inseridas). Conta/Inbox: itens inseridos MARCADOS como possível
+	 * duplicata (o Inbox marca em vez de suprimir, pois o usuário revisa antes).
+	 */
 	duplicateFlagged: number;
 	/** Camada 1 pulou o insert porque o id externo já existia */
 	alreadyExisted: number;
@@ -155,6 +159,29 @@ function contentKey(
 	description: string,
 ): string {
 	return `${localDay}|${cents}|${description.trim()}`;
+}
+
+/**
+ * Chave de DUPLICATA REAL (mais estrita que contentKey): inclui o número da
+ * parcela. Duas parcelas DIFERENTES de uma mesma compra (ex.: 12/21 e 13/21) têm
+ * o mesmo dia|valor|descrição — a contentKey sozinha as trataria como duplicatas
+ * e marcaria da 2ª em diante como "[possível duplicata]" (bug real: 21 parcelas
+ * legítimas marcadas). Acrescentar parcela_atual/qtde_parcela distingue-as. Uma
+ * duplicata VERDADEIRA (a mesma parcela reinserida por troca de id pending→posted)
+ * casa aqui porque tem o MESMO número de parcela. Transação sem parcela usa "-".
+ */
+function installmentKey(
+	localDay: string,
+	cents: number,
+	description: string,
+	currentInstallment: number | null,
+	installmentCount: number | null,
+): string {
+	const inst =
+		currentInstallment != null && installmentCount != null
+			? `${currentInstallment}/${installmentCount}`
+			: "-";
+	return `${contentKey(localDay, cents, description)}|${inst}`;
 }
 
 /**
@@ -373,6 +400,8 @@ async function syncCardConnection(
 			name: transactions.name,
 			amount: transactions.amount,
 			purchaseDate: transactions.purchaseDate,
+			currentInstallment: transactions.currentInstallment,
+			installmentCount: transactions.installmentCount,
 		})
 		.from(transactions)
 		.where(
@@ -382,15 +411,56 @@ async function syncCardConnection(
 			),
 		);
 
+	// Duas estruturas de dedup, com propósitos e chaves DIFERENTES:
+	//  • seenKeys (installmentKey, COM parcela): duplicata REAL — a mesma parcela
+	//    reinserida (pending→posted trocou o id, Camada 1 não pegou). Inclui o número
+	//    da parcela para NÃO confundir parcelas distintas (12/21 vs 13/21) da mesma
+	//    compra, que têm dia|valor|descrição idênticos.
+	//  • expenseKeys (contentKey, SEM parcela): compras conhecidas, para detectar o
+	//    crédito-CONTRAPARTIDA. A Pluggy emite, no mesmo item, um par compra(−)+
+	//    crédito(+) de mesmo |valor|/descrição/dia; o crédito é contábil, não estorno,
+	//    e não deve abater a fatura. O crédito NÃO tem número de parcela, então casa a
+	//    compra pela chave SEM parcela. Popular só com despesas evita pular estorno
+	//    legítimo (que não tem compra-par de mesmo valor/descrição/dia).
 	const seenKeys = new Set<string>();
+	const expenseKeys = new Set<string>();
 	for (const row of existing) {
 		// `purchaseDate` é um `date` (sem hora) — o driver pg o traz à meia-noite
 		// UTC. Extrair o dia por UTC-slice (NÃO por toBusinessDay, que converteria
 		// para SP e voltaria um dia). Isso casa com o dia que gravamos abaixo, que
 		// é derivado do MESMO UTC-slice da data da transação Pluggy.
 		const localDay = purchaseDayKey(row.purchaseDate);
-		const cents = toCents(Number.parseFloat(row.amount));
-		seenKeys.add(contentKey(localDay, cents, row.name));
+		const amountNum = Number.parseFloat(row.amount);
+		const cents = toCents(amountNum);
+		// Nome "limpo" (sem o prefixo de duplicata) para a chave casar o que vem cru
+		// da Pluggy — a descrição da Pluggy nunca tem o prefixo.
+		const cleanName = row.name.startsWith(DUPLICATE_PREFIX)
+			? row.name.slice(DUPLICATE_PREFIX.length)
+			: row.name;
+		seenKeys.add(
+			installmentKey(
+				localDay,
+				cents,
+				cleanName,
+				row.currentInstallment,
+				row.installmentCount,
+			),
+		);
+		// Despesa existente = amount negativo → é uma compra conhecida.
+		if (amountNum < 0) {
+			expenseKeys.add(contentKey(localDay, cents, cleanName));
+		}
+	}
+	// Compras do LOTE atual da Pluggy (amount > 0 = compra na convenção de cartão) —
+	// cobre o caso de compra e crédito chegarem no MESMO sync (o crédito pode vir
+	// antes da compra no array; sem isto, dependeria da ordem).
+	for (const tx of pluggyTransactions) {
+		if (tx.amount > 0) {
+			const localDay = toBusinessDay(new Date(tx.date));
+			const cents = toCents(tx.amount);
+			const description = tx.description ?? MISSING_DESCRIPTION;
+			expenseKeys.add(contentKey(localDay, cents, description));
+		}
 	}
 
 	// Categorização: histórico exato (descrição → categoria). Sem match → null.
@@ -447,7 +517,7 @@ async function syncCardConnection(
 
 	const importBatchId = crypto.randomUUID();
 	let inserted = 0;
-	let duplicateFlagged = 0;
+	let duplicateFlagged = 0; // duplicatas REAIS suprimidas (mesma parcela reinserida)
 	let alreadyExisted = 0;
 	let skippedPayments = 0; // pagamentos de fatura ignorados (não são compra/estorno)
 	let skippedCreditDuplicates = 0; // créditos-contrapartida de compra (não abatem)
@@ -466,8 +536,6 @@ async function syncCardConnection(
 			(billId && billPeriodCache.get(billId)) ||
 			deriveCreditCardPeriod(localDay, card.closingDay, card.dueDay);
 		const cents = toCents(tx.amount);
-		const key = contentKey(localDay, cents, description);
-		const isDuplicate = seenKeys.has(key);
 
 		// ⚠️ Convenção de sinal do CARTÃO de crédito na Pluggy é o OPOSTO da conta:
 		// amount POSITIVO = compra (despesa/dívida), NEGATIVO = pagamento/estorno
@@ -489,19 +557,16 @@ async function syncCardConnection(
 			continue;
 		}
 
-		// ⚠️ CRÉDITO-CONTRAPARTIDA de uma compra já existente → PULA (não abate).
+		// ⚠️ CRÉDITO-CONTRAPARTIDA de uma compra conhecida → PULA (não abate).
 		// A Pluggy emite, para o MESMO item (parcelamento, pending→posted,
 		// reprocessamento), um par débito+crédito de mesmo valor/descrição/dia: a
 		// compra (amount>0) E um crédito (amount<0) que é só a contrapartida contábil,
-		// NÃO um estorno real. Como a chave de conteúdo usa |valor| (toCents faz abs),
-		// esse crédito casa a chave da compra e hoje entrava como "[possível
-		// duplicata]" COM sinal de crédito — abatendo a fatura sem que houvesse
-		// devolução (confirmado com dado real: MP ASUS/HUST tinham compra −X e crédito
-		// +X de mesmo billId). Regra: crédito (!isExpense) que casa uma compra já vista
-		// (isDuplicate) é contrapartida → pula. Um ESTORNO REAL não casa a chave de
-		// nenhuma compra (valor/descrição diferentes), então NÃO é isDuplicate e segue
-		// entrando e abatendo — o comportamento de estorno é preservado.
-		if (!isExpense && isDuplicate) {
+		// NÃO um estorno real. O crédito casa uma COMPRA em expenseKeys (chave SEM
+		// parcela — o crédito não traz número de parcela) e é pulado. Um ESTORNO REAL
+		// não tem compra-par de mesmo valor/descrição/dia → não está em expenseKeys →
+		// segue entrando e abatendo. Independe de ordem (expenseKeys já inclui as
+		// compras do próprio lote). Ver o prefetch acima.
+		if (!isExpense && expenseKeys.has(contentKey(localDay, cents, description))) {
 			skippedCreditDuplicates += 1;
 			continue;
 		}
@@ -521,10 +586,35 @@ async function syncCardConnection(
 		const isInstallment =
 			isExpense && totalInstallments !== null && totalInstallments >= 2;
 
+		// DUPLICATA REAL: a MESMA transação (incl. o número da parcela) já existe.
+		// Acontece quando pending→posted troca o id externo (a Camada 1 por ofxFitId
+		// não pega) e o conteúdo reaparece. A chave inclui a parcela para NÃO tratar
+		// parcelas distintas (12/21 vs 13/21, mesmo dia/valor/descrição) como cópias.
+		// Decisão: SUPRIME (não insere) — cartão parcelado gera muitos falsos e o
+		// "[possível duplicata]" poluía a lista e inflava a fatura. Risco aceito: duas
+		// compras REAIS idênticas (mesmo dia/valor/descrição/parcela) — raríssimo em
+		// cartão — a 2ª seria perdida.
+		// Usa os MESMOS valores de parcela que serão gravados (condicionados por
+		// isInstallment: à vista ou total<2 → null), para a chave casar o que o
+		// prefetch lê do banco. Sem isto, uma compra à vista que a Pluggy manda como
+		// "1/1" geraria chave "1/1" no loop mas "-" no prefetch (banco grava null) —
+		// e a duplicata escaparia.
+		const dupKey = installmentKey(
+			localDay,
+			cents,
+			description,
+			isInstallment ? installmentNumber : null,
+			isInstallment ? totalInstallments : null,
+		);
+		if (seenKeys.has(dupKey)) {
+			duplicateFlagged += 1;
+			continue;
+		}
+
 		const [row] = await db
 			.insert(transactions)
 			.values({
-				name: isDuplicate ? DUPLICATE_PREFIX + description : description,
+				name: description,
 				condition: isInstallment ? "Parcelado" : "À vista",
 				installmentCount: isInstallment ? totalInstallments : null,
 				currentInstallment: isInstallment ? installmentNumber : null,
@@ -551,12 +641,14 @@ async function syncCardConnection(
 			alreadyExisted += 1;
 			continue;
 		}
-		if (isDuplicate) {
-			duplicateFlagged += 1;
-		} else {
-			inserted += 1;
+		inserted += 1;
+		// Marca a chave (com parcela) para que uma cópia idêntica MAIS ADIANTE no
+		// mesmo lote também seja suprimida. Marca também a compra em expenseKeys para
+		// um crédito-contrapartida que venha depois no lote ser pulado.
+		seenKeys.add(dupKey);
+		if (isExpense) {
+			expenseKeys.add(contentKey(localDay, cents, description));
 		}
-		seenKeys.add(key);
 	}
 
 	// Limite do banco (creditData da account CREDIT) — fonte de verdade do
@@ -580,11 +672,16 @@ async function syncCardConnection(
 		})
 		.where(eq(openFinanceConnections.id, connection.id));
 
-	if (skippedPayments > 0 || skippedCreditDuplicates > 0) {
-		console.info("[syncCardConnection] créditos ignorados", {
+	if (
+		skippedPayments > 0 ||
+		skippedCreditDuplicates > 0 ||
+		duplicateFlagged > 0
+	) {
+		console.info("[syncCardConnection] lançamentos ignorados", {
 			connectionId: connection.id,
 			skippedPayments, // pagamentos de fatura (nome casa INVOICE_PAYMENT_TERMS)
-			skippedCreditDuplicates, // contrapartida de compra já existente
+			skippedCreditDuplicates, // crédito-contrapartida de compra (não abate)
+			duplicateSuppressed: duplicateFlagged, // duplicata real (mesma parcela)
 		});
 	}
 
