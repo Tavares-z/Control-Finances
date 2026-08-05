@@ -758,6 +758,20 @@ export const openFinanceConnections = pgTable(
 			withTimezone: true,
 		}),
 
+		// Limite do cartão reportado pelo BANCO (só conexões de cartão, nível
+		// creditData da account CREDIT). Gravados a cada sync de cartão. Fonte de
+		// verdade do "limite disponível" quando o cartão tem OF vinculado — o
+		// cálculo por transações não reconstrói o saldo devedor histórico (dívida
+		// anterior ao 1º sync não passa pela Pluggy). Nullable: cai no cálculo.
+		pluggyAvailableCreditLimit: numeric("pluggy_available_credit_limit", {
+			precision: 12,
+			scale: 2,
+		}),
+		pluggyCreditLimit: numeric("pluggy_credit_limit", {
+			precision: 12,
+			scale: 2,
+		}),
+
 		// Throttle do sync oportunístico (>= 1h; ver PLAN-openfinance-fase1 §4.5)
 		lastSyncedAt: timestamp("last_synced_at", {
 			mode: "date",

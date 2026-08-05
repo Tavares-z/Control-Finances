@@ -16,6 +16,13 @@ Cada release registra a base do upstream correspondente no corpo.
 > a dia. E na pegada da Monetinha: leve, animado, como uma amiga contando a novidade,
 > sem exagero de emojis (1 ou 2 por versão, no máximo).
 
+## [3.7.0] - 2026-08-04
+
+O limite dos seus cartões conectados agora bate certinho com o do banco. 🎯
+
+### Adicionado
+- Limite disponível igual ao do banco: pros cartões que você conectou pelo Open Finance, o "limite disponível" que aparece no app passou a vir direto do banco, em vez de ser calculado só pelas compras que o app conhece. Isso conserta uma diferença que aparecia quando o cartão já tinha dívida de antes de você conectar — agora o número que você vê no app é o mesmo que está no app do banco. Atualiza sozinho a cada sincronização (no máximo 1x por hora). Cartões sem Open Finance seguem calculando pelo histórico do app, como sempre.
+
 ## [3.6.2] - 2026-08-04
 
 Suas compras parceladas no cartão agora aparecem certinhas pelo Open Finance. 🧾

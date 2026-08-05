@@ -183,6 +183,9 @@ async function fetchCardsByStatus(
 				connectionId: openFinanceConnections.id,
 				connectorName: openFinanceConnections.connectorName,
 				lastSyncedAt: openFinanceConnections.lastSyncedAt,
+				pluggyAvailableCreditLimit:
+					openFinanceConnections.pluggyAvailableCreditLimit,
+				pluggyCreditLimit: openFinanceConnections.pluggyCreditLimit,
 			})
 			.from(openFinanceConnections)
 			.where(
@@ -222,6 +225,11 @@ async function fetchCardsByStatus(
 			lastSyncedAt: Date | null;
 		}
 	>();
+	// Limite disponível reportado pelo BANCO (só cartões com OF vinculado).
+	// Preferido sobre o cálculo por transações porque este não reconstrói a
+	// dívida histórica anterior ao 1º sync (não passa pela Pluggy). null = sem
+	// dado do banco → cai no cálculo local.
+	const bankAvailableMap = new Map<string, number>();
 	openFinanceRows.forEach((row) => {
 		if (!row.cardId) return;
 		openFinanceMap.set(row.cardId, {
@@ -229,6 +237,9 @@ async function fetchCardsByStatus(
 			connectorName: row.connectorName,
 			lastSyncedAt: row.lastSyncedAt,
 		});
+		if (row.pluggyAvailableCreditLimit != null) {
+			bankAvailableMap.set(row.cardId, Number(row.pluggyAvailableCreditLimit));
+		}
 	});
 
 	const cardList = cardRows.map((card) => ({
@@ -242,10 +253,18 @@ async function fetchCardsByStatus(
 		logo: card.logo,
 		limit: Number(card.limit),
 		limitInUse: (() => {
+			const bankAvailable = bankAvailableMap.get(card.id);
+			if (bankAvailable != null) {
+				return Math.max(Number(card.limit) - bankAvailable, 0);
+			}
 			const total = usageMap.get(card.id) ?? 0;
 			return Math.abs(total);
 		})(),
 		limitAvailable: (() => {
+			const bankAvailable = bankAvailableMap.get(card.id);
+			if (bankAvailable != null) {
+				return Math.max(bankAvailable, 0);
+			}
 			const total = usageMap.get(card.id) ?? 0;
 			const inUse = Math.abs(total);
 			return Math.max(Number(card.limit) - inUse, 0);

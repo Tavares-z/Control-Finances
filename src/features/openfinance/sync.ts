@@ -11,6 +11,7 @@ import {
 import {
 	getBill,
 	getItem,
+	listAccounts,
 	listTransactions,
 	PluggyApiError,
 	type PluggyTransaction,
@@ -218,6 +219,34 @@ const CARD_PAYMENT_METHOD = "Cartão de crédito";
  *     existentes DO MESMO CARTÃO — insere assim mesmo com prefixo/nota
  *     "[possível duplicata]". NUNCA suprime, NUNCA deleta.
  */
+/**
+ * Lê o limite do cartão (creditData da account CREDIT vinculada) via
+ * `listAccounts`. Best-effort: qualquer falha devolve nulls (o sync segue).
+ * Retorna strings porque as colunas são `numeric` (o driver espera string|null).
+ */
+async function fetchCardCreditLimits(
+	pluggyItemId: string,
+	pluggyAccountId: string,
+): Promise<{ available: string | null; total: string | null }> {
+	try {
+		const accounts = await listAccounts(pluggyItemId);
+		const account = accounts.find((a) => a.id === pluggyAccountId);
+		const cd = account?.creditData;
+		const toStr = (v: number | null | undefined) =>
+			typeof v === "number" && Number.isFinite(v) ? v.toFixed(2) : null;
+		return {
+			available: toStr(cd?.availableCreditLimit),
+			total: toStr(cd?.creditLimit),
+		};
+	} catch (error) {
+		console.warn("[syncCardConnection] falha ao ler limite do cartão", {
+			pluggyItemId,
+			name: (error as Error).name,
+		});
+		return { available: null, total: null };
+	}
+}
+
 async function syncCardConnection(
 	connection: LoadedConnection,
 	options?: { force?: boolean },
@@ -495,11 +524,25 @@ async function syncCardConnection(
 		seenKeys.add(key);
 	}
 
+	// Limite do banco (creditData da account CREDIT) — fonte de verdade do
+	// "disponível" do cartão. Isolado em try/catch: uma falha aqui NÃO pode
+	// derrubar o sync de transações (best-effort; grava null e segue).
+	const creditLimits = await fetchCardCreditLimits(
+		connection.pluggyItemId,
+		pluggyAccountId,
+	);
+
 	// Sucesso → carimba lastSyncedAt e limpa status (mesma semântica do de conta).
 	const now = new Date();
 	await db
 		.update(openFinanceConnections)
-		.set({ lastSyncedAt: now, updatedAt: now, status: "UPDATED" })
+		.set({
+			lastSyncedAt: now,
+			updatedAt: now,
+			status: "UPDATED",
+			pluggyAvailableCreditLimit: creditLimits.available,
+			pluggyCreditLimit: creditLimits.total,
+		})
 		.where(eq(openFinanceConnections.id, connection.id));
 
 	if (skippedPayments > 0) {
