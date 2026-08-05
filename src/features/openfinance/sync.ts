@@ -185,6 +185,34 @@ function installmentKey(
 }
 
 /**
+ * Deriva o período (YYYY-MM) do `billForecastDate` de uma parcela.
+ *
+ * ⚠️ Para uma compra PARCELADA, a Pluggy entrega TODAS as parcelas de uma vez, mas
+ * as futuras vêm PENDING e SEM `billId` (o bill só existe para faturas já fechadas).
+ * O único sinal do vencimento de cada parcela é o `billForecastDate`, que avança 1
+ * mês por parcela (confirmado com dado real do Mercado Pago: 1/21→2026-08, 2/21→
+ * 2026-09, … 21/21→2028-04). Sem usá-lo, todas as parcelas caem no fallback
+ * `deriveCreditCardPeriod(data-da-compra)` = MESMO período → a fatura amontoa
+ * parcelas que deveriam estar em meses diferentes (bug real: 8/21,12/21,14/21… todas
+ * juntas num mês). Por isso o billForecast entra na cadeia de roteamento ENTRE o
+ * billId (fatura fechada) e a heurística.
+ *
+ * O AGENTS.md diz "billForecastDate é irregular, NÃO usar" — isso valia para o
+ * SANTANDER (vinha vazio). Para PARCELA PENDING do MP ele é a fonte correta; por isso
+ * só é usado quando presente E bem-formado (aceita "YYYY-MM" ou "YYYY-MM-DD"), senão
+ * cai na heurística. Retorna null quando ausente/malformado.
+ */
+function periodFromForecast(forecast: string | null | undefined): string | null {
+	if (!forecast) return null;
+	// Aceita "YYYY-MM" (formato observado) e "YYYY-MM-DD"; valida ano/mês.
+	const match = /^(\d{4})-(\d{2})(?:-\d{2})?/.exec(forecast);
+	if (!match) return null;
+	const month = Number.parseInt(match[2], 10);
+	if (month < 1 || month > 12) return null;
+	return `${match[1]}-${match[2]}`;
+}
+
+/**
  * Consulta o estado REAL de um item na Pluggy (`GET /items/{id}`) e grava o
  * `status` cru + a expiração do consentimento na conexão local. É a lógica de
  * detecção de status do A2, extraída para ser reusável em DOIS gatilhos:
@@ -528,12 +556,18 @@ async function syncCardConnection(
 		// como data de compra E como base do período de fatura.
 		const localDay = toBusinessDay(new Date(tx.date));
 		const purchaseDate = new Date(`${localDay}T12:00:00.000Z`);
-		// Período pelo billId (banco) quando disponível; senão, fallback na
-		// heurística (transação sem billId ou /bills que falhou). O billId é o
-		// primary porque acerta o fechamento real; a heurística é rede de segurança.
+		// Roteamento de período, em ordem de prioridade:
+		//  1. billId → dueDate do bill (fatura já FECHADA: fonte de verdade do
+		//     fechamento real; POSTED).
+		//  2. billForecastDate (parcela FUTURA/PENDING sem billId: cada parcela avança
+		//     1 mês — é o que espalha as parcelas pelos meses certos; sem isto todas
+		//     amontoam no mês da compra).
+		//  3. heurística deriveCreditCardPeriod(data-da-compra) — rede de segurança
+		//     quando não há billId nem forecast.
 		const billId = tx.creditCardMetadata?.billId;
 		const period =
 			(billId && billPeriodCache.get(billId)) ||
+			periodFromForecast(tx.creditCardMetadata?.billForecastDate) ||
 			deriveCreditCardPeriod(localDay, card.closingDay, card.dueDay);
 		const cents = toCents(tx.amount);
 
