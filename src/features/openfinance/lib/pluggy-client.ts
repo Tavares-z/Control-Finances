@@ -353,47 +353,6 @@ async function pluggyPost<T>(path: string, body: unknown): Promise<T> {
 }
 
 // ---------------------------------------------------------------------------
-// Request base (PATCH) com re-auth única em 401/403
-// ---------------------------------------------------------------------------
-
-async function pluggyPatch<T>(path: string, body: unknown): Promise<T> {
-  const doFetch = (apiKey: string) =>
-    fetch(`${PLUGGY_API_URL}${path}`, {
-      method: "PATCH",
-      headers: { "X-API-KEY": apiKey, "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      cache: "no-store",
-    });
-
-  let apiKey = await getApiKey();
-  let res = await doFetch(apiKey);
-
-  // Uma única tentativa de re-auth se a apiKey expirou/foi revogada.
-  if (res.status === 401 || res.status === 403) {
-    cachedApiKey = null;
-    cachedApiKeyExpiresAt = 0;
-    apiKey = await authenticate();
-    res = await doFetch(apiKey);
-  }
-
-  if (!res.ok) {
-    let errBody: PluggyErrorBody | null = null;
-    try {
-      errBody = (await res.json()) as PluggyErrorBody;
-    } catch {
-      // corpo não-JSON — segue com null
-    }
-    throw new PluggyApiError(
-      res.status,
-      errBody?.message ?? `Pluggy respondeu HTTP ${res.status}.`,
-      { code: errBody?.code, errorId: errBody?.errorId },
-    );
-  }
-
-  return (await res.json()) as T;
-}
-
-// ---------------------------------------------------------------------------
 // Request base (DELETE) com re-auth única em 401/403
 // ---------------------------------------------------------------------------
 
@@ -535,21 +494,6 @@ export async function deleteItem(itemId: string): Promise<unknown> {
  */
 export async function getItem(itemId: string): Promise<PluggyItem> {
   return pluggyGet<PluggyItem>(`/items/${encodeURIComponent(itemId)}`);
-}
-
-/**
- * Dispara uma ATUALIZAÇÃO do item na Pluggy: `PATCH /items/{id}` com corpo vazio.
- * A Pluggy re-busca os dados no banco de forma assíncrona (novas transações,
- * novas parcelas de fatura fechada, etc.). No conector MeuPluggy — sem
- * credenciais/MFA — o corpo vazio basta; não reenviamos parameters de login.
- *
- * O retorno é o item cru (status normalmente vai a `UPDATING`); a ingestão real
- * chega depois via webhook `transactions/created`/`item/updated`, ou pelo próximo
- * sync. Este método só ENFILEIRA a atualização — não espera a Pluggy terminar.
- * Reusa `pluggyPatch` (auth/erro tratados). Erros viram `PluggyApiError`.
- */
-export async function triggerItemUpdate(itemId: string): Promise<PluggyItem> {
-  return pluggyPatch<PluggyItem>(`/items/${encodeURIComponent(itemId)}`, {});
 }
 
 /**

@@ -15,7 +15,6 @@ import {
 	deleteItem,
 	listAccounts,
 	PluggyApiError,
-	triggerItemUpdate,
 } from "@/features/openfinance/lib/pluggy-client";
 import { syncOpenFinanceConnection } from "@/features/openfinance/sync";
 import { auth } from "@/shared/lib/auth/config";
@@ -162,69 +161,6 @@ export async function reconnectConnectionAction(
 		return {
 			success: false,
 			error: "Não foi possível iniciar a reconexão com o banco.",
-		};
-	}
-}
-
-/**
- * Força a Pluggy a re-buscar os dados do banco vinculado a um CARTÃO (novas
- * transações, parcelas de fatura que só fecharam agora). Aciona `PATCH /items`
- * na Pluggy; a ingestão real chega DEPOIS via webhook `transactions/created`
- * (que dispara o sync forçado) ou no próximo load — esta action só ENFILEIRA a
- * atualização, não espera a Pluggy terminar (a operação dela é assíncrona).
- *
- * Ownership por CARTÃO: o cartão precisa ter uma conexão OF do usuário logado.
- * Só existe UMA conexão por cartão (regra em código), então pegamos o itemId
- * dela. Best-effort: falha na Pluggy é logada sem credenciais e retorna erro
- * amigável, sem afetar dados locais.
- */
-export async function refreshConnectionDataAction(
-	cardId: string,
-): Promise<ActionResponse> {
-	try {
-		const session = await auth.api.getSession({ headers: await headers() });
-		if (!session?.user?.id) {
-			return { success: false, error: AUTH_ERROR };
-		}
-		if (!isOpenFinanceEnabled()) {
-			return { success: false, error: FLAG_ERROR };
-		}
-
-		const parsed = z.string().uuid("Cartão inválido").safeParse(cardId);
-		if (!parsed.success) {
-			return { success: false, error: "Cartão inválido" };
-		}
-
-		// Ownership: a conexão do cartão precisa pertencer ao usuário logado.
-		const [connection] = await db
-			.select({ pluggyItemId: openFinanceConnections.pluggyItemId })
-			.from(openFinanceConnections)
-			.where(
-				and(
-					eq(openFinanceConnections.cardId, parsed.data),
-					eq(openFinanceConnections.userId, session.user.id),
-				),
-			);
-		if (!connection) {
-			return {
-				success: false,
-				error: "Este cartão não tem conexão Open Finance.",
-			};
-		}
-
-		await triggerItemUpdate(connection.pluggyItemId);
-		revalidatePath("/cards");
-		return {
-			success: true,
-			message:
-				"Pedimos ao banco os dados mais recentes. Pode levar alguns minutos; recarregue a fatura em instantes.",
-		};
-	} catch (error) {
-		// PluggyApiError só carrega status/code — nunca credenciais.
-		console.error("[refreshConnectionDataAction]", error);
-		return {
-			success: false,
-			error: "Não foi possível pedir a atualização ao banco agora.",
 		};
 	}
 }

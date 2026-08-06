@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { deleteCardAction } from "@/features/cards/actions";
-import { refreshConnectionDataAction } from "@/features/openfinance/actions";
 import { ConfirmActionDialog } from "@/shared/components/confirm-action-dialog";
 import { EmptyState } from "@/shared/components/feedback/empty-state";
 import { Button } from "@/shared/components/ui/button";
@@ -52,7 +51,6 @@ export function CardsPage({
 	const [removeOpen, setRemoveOpen] = useState(false);
 	const [cardToRemove, setCardToRemove] = useState<CreditCard | null>(null);
 	const [ofCard, setOfCard] = useState<CreditCard | null>(null);
-	const [refreshingCardId, setRefreshingCardId] = useState<string | null>(null);
 
 	const orderedCards = useMemo(
 		() =>
@@ -88,22 +86,6 @@ export function CardsPage({
 
 	const handleInvoice = (card: CreditCard) => {
 		router.push(`/cards/${card.id}/invoice`);
-	};
-
-	const handleRefreshData = async (card: CreditCard) => {
-		if (refreshingCardId) return;
-		setRefreshingCardId(card.id);
-		try {
-			const result = await refreshConnectionDataAction(card.id);
-			if (result.success) {
-				toast.success(result.message);
-				router.refresh();
-			} else {
-				toast.error(result.error);
-			}
-		} finally {
-			setRefreshingCardId(null);
-		}
 	};
 
 	const handleRemoveOpenChange = (open: boolean) => {
@@ -175,12 +157,10 @@ export function CardsPage({
 						note={card.note}
 						openFinanceEnabled={openFinanceEnabled}
 						openFinanceLinked={card.openFinance.connectionId !== null}
-						refreshingData={refreshingCardId === card.id}
 						onEdit={() => handleEdit(card)}
 						onInvoice={() => handleInvoice(card)}
 						onRemove={() => handleRemoveRequest(card)}
 						onOpenFinance={() => setOfCard(card)}
-						onRefreshData={() => handleRefreshData(card)}
 					/>
 				))}
 			</div>

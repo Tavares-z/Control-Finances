@@ -9,7 +9,6 @@ import {
 	RiDeleteBin5Line,
 	RiFileList2Line,
 	RiPencilLine,
-	RiRefreshLine,
 } from "@remixicon/react";
 import Image from "next/image";
 import MoneyValues from "@/shared/components/money-values";
@@ -53,14 +52,10 @@ interface CardItemProps {
 	openFinanceEnabled?: boolean;
 	/** True quando o cartão já está vinculado a uma conexão Open Finance. */
 	openFinanceLinked?: boolean;
-	/** True enquanto o pedido de atualização ao banco está em andamento. */
-	refreshingData?: boolean;
 	onEdit?: () => void;
 	onInvoice?: () => void;
 	onRemove?: () => void;
 	onOpenFinance?: () => void;
-	/** Aciona PATCH /items na Pluggy pra re-buscar dados do banco. */
-	onRefreshData?: () => void;
 }
 
 const formatDay = (value: string) => value.padStart(2, "0");
@@ -82,12 +77,10 @@ export function CardItem({
 	note,
 	openFinanceEnabled,
 	openFinanceLinked,
-	refreshingData,
 	onEdit,
 	onInvoice,
 	onRemove,
 	onOpenFinance,
-	onRefreshData,
 }: CardItemProps) {
 	void _accountName;
 
@@ -307,21 +300,6 @@ export function CardItem({
 								puxar fatura
 							</>
 						)}
-					</button>
-				) : null}
-				{openFinanceEnabled && openFinanceLinked ? (
-					<button
-						type="button"
-						onClick={onRefreshData}
-						disabled={refreshingData}
-						className="flex items-center gap-1 font-medium text-info transition-opacity hover:opacity-80 disabled:opacity-50"
-						aria-label="Pedir ao banco os dados mais recentes deste cartão"
-					>
-						<RiRefreshLine
-							className={cn("size-4", refreshingData && "animate-spin")}
-							aria-hidden
-						/>
-						{refreshingData ? "atualizando…" : "atualizar dados"}
 					</button>
 				) : null}
 			</CardFooter>

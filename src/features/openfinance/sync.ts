@@ -25,7 +25,7 @@ import { normalizeDescriptionKey } from "@/features/transactions/lib/import-util
 import { db } from "@/shared/lib/db";
 import { getAdminPayerId } from "@/shared/lib/payers/get-admin-id";
 import { getBusinessDateString } from "@/shared/utils/date";
-import { derivePeriodFromDate, getNextPeriod } from "@/shared/utils/period";
+import { derivePeriodFromDate } from "@/shared/utils/period";
 
 /**
  * Sincronização pura de UMA conexão Open Finance (Pluggy) → Inbox.
@@ -201,15 +201,17 @@ function installmentKey(
  * juntas num mês). Por isso o billForecast entra na cadeia de roteamento ENTRE o
  * billId (fatura fechada) e a heurística.
  *
- * O AGENTS.md diz "billForecastDate é irregular, NÃO usar" — isso valia para o
- * SANTANDER (vinha vazio). Para PARCELA PENDING do MP ele é a fonte correta; por isso
- * só é usado quando presente E bem-formado (aceita "YYYY-MM" ou "YYYY-MM-DD"), senão
- * cai na heurística. Retorna null quando ausente/malformado.
+ * ⚠️ Só é confiável para PARCELA FUTURA (installmentNumber >= 2) — ver o roteamento
+ * de período no loop. Para PENDING sem parcela (à vista/1ª parcela), o billForecast
+ * do Santander vem como o mês da COMPRA (não o do vencimento) e engana; nesses casos
+ * o roteamento usa a heurística deriveCreditCardPeriod, não esta função.
+ *
+ * Aceita "YYYY-MM" e "YYYY-MM-DD"; retorna null quando ausente/malformado. Retorna
+ * o mês CRU do forecast (sem ajuste de fechamento→vencimento): para a parcela futura
+ * do MP o forecast já é o mês de vencimento.
  */
 function periodFromForecast(
 	forecast: string | null | undefined,
-	closingDay?: string | null,
-	dueDay?: string | null,
 ): string | null {
 	if (!forecast) return null;
 	// Aceita "YYYY-MM" (formato observado) e "YYYY-MM-DD"; valida ano/mês.
@@ -217,28 +219,7 @@ function periodFromForecast(
 	if (!match) return null;
 	const month = Number.parseInt(match[2], 10);
 	if (month < 1 || month > 12) return null;
-	let period = `${match[1]}-${match[2]}`;
-
-	// ⚠️ O billForecastDate da Pluggy é o mês de FECHAMENTO da fatura. O app trata
-	// o período pelo mês de VENCIMENTO (é como o usuário lê a fatura no banco).
-	// Quando o cartão VENCE no mês SEGUINTE ao que fecha (dueDay < closingDay —
-	// ex.: Santander fecha 30, vence 07), o mês de vencimento é o próximo: +1.
-	// Quando fecha e vence no mesmo mês (dueDay >= closingDay — ex.: MP/Nubank
-	// fecham 05, vencem 10/12), o forecast JÁ é o mês de vencimento: sem ajuste.
-	// É a MESMA regra do deriveCreditCardPeriod, agora aplicada também aqui —
-	// antes o forecast era usado cru e jogava compras pós-fechamento na fatura
-	// que já tinha fechado (bug real: compra de 02/08 no Santander caía em
-	// 2026-08 em vez de 2026-09).
-	const closingDayNum = Number.parseInt(closingDay ?? "", 10);
-	const dueDayNum = Number.parseInt(dueDay ?? "", 10);
-	if (
-		!Number.isNaN(closingDayNum) &&
-		!Number.isNaN(dueDayNum) &&
-		dueDayNum < closingDayNum
-	) {
-		period = getNextPeriod(period);
-	}
-	return period;
+	return `${match[1]}-${match[2]}`;
 }
 
 /**
@@ -599,15 +580,30 @@ async function syncCardConnection(
 		//     1 mês — é o que espalha as parcelas pelos meses certos; sem isto todas
 		//     amontoam no mês da compra).
 		//  3. heurística deriveCreditCardPeriod(data-da-compra) — rede de segurança
-		//     quando não há billId nem forecast.
+		// Roteamento de período, em ordem de prioridade:
+		//  1. billId → dueDate do bill (fatura já FECHADA: fonte de verdade do
+		//     fechamento real do banco; POSTED).
+		//  2. billForecastDate SÓ para PARCELA FUTURA (installmentNumber >= 2): a
+		//     Pluggy entrega todas as parcelas de uma vez com a MESMA data de compra,
+		//     então a heurística (que usa a data) jogaria todas no mesmo mês. O
+		//     billForecast avança 1 mês por parcela e é a ÚNICA forma de espalhá-las
+		//     (confirmado no MP: 2/21→2026-09 … 21/21→2028-04). Usado CRU — para
+		//     essas parcelas o forecast já é o mês de vencimento.
+		//  3. heurística deriveCreditCardPeriod(dataDaCompra, fecha, vence) para todo
+		//     o resto (à vista, parcela 1/N, sem billId). ⚠️ Ela é SUPERIOR ao
+		//     billForecast aqui porque usa o DIA da compra vs o fechamento — o
+		//     billForecast de PENDING sem parcela (ex.: Santander) vem como o mês da
+		//     COMPRA, não o do vencimento, e enganava o roteamento (compra 31/07 pós-
+		//     fechamento caía em ago em vez de set). A heurística acerta esses casos.
 		const billId = tx.creditCardMetadata?.billId;
+		const forecastInstallment = tx.creditCardMetadata?.installmentNumber ?? null;
+		const isFutureInstallment =
+			forecastInstallment !== null && forecastInstallment >= 2;
 		const period =
 			(billId && billPeriodCache.get(billId)) ||
-			periodFromForecast(
-				tx.creditCardMetadata?.billForecastDate,
-				card.closingDay,
-				card.dueDay,
-			) ||
+			(isFutureInstallment
+				? periodFromForecast(tx.creditCardMetadata?.billForecastDate)
+				: null) ||
 			deriveCreditCardPeriod(localDay, card.closingDay, card.dueDay);
 		const cents = toCents(tx.amount);
 
