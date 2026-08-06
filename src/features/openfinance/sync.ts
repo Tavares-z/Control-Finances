@@ -111,6 +111,23 @@ function toBusinessDay(date: Date): string {
 	return getBusinessDateString(date);
 }
 
+/**
+ * Dia (YYYY-MM-DD) do campo `date` de uma transação Pluggy, por UTC-slice.
+ *
+ * ⚠️ O `date` do Open Finance é conceitualmente o DIA CONTÁBIL da transação — o
+ * mesmo que o banco põe na fatura — não um instante preciso. O horário costuma ser
+ * ruído: a Pluggy usa PLACEHOLDER de madrugada (ex.: estorno com `01:01:01Z`)
+ * quando não tem a hora real. Aplicar o fuso de SP (toBusinessDay) a esses
+ * timestamps de madrugada empurra a transação para o dia ANTERIOR (bug real: um
+ * estorno de 03/07 vinha `01:01:01Z` → SP 02/07 22h → exibido como 02/07, 1 dia
+ * atrás da fatura do banco). O UTC-slice devolve o dia que o banco usa, batendo com
+ * a fatura real — que é o ponto do Open Finance. Também remove a incoerência com
+ * `purchaseDayKey`, que a dedup Camada 2 já usa (UTC-slice) para casar o mesmo dia.
+ */
+function pluggyTxDay(isoDate: string): string {
+	return new Date(isoDate).toISOString().slice(0, 10);
+}
+
 /** |valor| em centavos inteiros — comparação de dinheiro sem float cru. */
 function toCents(value: number): number {
 	return Math.round(Math.abs(value) * 100);
@@ -163,6 +180,36 @@ function contentKey(
 	description: string,
 ): string {
 	return `${localDay}|${cents}|${description.trim()}`;
+}
+
+/**
+ * Valor EFETIVO da transação em BRL, preservando o sinal do `amount`.
+ *
+ * ⚠️ COMPRA EM MOEDA ESTRANGEIRA: a Pluggy manda `amount` na moeda ORIGINAL
+ * (ex.: 21.51 USD) e o valor já convertido em BRL em `amountInAccountCurrency`
+ * (114.29). Confirmado com dado real (Nubank: Anthropic 21.51 USD → 114.29 BRL;
+ * Railway 5 USD → 26.57 BRL). Sem converter, o sync gravava dólar como se fosse
+ * real e subestimava a fatura. O IOF vem como transação SEPARADA (não somamos).
+ * Usa o valor em BRL só quando a moeda não é BRL E a conversão existe; senão o
+ * `amount` cru (compra em BRL, o comum). O SINAL vem sempre do `amount` (compra
+ * vs pagamento) — `amountInAccountCurrency` entra como magnitude.
+ *
+ * Precisa ser reusado no prefetch de dedup (expenseKeys) E no loop, senão as
+ * chaves de conteúdo ficam em moedas diferentes e a dedup de crédito-contrapartida
+ * de compra estrangeira não casa.
+ */
+function effectiveAmountBRL(tx: {
+	amount: number;
+	currencyCode: string | null;
+	amountInAccountCurrency: number | null;
+}): number {
+	const isForeign =
+		tx.currencyCode != null &&
+		tx.currencyCode !== "BRL" &&
+		tx.amountInAccountCurrency != null;
+	return isForeign
+		? Math.sign(tx.amount) * Math.abs(tx.amountInAccountCurrency as number)
+		: tx.amount;
 }
 
 /**
@@ -494,8 +541,10 @@ async function syncCardConnection(
 	// antes da compra no array; sem isto, dependeria da ordem).
 	for (const tx of pluggyTransactions) {
 		if (tx.amount > 0) {
-			const localDay = toBusinessDay(new Date(tx.date));
-			const cents = toCents(tx.amount);
+			const localDay = pluggyTxDay(tx.date);
+			// Mesmo valor efetivo em BRL do loop — senão a chave de compra estrangeira
+			// ficaria em USD aqui e em BRL lá, e a dedup de contrapartida não casaria.
+			const cents = toCents(effectiveAmountBRL(tx));
 			const description = tx.description ?? MISSING_DESCRIPTION;
 			expenseKeys.add(contentKey(localDay, cents, description));
 		}
@@ -569,17 +618,11 @@ async function syncCardConnection(
 
 	for (const tx of pluggyTransactions) {
 		const description = tx.description ?? MISSING_DESCRIPTION;
-		// A Pluggy manda a data ISO UTC; derivamos o dia local (SP) e usamos ele
-		// como data de compra E como base do período de fatura.
-		const localDay = toBusinessDay(new Date(tx.date));
+		// Dia contábil do `date` da Pluggy por UTC-slice (ver pluggyTxDay): o mesmo
+		// dia que o banco põe na fatura, sem o deslocamento de fuso que placeholders
+		// de madrugada causavam. Usado como data de compra E base do período.
+		const localDay = pluggyTxDay(tx.date);
 		const purchaseDate = new Date(`${localDay}T12:00:00.000Z`);
-		// Roteamento de período, em ordem de prioridade:
-		//  1. billId → dueDate do bill (fatura já FECHADA: fonte de verdade do
-		//     fechamento real; POSTED).
-		//  2. billForecastDate (parcela FUTURA/PENDING sem billId: cada parcela avança
-		//     1 mês — é o que espalha as parcelas pelos meses certos; sem isto todas
-		//     amontoam no mês da compra).
-		//  3. heurística deriveCreditCardPeriod(data-da-compra) — rede de segurança
 		// Roteamento de período, em ordem de prioridade:
 		//  1. billId → dueDate do bill (fatura já FECHADA: fonte de verdade do
 		//     fechamento real do banco; POSTED).
@@ -605,7 +648,10 @@ async function syncCardConnection(
 				? periodFromForecast(tx.creditCardMetadata?.billForecastDate)
 				: null) ||
 			deriveCreditCardPeriod(localDay, card.closingDay, card.dueDay);
-		const cents = toCents(tx.amount);
+
+		// Valor efetivo em BRL (converte compra em moeda estrangeira; ver helper).
+		const effectiveAmount = effectiveAmountBRL(tx);
+		const cents = toCents(effectiveAmount);
 
 		// ⚠️ Convenção de sinal do CARTÃO de crédito na Pluggy é o OPOSTO da conta:
 		// amount POSITIVO = compra (despesa/dívida), NEGATIVO = pagamento/estorno
@@ -614,8 +660,9 @@ async function syncCardConnection(
 		// (não-confiável em cartão). Alinhamos à convenção do SISTEMA — igual ao
 		// import de OFX (import-action.ts): Despesa → amount NEGATIVO; Receita →
 		// amount POSITIVO. Derivamos o tipo e aplicamos o sinal coerente (não
-		// gravamos o sinal cru da Pluggy, que invertia tudo).
-		const isExpense = tx.amount > 0;
+		// gravamos o sinal cru da Pluggy, que invertia tudo). O sinal vem do `amount`
+		// original (mesmo em compra estrangeira — amountInAccountCurrency é magnitude).
+		const isExpense = effectiveAmount > 0;
 
 		// PAGAMENTO DE FATURA não é transação da fatura — é a quitação dela, e é
 		// ambíguo por Open Finance (pode quitar a anterior ou adiantar a atual, com
@@ -645,7 +692,9 @@ async function syncCardConnection(
 		}
 
 		const transactionType = isExpense ? "Despesa" : "Receita";
-		const signedAmount = isExpense ? -Math.abs(tx.amount) : Math.abs(tx.amount);
+		const signedAmount = isExpense
+			? -Math.abs(effectiveAmount)
+			: Math.abs(effectiveAmount);
 		const categoryId = mappings[normalizeDescriptionKey(description)] ?? null;
 
 		// Parcelamento: a Pluggy entrega parcela-a-parcela no mês certo (o `amount`
