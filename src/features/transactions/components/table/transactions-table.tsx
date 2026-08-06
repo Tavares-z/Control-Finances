@@ -69,6 +69,7 @@ type TransactionsTableProps = {
 	onCopy?: (item: TransactionItem) => void;
 	onImport?: (item: TransactionItem) => void;
 	onConfirmDelete?: (item: TransactionItem) => void;
+	onIgnoreSeries?: (item: TransactionItem) => void;
 	onBulkDelete?: (items: TransactionItem[]) => void;
 	onBulkImport?: (items: TransactionItem[]) => void;
 	onViewDetails?: (item: TransactionItem) => void;
@@ -101,6 +102,7 @@ export function TransactionsTable({
 	onCopy,
 	onImport,
 	onConfirmDelete,
+	onIgnoreSeries,
 	onBulkDelete,
 	onBulkImport,
 	onViewDetails,
@@ -140,6 +142,7 @@ export function TransactionsTable({
 				onCopy,
 				onImport,
 				onConfirmDelete,
+				onIgnoreSeries,
 				onViewDetails,
 				onRefund,
 				onConvertToInstallment,
@@ -161,6 +164,7 @@ export function TransactionsTable({
 			onCopy,
 			onImport,
 			onConfirmDelete,
+			onIgnoreSeries,
 			onViewDetails,
 			onRefund,
 			onConvertToInstallment,
@@ -419,6 +423,7 @@ export function TransactionsTable({
 								onCopy={onCopy}
 								onImport={onImport}
 								onConfirmDelete={onConfirmDelete}
+								onIgnoreSeries={onIgnoreSeries}
 								onViewDetails={onViewDetails}
 								onRefund={onRefund}
 								onToggleSettlement={onToggleSettlement}

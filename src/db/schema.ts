@@ -1347,6 +1347,55 @@ export const openFinanceCardNames = pgTable(
 
 export type OpenFinanceCardName = typeof openFinanceCardNames.$inferSelect;
 
+/**
+ * Séries do Open Finance que o usuário BANIU (compras fantasma que a Pluggy traz
+ * como POSTED válidas mas que foram canceladas no lojista e nunca estornadas —
+ * confirmado que a Pluggy NÃO sinaliza cancelamento em nenhum campo, então só o
+ * usuário sabe). Ao excluir uma parcela de OF na lista, a série inteira é banida e
+ * o sync nunca mais reinsere transações que casem a chave.
+ *
+ * Chave da série = (userId, cardId, descrição, totalParcelas). Estável entre
+ * parcelas e no pending→posted (que troca o ofxFitId). Para compra À VISTA
+ * (sem parcela), installmentCount é null e a chave usa o valor no lugar (amountKey
+ * = |centavos|); para parcelada, amountKey é null. A distinção entre os dois casos
+ * evita banir por valor uma série cujas parcelas têm valores diferentes (visto real:
+ * 1ª parcela 25,04, demais 24,98).
+ */
+export const openFinanceIgnoredSeries = pgTable(
+	"openfinance_ignored_series",
+	{
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		cardId: uuid("cartao_id")
+			.notNull()
+			.references(() => cards.id, { onDelete: "cascade" }),
+		description: text("descricao").notNull(),
+		// Total de parcelas da série (NULL = compra à vista, casada por valor).
+		installmentCount: smallint("qtde_parcela"),
+		// |centavos| — só para compra à vista (installmentCount NULL); NULL p/ parcelada.
+		amountKey: integer("amount_key"),
+		createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
+			.notNull()
+			.defaultNow(),
+	},
+	(table) => ({
+		// Uma série é única por (user, cartão, descrição, total, valor). COALESCE nos
+		// nullables para o índice tratar NULL como um valor concreto e não permitir
+		// duplicatas "invisíveis".
+		uniq: uniqueIndex("openfinance_ignored_series_key").on(
+			table.userId,
+			table.cardId,
+			table.description,
+			sql`coalesce(${table.installmentCount}, -1)`,
+			sql`coalesce(${table.amountKey}, -1)`,
+		),
+	}),
+);
+
+export type OpenFinanceIgnoredSeries =
+	typeof openFinanceIgnoredSeries.$inferSelect;
+
 export type User = typeof user.$inferSelect;
 export type NewUser = typeof user.$inferInsert;
 export type Account = typeof account.$inferSelect;

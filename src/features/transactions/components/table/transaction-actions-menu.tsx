@@ -3,6 +3,7 @@
 import {
 	RiCheckLine,
 	RiDeleteBin5Line,
+	RiEyeOffLine,
 	RiFileCopyLine,
 	RiFileList2Line,
 	RiHistoryLine,
@@ -37,6 +38,7 @@ type TransactionActionsMenuProps = {
 	onViewAnticipationHistory?: (item: TransactionItem) => void;
 	onConvertToInstallment?: (item: TransactionItem) => void;
 	onConvertToRecurring?: (item: TransactionItem) => void;
+	onIgnoreSeries?: (item: TransactionItem) => void;
 };
 
 export function TransactionActionsMenu({
@@ -52,8 +54,17 @@ export function TransactionActionsMenu({
 	onViewAnticipationHistory,
 	onConvertToInstallment,
 	onConvertToRecurring,
+	onIgnoreSeries,
 }: TransactionActionsMenuProps) {
 	const isOwnData = item.userId === currentUserId;
+	// "Ignorar compra": só para lançamento do Open Finance (tem ofxFitId) num cartão.
+	// É a via de banir uma compra FANTASMA (cancelada no lojista, que a Pluggy traz
+	// como válida e o sync reinsere). Bane a série e impede o retorno.
+	const canIgnoreSeries =
+		isOwnData &&
+		Boolean(item.ofxFitId) &&
+		Boolean(item.cardId) &&
+		Boolean(onIgnoreSeries);
 	const canRefund =
 		isOwnData &&
 		item.transactionType === "Despesa" &&
@@ -158,6 +169,16 @@ export function TransactionActionsMenu({
 					>
 						<RiDeleteBin5Line className="size-4" aria-hidden />
 						Remover
+					</DropdownMenuItem>
+				) : null}
+
+				{canIgnoreSeries ? (
+					<DropdownMenuItem
+						variant="destructive"
+						onSelect={() => onIgnoreSeries?.(item)}
+					>
+						<RiEyeOffLine className="size-4" aria-hidden />
+						Ignorar compra
 					</DropdownMenuItem>
 				) : null}
 

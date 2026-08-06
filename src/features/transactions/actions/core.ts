@@ -512,6 +512,11 @@ export const updateSchema = baseFields
 
 export const deleteSchema = z.object({
 	id: uuidSchema("Lançamento"),
+	// Quando true e a transação é do Open Finance (tem ofxFitId + cartão), bane a
+	// SÉRIE inteira (compra fantasma cancelada no lojista que a Pluggy insiste em
+	// trazer) — apaga as parcelas irmãs e impede o sync de reinserir. Ver
+	// ignored-series.ts. Default false = exclusão normal só desta transação.
+	banSeries: z.boolean().optional(),
 });
 
 export const toggleSettlementSchema = z.object({

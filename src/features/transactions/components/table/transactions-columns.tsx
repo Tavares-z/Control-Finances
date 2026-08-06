@@ -43,6 +43,7 @@ type BuildColumnsArgs = {
 	onCopy?: (item: TransactionItem) => void;
 	onImport?: (item: TransactionItem) => void;
 	onConfirmDelete?: (item: TransactionItem) => void;
+	onIgnoreSeries?: (item: TransactionItem) => void;
 	onViewDetails?: (item: TransactionItem) => void;
 	onRefund?: (item: TransactionItem) => void;
 	onToggleSettlement?: (item: TransactionItem) => void;
@@ -108,6 +109,7 @@ function buildColumns({
 	onCopy,
 	onImport,
 	onConfirmDelete,
+	onIgnoreSeries,
 	onViewDetails,
 	onRefund,
 	onToggleSettlement,
@@ -124,6 +126,7 @@ function buildColumns({
 	const handleCopy = onCopy ?? noop;
 	const handleImport = onImport ?? noop;
 	const handleConfirmDelete = onConfirmDelete ?? noop;
+	const handleIgnoreSeries = onIgnoreSeries ?? noop;
 	const handleViewDetails = onViewDetails ?? noop;
 	const handleRefund = onRefund ?? noop;
 	const handleToggleSettlement = onToggleSettlement ?? noop;
@@ -564,6 +567,7 @@ function buildColumns({
 						onCopy={handleCopy}
 						onImport={handleImport}
 						onConfirmDelete={handleConfirmDelete}
+						onIgnoreSeries={handleIgnoreSeries}
 						onViewDetails={handleViewDetails}
 						onRefund={handleRefund}
 						onAnticipate={handleAnticipate}

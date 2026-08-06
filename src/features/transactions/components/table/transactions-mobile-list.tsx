@@ -35,6 +35,7 @@ type TransactionsMobileListProps = {
 	onCopy?: (item: TransactionItem) => void;
 	onImport?: (item: TransactionItem) => void;
 	onConfirmDelete?: (item: TransactionItem) => void;
+	onIgnoreSeries?: (item: TransactionItem) => void;
 	onViewDetails?: (item: TransactionItem) => void;
 	onRefund?: (item: TransactionItem) => void;
 	onToggleSettlement?: (item: TransactionItem) => void;
@@ -54,6 +55,7 @@ export function TransactionsMobileList({
 	onCopy,
 	onImport,
 	onConfirmDelete,
+	onIgnoreSeries,
 	onViewDetails,
 	onRefund,
 	onToggleSettlement,
@@ -95,6 +97,7 @@ export function TransactionsMobileList({
 						onCopy={onCopy}
 						onImport={onImport}
 						onConfirmDelete={onConfirmDelete}
+						onIgnoreSeries={onIgnoreSeries}
 						onViewDetails={onViewDetails}
 						onRefund={onRefund}
 						onToggleSettlement={onToggleSettlement}
@@ -131,6 +134,7 @@ export function TransactionsMobileList({
 								onCopy={onCopy}
 								onImport={onImport}
 								onConfirmDelete={onConfirmDelete}
+								onIgnoreSeries={onIgnoreSeries}
 								onViewDetails={onViewDetails}
 								onRefund={onRefund}
 								onToggleSettlement={onToggleSettlement}
@@ -161,6 +165,7 @@ function TransactionMobileCard({
 	onCopy,
 	onImport,
 	onConfirmDelete,
+	onIgnoreSeries,
 	onViewDetails,
 	onRefund,
 	onToggleSettlement,
@@ -332,6 +337,7 @@ function TransactionMobileCard({
 									onCopy={onCopy}
 									onImport={onImport}
 									onConfirmDelete={onConfirmDelete}
+									onIgnoreSeries={onIgnoreSeries}
 									onViewDetails={onViewDetails}
 									onRefund={onRefund}
 									onAnticipate={onAnticipate}

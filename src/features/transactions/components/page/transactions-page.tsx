@@ -148,6 +148,9 @@ export function TransactionsPage({
 	const [deleteOpen, setDeleteOpen] = useState(false);
 	const [transactionToDelete, setTransactionToDelete] =
 		useState<TransactionItem | null>(null);
+	const [ignoreOpen, setIgnoreOpen] = useState(false);
+	const [transactionToIgnore, setTransactionToIgnore] =
+		useState<TransactionItem | null>(null);
 	const [detailsOpen, setDetailsOpen] = useState(false);
 	const [settlementLoadingId, setSettlementLoadingId] = useState<string | null>(
 		null,
@@ -285,6 +288,31 @@ export function TransactionsPage({
 
 		toast.success(result.message);
 		setDeleteOpen(false);
+	};
+
+	const handleIgnoreSeries = (item: TransactionItem) => {
+		setTransactionToIgnore(item);
+		setIgnoreOpen(true);
+	};
+
+	const handleConfirmIgnore = async () => {
+		if (!transactionToIgnore) {
+			return;
+		}
+
+		const result = await deleteTransactionAction({
+			id: transactionToIgnore.id,
+			banSeries: true,
+		});
+
+		if (!result.success) {
+			toast.error(result.error);
+			throw new Error(result.error);
+		}
+
+		toast.success(result.message);
+		setIgnoreOpen(false);
+		setTransactionToIgnore(null);
 	};
 
 	const handleBulkDelete = async (scope: BulkActionScope) => {
@@ -766,6 +794,7 @@ export function TransactionsPage({
 				onRefund={handleRefund}
 				onConvertToInstallment={handleConvertToInstallment}
 				onConvertToRecurring={handleConvertToRecurring}
+				onIgnoreSeries={handleIgnoreSeries}
 				onToggleSettlement={handleToggleSettlement}
 				onAnticipate={handleAnticipate}
 				onViewAnticipationHistory={handleViewAnticipationHistory}
@@ -885,6 +914,22 @@ export function TransactionsPage({
 				confirmVariant="destructive"
 				onConfirm={handleDelete}
 				disabled={!transactionToDelete}
+			/>
+
+			<ConfirmActionDialog
+				open={ignoreOpen && !!transactionToIgnore}
+				onOpenChange={setIgnoreOpen}
+				title={
+					transactionToIgnore
+						? `Ignorar "${transactionToIgnore.name}"?`
+						: "Ignorar compra?"
+				}
+				description="Use para uma compra que foi cancelada mas o banco insiste em enviar pelo Open Finance. Remove esta e as demais parcelas dela, e impede que o Open Finance a traga de volta nas próximas sincronizações. Vale só para esta compra, neste cartão."
+				confirmLabel="Ignorar compra"
+				pendingLabel="Ignorando..."
+				confirmVariant="destructive"
+				onConfirm={handleConfirmIgnore}
+				disabled={!transactionToIgnore}
 			/>
 
 			<Dialog

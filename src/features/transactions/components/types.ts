@@ -36,6 +36,8 @@ export type TransactionItem = {
 	splitGroupId: string | null;
 	hasAttachments: boolean;
 	readonly?: boolean;
+	/** Id externo do Open Finance/OFX. Presente = veio do sync/import. */
+	ofxFitId: string | null;
 };
 
 export type SelectOption = {

@@ -9,6 +9,10 @@ import {
 	transactions,
 } from "@/db/schema";
 import {
+	loadIgnoredSeriesKeys,
+	serializeSeriesKey,
+} from "@/features/openfinance/lib/ignored-series";
+import {
 	getBill,
 	getItem,
 	listAccounts,
@@ -202,7 +206,9 @@ function installmentKey(
  * só é usado quando presente E bem-formado (aceita "YYYY-MM" ou "YYYY-MM-DD"), senão
  * cai na heurística. Retorna null quando ausente/malformado.
  */
-function periodFromForecast(forecast: string | null | undefined): string | null {
+function periodFromForecast(
+	forecast: string | null | undefined,
+): string | null {
 	if (!forecast) return null;
 	// Aceita "YYYY-MM" (formato observado) e "YYYY-MM-DD"; valida ano/mês.
 	const match = /^(\d{4})-(\d{2})(?:-\d{2})?/.exec(forecast);
@@ -491,6 +497,12 @@ async function syncCardConnection(
 		}
 	}
 
+	// Séries BANIDAS deste cartão: compras fantasma (canceladas no lojista, que a
+	// Pluggy traz como POSTED válidas — não sinaliza cancelamento em campo nenhum).
+	// O usuário baniu via "ignorar" na lista; aqui o sync as pula para nunca
+	// reinserir. Carregado uma vez em Set para lookup O(1) no loop.
+	const ignoredSeries = await loadIgnoredSeriesKeys(connection.userId, cardId);
+
 	// Categorização: histórico exato (descrição → categoria). Sem match → null.
 	// NÃO reusar fetchCategoryMappings (transactions/actions): ela resolve o userId
 	// via getUserId()→headers(), que só existe dentro de um request HTTP — o sync
@@ -549,6 +561,7 @@ async function syncCardConnection(
 	let alreadyExisted = 0;
 	let skippedPayments = 0; // pagamentos de fatura ignorados (não são compra/estorno)
 	let skippedCreditDuplicates = 0; // créditos-contrapartida de compra (não abatem)
+	let skippedIgnoredSeries = 0; // séries banidas pelo usuário (compra fantasma)
 
 	for (const tx of pluggyTransactions) {
 		const description = tx.description ?? MISSING_DESCRIPTION;
@@ -600,7 +613,10 @@ async function syncCardConnection(
 		// não tem compra-par de mesmo valor/descrição/dia → não está em expenseKeys →
 		// segue entrando e abatendo. Independe de ordem (expenseKeys já inclui as
 		// compras do próprio lote). Ver o prefetch acima.
-		if (!isExpense && expenseKeys.has(contentKey(localDay, cents, description))) {
+		if (
+			!isExpense &&
+			expenseKeys.has(contentKey(localDay, cents, description))
+		) {
 			skippedCreditDuplicates += 1;
 			continue;
 		}
@@ -619,6 +635,21 @@ async function syncCardConnection(
 		const installmentNumber = meta?.installmentNumber ?? null;
 		const isInstallment =
 			isExpense && totalInstallments !== null && totalInstallments >= 2;
+
+		// SÉRIE BANIDA: o usuário marcou esta compra como fantasma (cancelada no
+		// lojista). A chave usa os MESMOS critérios de seriesKeyFromTransaction
+		// (parcelada → por total; à vista → por valor), então casa o que foi banido
+		// pelo delete. Pula sem inserir — nunca reaparece no sync.
+		const seriesKey = serializeSeriesKey({
+			cardId,
+			description,
+			installmentCount: isInstallment ? totalInstallments : null,
+			amountKey: isInstallment ? null : cents,
+		});
+		if (ignoredSeries.has(seriesKey)) {
+			skippedIgnoredSeries += 1;
+			continue;
+		}
 
 		// DUPLICATA REAL: a MESMA transação (incl. o número da parcela) já existe.
 		// Acontece quando pending→posted troca o id externo (a Camada 1 por ofxFitId
@@ -709,13 +740,15 @@ async function syncCardConnection(
 	if (
 		skippedPayments > 0 ||
 		skippedCreditDuplicates > 0 ||
-		duplicateFlagged > 0
+		duplicateFlagged > 0 ||
+		skippedIgnoredSeries > 0
 	) {
 		console.info("[syncCardConnection] lançamentos ignorados", {
 			connectionId: connection.id,
 			skippedPayments, // pagamentos de fatura (nome casa INVOICE_PAYMENT_TERMS)
 			skippedCreditDuplicates, // crédito-contrapartida de compra (não abate)
 			duplicateSuppressed: duplicateFlagged, // duplicata real (mesma parcela)
+			skippedIgnoredSeries, // série banida pelo usuário (compra fantasma)
 		});
 	}
 

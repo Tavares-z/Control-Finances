@@ -8,6 +8,10 @@ import {
 	transactionAttachments,
 	transactions,
 } from "@/db/schema";
+import {
+	banSeriesAndDeleteMatches,
+	seriesKeyFromTransaction,
+} from "@/features/openfinance/lib/ignored-series";
 import { ACCOUNT_AUTO_INVOICE_NOTE_PREFIX } from "@/shared/lib/accounts/constants";
 import { handleActionError } from "@/shared/lib/actions/helpers";
 import { getUser } from "@/shared/lib/auth/server";
@@ -390,6 +394,9 @@ export async function deleteTransactionAction(
 				period: true,
 				note: true,
 				categoryId: true,
+				cardId: true,
+				ofxFitId: true,
+				installmentCount: true,
 			},
 			where: and(
 				eq(transactions.id, data.id),
@@ -408,6 +415,9 @@ export async function deleteTransactionAction(
 					period: string;
 					note: string | null;
 					categoryId: string | null;
+					cardId: string | null;
+					ofxFitId: string | null;
+					installmentCount: number | null;
 			  }
 			| undefined;
 
@@ -420,6 +430,30 @@ export async function deleteTransactionAction(
 				success: false,
 				error: "Pagamentos automáticos de fatura não podem ser removidos.",
 			};
+		}
+
+		// Banir série do Open Finance: só quando o usuário pediu (banSeries) E a
+		// transação é do OF (ofxFitId) num cartão. Bane a série (compra fantasma
+		// cancelada no lojista, que a Pluggy traz como válida) e apaga as parcelas
+		// irmãs de uma vez; o sync nunca mais reinsere. Curto-circuita o fluxo normal.
+		if (data.banSeries && existing.ofxFitId && existing.cardId) {
+			const key = seriesKeyFromTransaction({
+				cardId: existing.cardId,
+				name: existing.name ?? "",
+				installmentCount: existing.installmentCount,
+				amount: Number.parseFloat(existing.amount ?? "0"),
+			});
+			if (key) {
+				const removed = await banSeriesAndDeleteMatches(user.id, key);
+				revalidate(user.id);
+				return {
+					success: true,
+					message:
+						removed > 1
+							? `Compra ignorada: ${removed} lançamentos removidos e não voltarão no sync.`
+							: "Compra ignorada e removida; não voltará no sync.",
+				};
+			}
 		}
 
 		if (isInitialBalanceTransaction(existing)) {
