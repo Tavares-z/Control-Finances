@@ -1,6 +1,12 @@
 "use client";
 
-import { RiEditLine, RiEqualizerLine, RiHandCoinLine } from "@remixicon/react";
+import {
+	RiEditLine,
+	RiEqualizerLine,
+	RiHandCoinLine,
+	RiLockLine,
+	RiLockUnlockLine,
+} from "@remixicon/react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
@@ -37,6 +43,7 @@ import {
 } from "@/shared/components/ui/select";
 import { resolveCardBrandAsset } from "@/shared/lib/cards/brand-assets";
 import {
+	getInvoiceCycleStatus,
 	INVOICE_PAYMENT_STATUS,
 	INVOICE_STATUS_BADGE_VARIANT,
 	INVOICE_STATUS_DESCRIPTION,
@@ -147,6 +154,8 @@ export function InvoiceSummaryCard({
 	const logoPath = resolveLogoSrc(logo);
 	const brandAsset = resolveCardBrandAsset(cardBrand);
 	const isPaid = invoiceStatus === INVOICE_PAYMENT_STATUS.PAID;
+	const cycleStatus = getInvoiceCycleStatus(period, closingDay, dueDay);
+	const isClosed = cycleStatus === "fechada";
 	const paymentDateLabel = isPaid ? formatPaymentDate(paymentDate) : null;
 	const advancedAmount = advances.reduce(
 		(total, advance) => total + advance.amount,
@@ -284,6 +293,22 @@ export function InvoiceSummaryCard({
 								className="text-xs"
 							>
 								{INVOICE_STATUS_LABEL[invoiceStatus]}
+							</Badge>
+							<Badge
+								variant={isClosed ? "secondary" : "outline"}
+								className="text-xs"
+							>
+								{isClosed ? (
+									<>
+										<RiLockLine className="size-3" aria-hidden />
+										Fechada
+									</>
+								) : (
+									<>
+										<RiLockUnlockLine className="size-3" aria-hidden />
+										Aberta
+									</>
+								)}
 							</Badge>
 							{cardStatus ? (
 								<div className="flex items-center gap-1.5 text-xs text-muted-foreground">

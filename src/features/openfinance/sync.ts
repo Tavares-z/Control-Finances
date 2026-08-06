@@ -25,7 +25,7 @@ import { normalizeDescriptionKey } from "@/features/transactions/lib/import-util
 import { db } from "@/shared/lib/db";
 import { getAdminPayerId } from "@/shared/lib/payers/get-admin-id";
 import { getBusinessDateString } from "@/shared/utils/date";
-import { derivePeriodFromDate } from "@/shared/utils/period";
+import { derivePeriodFromDate, getNextPeriod } from "@/shared/utils/period";
 
 /**
  * Sincronização pura de UMA conexão Open Finance (Pluggy) → Inbox.
@@ -208,6 +208,8 @@ function installmentKey(
  */
 function periodFromForecast(
 	forecast: string | null | undefined,
+	closingDay?: string | null,
+	dueDay?: string | null,
 ): string | null {
 	if (!forecast) return null;
 	// Aceita "YYYY-MM" (formato observado) e "YYYY-MM-DD"; valida ano/mês.
@@ -215,7 +217,28 @@ function periodFromForecast(
 	if (!match) return null;
 	const month = Number.parseInt(match[2], 10);
 	if (month < 1 || month > 12) return null;
-	return `${match[1]}-${match[2]}`;
+	let period = `${match[1]}-${match[2]}`;
+
+	// ⚠️ O billForecastDate da Pluggy é o mês de FECHAMENTO da fatura. O app trata
+	// o período pelo mês de VENCIMENTO (é como o usuário lê a fatura no banco).
+	// Quando o cartão VENCE no mês SEGUINTE ao que fecha (dueDay < closingDay —
+	// ex.: Santander fecha 30, vence 07), o mês de vencimento é o próximo: +1.
+	// Quando fecha e vence no mesmo mês (dueDay >= closingDay — ex.: MP/Nubank
+	// fecham 05, vencem 10/12), o forecast JÁ é o mês de vencimento: sem ajuste.
+	// É a MESMA regra do deriveCreditCardPeriod, agora aplicada também aqui —
+	// antes o forecast era usado cru e jogava compras pós-fechamento na fatura
+	// que já tinha fechado (bug real: compra de 02/08 no Santander caía em
+	// 2026-08 em vez de 2026-09).
+	const closingDayNum = Number.parseInt(closingDay ?? "", 10);
+	const dueDayNum = Number.parseInt(dueDay ?? "", 10);
+	if (
+		!Number.isNaN(closingDayNum) &&
+		!Number.isNaN(dueDayNum) &&
+		dueDayNum < closingDayNum
+	) {
+		period = getNextPeriod(period);
+	}
+	return period;
 }
 
 /**
@@ -580,7 +603,11 @@ async function syncCardConnection(
 		const billId = tx.creditCardMetadata?.billId;
 		const period =
 			(billId && billPeriodCache.get(billId)) ||
-			periodFromForecast(tx.creditCardMetadata?.billForecastDate) ||
+			periodFromForecast(
+				tx.creditCardMetadata?.billForecastDate,
+				card.closingDay,
+				card.dueDay,
+			) ||
 			deriveCreditCardPeriod(localDay, card.closingDay, card.dueDay);
 		const cents = toCents(tx.amount);
 
