@@ -47,16 +47,18 @@ import { derivePeriodFromDate } from "@/shared/utils/period";
 const SOURCE_APP = "openfinance";
 const THROTTLE_MS = 60 * 60 * 1000; // 1h
 const BACKFILL_DAYS = 90; // primeiro sync
-// Overlap dos syncs seguintes ao 1º. Filtramos a Pluggy por `createdAtFrom`, que
-// é a data de CRIAÇÃO do registro na Pluggy (não a data da transação) — e a Pluggy
-// pode criar/re-criar histórico em LOTE dias depois do vínculo (item recém-conectado
-// popula aos poucos; pending→posted troca id e createdAt). Uma janela de 24h assume
-// "só chega o criado nas últimas 24h" e PERDE o histórico criado antes do último
-// last_synced_at (bug real: Nubank/MP puxaram só 1-2 de 440/310 tx — todo o histórico
-// tinha createdAt 26/07–03/08, mas o last_synced_at foi carimbado em 04/08). 7 dias
-// cobrem o atraso de criação com folga; o dedup de 2 camadas absorve a sobreposição
-// (Camada 1 = onConflictDoNothing por id externo → nada duplica).
-const OVERLAP_DAYS = 7;
+// ⚠️ Janela de sync filtra pela DATA DA COMPRA (`dateFrom` do /v2/transactions),
+// NÃO pela data de importação (`createdAtFrom`). Motivo (prova empírica ago/2026,
+// ver listTransactions em pluggy-client.ts): a Pluggy carimba `createdAt` no dia da
+// conexão e NÃO atualiza — então filtrar o incremental por `createdAtFrom = ontem`
+// retornava VAZIO mesmo com compras/parcelas novas na fatura, e a fatura "congelava"
+// no que veio no backfill (bug real: parcelas do MP 13,03/16,01 POSTED na Pluggy
+// nunca entravam). Filtrando por `dateFrom`, o incremental re-varre uma janela de
+// datas de compra e pega o que apareceu/mudou (pending→posted, parcela ganhando
+// billId). O dedup de 2 camadas absorve a sobreposição (Camada 1 = onConflictDoNothing
+// por id externo → nada duplica). A janela incremental re-varre INCREMENTAL_WINDOW_DAYS
+// para cobrir um ciclo de fatura inteiro + atraso de lançamento do banco.
+const INCREMENTAL_WINDOW_DAYS = 45;
 const DUPLICATE_PREFIX = "[possível duplicata] ";
 const MISSING_DESCRIPTION = "(sem descrição)";
 
@@ -425,17 +427,17 @@ async function syncCardConnection(
 		};
 	}
 
-	// Janela de busca: backfill 90d no 1º sync, senão último sync − OVERLAP_DAYS.
-	const fromDate = lastSyncedAt
-		? new Date(lastSyncedAt.getTime() - OVERLAP_DAYS * 24 * 60 * 60 * 1000)
-		: new Date(Date.now() - BACKFILL_DAYS * 24 * 60 * 60 * 1000);
-	const createdAtFrom = toBusinessDay(fromDate);
+	// Janela de busca por DATA DA COMPRA (`dateFrom`): backfill 90d no 1º sync,
+	// senão re-varre os últimos INCREMENTAL_WINDOW_DAYS (ver comentário das constantes).
+	const windowDays = lastSyncedAt ? INCREMENTAL_WINDOW_DAYS : BACKFILL_DAYS;
+	const fromDate = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+	const dateFrom = toBusinessDay(fromDate);
 
 	// Busca as transações da account CREDIT vinculada.
 	let pluggyTransactions: PluggyTransaction[];
 	let next: unknown;
 	try {
-		const page = await listTransactions(pluggyAccountId, { createdAtFrom });
+		const page = await listTransactions(pluggyAccountId, { dateFrom });
 		pluggyTransactions = page.results;
 		next = page.next;
 	} catch (error) {
@@ -890,20 +892,19 @@ export async function syncOpenFinanceConnection(
 		return { status: "throttled", ...empty, message: "Sincronizado há < 1h." };
 	}
 
-	// 3. Janela de busca. Primeiro sync = backfill 90d; seguintes = último sync
-	//    − OVERLAP_DAYS (ver comentário da constante — 24h perdia histórico criado
-	//    em lote pela Pluggy dias depois do vínculo).
-	const fromDate = lastSyncedAt
-		? new Date(lastSyncedAt.getTime() - OVERLAP_DAYS * 24 * 60 * 60 * 1000)
-		: new Date(Date.now() - BACKFILL_DAYS * 24 * 60 * 60 * 1000);
-	const createdAtFrom = toBusinessDay(fromDate);
+	// 3. Janela de busca por DATA DA COMPRA (`dateFrom`). Primeiro sync = backfill
+	//    90d; seguintes re-varrem os últimos INCREMENTAL_WINDOW_DAYS (ver comentário
+	//    das constantes — `createdAtFrom` congelava o incremental).
+	const windowDays = lastSyncedAt ? INCREMENTAL_WINDOW_DAYS : BACKFILL_DAYS;
+	const fromDate = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+	const dateFrom = toBusinessDay(fromDate);
 
 	// 4. Busca só a account vinculada (o pluggyAccountId já é a conta-corrente).
 	let transactions: PluggyTransaction[];
 	let next: unknown;
 	try {
 		const page = await listTransactions(connection.pluggyAccountId, {
-			createdAtFrom,
+			dateFrom,
 		});
 		transactions = page.results;
 		next = page.next;

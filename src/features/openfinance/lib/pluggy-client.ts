@@ -457,16 +457,31 @@ export async function listAccounts(itemId: string): Promise<PluggyAccount[]> {
  * Retorna o envelope cru `{ results, next }` — o `next` é exposto sem
  * tratamento (ver SANDBOX-SHAPE.md §c: mecanismo de continuação não verificado).
  *
- * @param accountId    account Pluggy (obrigatório).
- * @param createdAtFrom filtro opcional (aceito pela API: `createdAtFrom`).
+ * ⚠️ Filtros de data do v2 (confirmados no SDK oficial `pluggy-node`
+ * TransactionCursorFilters + prova empírica contra a API real, ago/2026):
+ * - `dateFrom`/`dateTo` filtram pela DATA DA TRANSAÇÃO (data da compra) — é o que
+ *   o sync precisa para pegar compras novas cujo período interessa.
+ * - `createdAtFrom` filtra pela data em que a PLUGGY IMPORTOU a transação, que ela
+ *   carimba no dia da conexão e NÃO atualiza depois. Usá-lo numa janela incremental
+ *   (`createdAtFrom = ontem`) retorna VAZIO mesmo havendo compras novas, porque
+ *   nenhum registro ganha `createdAt` novo — foi o bug que "congelava" a fatura.
+ *   NÃO usar `createdAtFrom` para janela incremental de sync.
+ * - `from`/`to` (estilo v1) NÃO existem no v2 — a API responde HTTP 400
+ *   ("property from should not exist").
+ *
+ * @param accountId account Pluggy (obrigatório).
+ * @param options   filtros opcionais por DATA DA COMPRA (`dateFrom`/`dateTo`).
  */
 export async function listTransactions(
   accountId: string,
-  options?: { createdAtFrom?: string },
+  options?: { dateFrom?: string; dateTo?: string },
 ): Promise<PluggyTransactionsPage> {
   const query = new URLSearchParams({ accountId });
-  if (options?.createdAtFrom) {
-    query.set("createdAtFrom", options.createdAtFrom);
+  if (options?.dateFrom) {
+    query.set("dateFrom", options.dateFrom);
+  }
+  if (options?.dateTo) {
+    query.set("dateTo", options.dateTo);
   }
   return pluggyGet<PluggyTransactionsPage>(
     `/v2/transactions?${query.toString()}`,
