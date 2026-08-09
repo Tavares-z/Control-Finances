@@ -670,6 +670,13 @@ async function syncCardConnection(
 		firstForecast: string | null; // billForecastDate da menor parcela vista (base do período)
 		firstInstallment: number | null; // menor installmentNumber visto (base do forecast)
 		categoryId: string | null; // categoria de amostra (p/ projeção)
+		// ⚠️ Números de parcela que a PLUGGY JÁ MANDOU neste lote (POSTED ou PENDING).
+		// A projeção SÓ cria parcelas que NÃO estão aqui — se a Pluggy já entregou a
+		// parcela, ela é real, não se projeta. Sem isto, uma série que a Pluggy já
+		// entregou COMPLETA (ex.: Wolf Attack 10/10, todas POSTED com forecast achatado
+		// em 2026-02) era reprojetada em meses futuros inventados (2026-08/09), dobrando
+		// parcelas já pagas na fatura. Bug real do Nubank.
+		seenInstallments: Set<number>;
 	}
 	const anchorGroups = new Map<string, AnchorGroup>();
 	for (const tx of pluggyTransactions) {
@@ -692,9 +699,11 @@ async function syncCardConnection(
 				firstForecast: meta?.billForecastDate ?? null,
 				firstInstallment: inst,
 				categoryId: null, // preenchido após mappings existir (abaixo)
+				seenInstallments: inst != null ? new Set([inst]) : new Set(),
 			});
 		} else {
 			existingGroup.canceled ||= isCanceledInstallment(tx);
+			if (inst != null) existingGroup.seenInstallments.add(inst);
 			// Valor da parcela = a de MAIOR número vista (a 1ª às vezes é arredondada).
 			if (
 				tx.amount > 0 &&
@@ -1070,6 +1079,12 @@ async function syncCardConnection(
 		if (!baseForecast) continue;
 
 		for (let k = 1; k <= group.total; k += 1) {
+			// ⚠️ Trava PRINCIPAL: a Pluggy JÁ mandou esta parcela no lote (POSTED/PENDING)
+			// → ela é REAL, não se projeta. Sem isto, uma série que a Pluggy entregou
+			// completa (Wolf Attack 10/10) era reprojetada em meses inventados por causa
+			// do forecast achatado do Nubank (todas as parcelas com forecast 2026-02).
+			// Só projeta o que GENUINAMENTE falta no lote.
+			if (group.seenInstallments.has(k)) continue;
 			const instKey = anchorInstKey(group.anchor, k);
 			// Já existe (real materializada OU projeção viva) → não recria.
 			if (realAnchorInst.has(instKey)) continue;
