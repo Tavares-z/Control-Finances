@@ -179,6 +179,7 @@ function buildColumns({
 					note,
 					isDivided,
 					isAnticipated,
+					isProjected,
 					hasAttachments,
 				} = row.original;
 
@@ -260,6 +261,21 @@ function buildColumns({
 									<Badge variant="outline" className="px-2 text-xs">
 										{installmentBadge}
 									</Badge>
+								) : null}
+
+								{isProjected ? (
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Badge variant="warning" className="gap-1 px-2 text-xs">
+												<RiTimeLine size={12} aria-hidden />
+												Prevista
+											</Badge>
+										</TooltipTrigger>
+										<TooltipContent side="top" className="max-w-xs">
+											Parcela prevista pelo Open Finance. Será confirmada
+											automaticamente quando a fatura fechar no banco.
+										</TooltipContent>
+									</Tooltip>
 								) : null}
 
 								{showDateGroups && dueDateLabel ? (

@@ -934,6 +934,17 @@ export const transactions = pgTable(
 		transferId: uuid("transfer_id"),
 		ofxFitId: text("ofx_fit_id"),
 		importBatchId: text("import_batch_id"),
+		// Open Finance (cartão parcelado): âncora de série = purchaseDate cru da
+		// Pluggy (creditCardMetadata.purchaseDate), IDÊNTICO entre parcelas da mesma
+		// compra. Consolida a série fragmentada (descrição truncada + valor oscilante)
+		// e permite casar parcela projetada ↔ parcela real. NULL para não-OF.
+		ofPurchaseAnchor: text("of_purchase_anchor"),
+		// Parcela PROJETADA: aposta inserida pelo sync quando a Pluggy ainda não
+		// entregou uma parcela FUTURA da série (o emissor gera parcela-a-parcela ao
+		// fechar cada fatura). isProjected=true → sem ofxFitId (não veio da Pluggy),
+		// substituída pela real quando ela chegar (casa por ofPurchaseAnchor +
+		// currentInstallment). Protegida contra edição/exclusão avulsa.
+		isProjected: boolean("projetado").default(false),
 	},
 	(table) => ({
 		userIdPeriodIdx: index("lancamentos_user_id_period_idx").on(
@@ -978,6 +989,11 @@ export const transactions = pgTable(
 		ofxFitIdUserIdIdx: uniqueIndex("lancamentos_ofx_fit_id_user_id_idx")
 			.on(table.userId, table.ofxFitId)
 			.where(sql`ofx_fit_id IS NOT NULL`),
+		// Lookup da série do OF por âncora (consolidação + substituição projeção→real).
+		cardIdPurchaseAnchorIdx: index("lancamentos_cartao_id_purchase_anchor_idx").on(
+			table.cardId,
+			table.ofPurchaseAnchor,
+		),
 	}),
 );
 
@@ -1375,14 +1391,19 @@ export const openFinanceIgnoredSeries = pgTable(
 		installmentCount: smallint("qtde_parcela"),
 		// |centavos| — só para compra à vista (installmentCount NULL); NULL p/ parcelada.
 		amountKey: integer("amount_key"),
+		// ÂNCORA de série (creditCardMetadata.purchaseDate cru). Caminho NOVO e
+		// preferencial de ban: imune à descrição truncada/valor oscilante que
+		// fragmentava a chave antiga (descrição/total/valor). NULL nas linhas de ban
+		// antigas (pré-âncora) — que seguem casando pela chave antiga durante a
+		// transição. Ban novo grava a âncora; ban de cancelamento automático também.
+		purchaseAnchor: text("purchase_anchor"),
 		createdAt: timestamp("created_at", { mode: "date", withTimezone: true })
 			.notNull()
 			.defaultNow(),
 	},
 	(table) => ({
-		// Uma série é única por (user, cartão, descrição, total, valor). COALESCE nos
-		// nullables para o índice tratar NULL como um valor concreto e não permitir
-		// duplicatas "invisíveis".
+		// Chave ANTIGA (transição): única por (user, cartão, descrição, total, valor).
+		// COALESCE nos nullables para o índice tratar NULL como valor concreto.
 		uniq: uniqueIndex("openfinance_ignored_series_key").on(
 			table.userId,
 			table.cardId,
@@ -1390,6 +1411,11 @@ export const openFinanceIgnoredSeries = pgTable(
 			sql`coalesce(${table.installmentCount}, -1)`,
 			sql`coalesce(${table.amountKey}, -1)`,
 		),
+		// Chave NOVA por âncora: única por (user, cartão, purchaseAnchor). Parcial
+		// (só linhas com âncora) para conviver com as linhas antigas de âncora NULL.
+		anchorUniq: uniqueIndex("openfinance_ignored_series_anchor_key")
+			.on(table.userId, table.cardId, table.purchaseAnchor)
+			.where(sql`purchase_anchor IS NOT NULL`),
 	}),
 );
 
