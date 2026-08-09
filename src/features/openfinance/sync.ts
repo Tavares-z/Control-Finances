@@ -521,6 +521,7 @@ async function syncCardConnection(
 			name: transactions.name,
 			amount: transactions.amount,
 			purchaseDate: transactions.purchaseDate,
+			period: transactions.period,
 			currentInstallment: transactions.currentInstallment,
 			installmentCount: transactions.installmentCount,
 			ofPurchaseAnchor: transactions.ofPurchaseAnchor,
@@ -543,15 +544,47 @@ async function syncCardConnection(
 	const realAnchorInst = new Set<string>(); // anchor|inst já existentes como REAL
 	const anchorInstKey = (anchor: string, inst: number | null) =>
 		`${anchor}|${inst ?? "-"}`;
+	// ⚠️ Índice de reais existentes por CONTEÚDO (período+parcela → centavos), SEM
+	// âncora. Crítico: as reais gravadas ANTES desta feature não têm ofPurchaseAnchor,
+	// então a checagem por âncora não as vê — e a projeção as duplicaria (bug real: a
+	// fatura do Nubank dobrou parcelas 3/3, 8/8 etc.). A projeção consulta este índice
+	// para NÃO projetar uma parcela cuja real (mesmo período+número, valor ~igual) já
+	// existe, tenha ela âncora ou não. Guarda a LISTA de centavos por (período|parcela)
+	// para comparar com TOLERÂNCIA — a 1ª parcela da série às vezes difere 1-2 centavos
+	// da projetada (ex.: 93,18 real vs 93,16 projetada, visto no dado real). Chave:
+	// `período|parcela` → Set de centavos das reais ali.
+	const realCentsByPeriodInst = new Map<string, Set<number>>();
+	const periodInstKey = (period: string, inst: number | null) =>
+		`${period}|${inst ?? "-"}`;
 	for (const row of existing) {
-		if (!row.ofPurchaseAnchor) continue;
-		const key = anchorInstKey(row.ofPurchaseAnchor, row.currentInstallment);
-		if (row.isProjected) {
-			projectedByAnchorInst.set(key, row.id);
-		} else {
-			realAnchorInst.add(key);
+		if (row.ofPurchaseAnchor) {
+			const key = anchorInstKey(row.ofPurchaseAnchor, row.currentInstallment);
+			if (row.isProjected) projectedByAnchorInst.set(key, row.id);
+			else realAnchorInst.add(key);
+		}
+		// Índice por conteúdo cobre TODA real (com ou sem âncora), inclusive as antigas.
+		if (!row.isProjected) {
+			const key = periodInstKey(row.period, row.currentInstallment);
+			const cents = toCents(Number.parseFloat(row.amount));
+			const set = realCentsByPeriodInst.get(key);
+			if (set) set.add(cents);
+			else realCentsByPeriodInst.set(key, new Set([cents]));
 		}
 	}
+	// True se já existe uma real no MESMO período+parcela com valor a ±TOL centavos.
+	const CENTS_TOLERANCE = 5;
+	const realExistsForProjection = (
+		period: string,
+		inst: number,
+		cents: number,
+	): boolean => {
+		const set = realCentsByPeriodInst.get(periodInstKey(period, inst));
+		if (!set) return false;
+		for (const c of set) {
+			if (Math.abs(c - cents) <= CENTS_TOLERANCE) return true;
+		}
+		return false;
+	};
 
 	// Duas estruturas de dedup, com propósitos e chaves DIFERENTES:
 	//  • seenKeys (installmentKey, COM parcela): duplicata REAL — a mesma parcela
@@ -1049,6 +1082,14 @@ async function syncCardConnection(
 			// Trava (a): mês atual ou futuro (nunca retroativo). (b): dentro do horizonte.
 			if (comparePeriods(parcelaPeriod, currentPeriod) < 0) continue;
 			if (comparePeriods(parcelaPeriod, horizonPeriod) > 0) continue;
+			// ⚠️ Trava (c): a REAL desta parcela já existe por CONTEÚDO (período+número,
+			// valor a ±tolerância), mesmo SEM âncora (reais antigas pré-feature). Sem
+			// isto a projeção duplicaria a real e dobraria a fatura (bug real do Nubank).
+			if (
+				realExistsForProjection(parcelaPeriod, k, group.perInstallmentCents)
+			) {
+				continue;
+			}
 
 			// purchaseDate exibido = dia da compra (âncora) ao meio-dia UTC.
 			const anchorDay = group.anchor.slice(0, 10);
