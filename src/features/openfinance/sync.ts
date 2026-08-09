@@ -427,17 +427,23 @@ async function syncCardConnection(
 		};
 	}
 
-	// Janela de busca por DATA DA COMPRA (`dateFrom`): backfill 90d no 1º sync,
-	// senão re-varre os últimos INCREMENTAL_WINDOW_DAYS (ver comentário das constantes).
-	const windowDays = lastSyncedAt ? INCREMENTAL_WINDOW_DAYS : BACKFILL_DAYS;
-	const fromDate = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
-	const dateFrom = toBusinessDay(fromDate);
-
-	// Busca as transações da account CREDIT vinculada.
+	// ⚠️ CARTÃO: busca SEM filtro de data. Filtrar por data (`dateFrom`/`createdAtFrom`)
+	// é conceitualmente errado para cartão PARCELADO: uma parcela futura (ex: 8/8) tem
+	// `date` = data da COMPRA (que pode ser de meses atrás), então qualquer janela por
+	// data-da-compra corta as parcelas futuras de compras antigas — e essas parcelas
+	// pertencem justamente às faturas em aberto (set/out/…). Foi a causa real de MP e
+	// Santander virem incompletos (parcelas de set+ de compras de abril sumiam com
+	// dateFrom=90d). A Pluggy devolve TODAS as tx do cartão numa única página
+	// (confirmado: MP=310, Nubank=447, Santander=86, todos next=null), então buscar
+	// tudo é seguro e o roteamento por billId→período coloca cada parcela na fatura
+	// certa. Proteções independem da janela: séries banidas (compra cancelada/fantasma)
+	// e dedup (Camada 1 ofxFitId + Camada 2 conteúdo) rodam por transação, não por data.
+	// Se algum cartão um dia passar de 1 página (next != null), aí sim implementar o
+	// cursor — o warn abaixo sinaliza. Para CONTA, o filtro de data segue no outro caminho.
 	let pluggyTransactions: PluggyTransaction[];
 	let next: unknown;
 	try {
-		const page = await listTransactions(pluggyAccountId, { dateFrom });
+		const page = await listTransactions(pluggyAccountId);
 		pluggyTransactions = page.results;
 		next = page.next;
 	} catch (error) {
