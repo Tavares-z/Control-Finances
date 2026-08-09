@@ -989,6 +989,13 @@ async function syncCardConnection(
 
 		if (!row) {
 			alreadyExisted += 1;
+			// ⚠️ A parcela real JÁ existe (Camada 1 por ofxFitId pegou). Ainda assim
+			// precisa entrar em realAnchorInst — senão a FASE DE PROJEÇÃO não sabe que
+			// essa parcela existe e cria uma PREVISTA duplicando-a. Crítico para cartão
+			// SEM cleanup (ex.: Nubank), onde a maioria das reais cai aqui em vez de
+			// passar pelo insert. Sem isto, todo sync incremental duplicaria as reais
+			// existentes como previstas.
+			if (substitutionKey) realAnchorInst.add(substitutionKey);
 			continue;
 		}
 		inserted += 1;
