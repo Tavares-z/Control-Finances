@@ -316,6 +316,13 @@
       "when": 1785973367986,
       "tag": "0045_openfinance_ignored_series",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1786311946528,
+      "tag": "0046_of_parcela_projetada",
+      "breakpoints": true
     }
   ]
 }

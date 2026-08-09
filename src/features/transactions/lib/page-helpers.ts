@@ -606,6 +606,7 @@ export const mapTransactionsData = (rows: TransactionRowWithRelations[]) =>
 		splitGroupId: item.splitGroupId ?? null,
 		hasAttachments: item.hasAttachments ?? false,
 		ofxFitId: item.ofxFitId ?? null,
+		isProjected: item.isProjected ?? false,
 		readonly:
 			Boolean(item.note?.startsWith(ACCOUNT_AUTO_INVOICE_NOTE_PREFIX)) ||
 			(item.note === INITIAL_BALANCE_NOTE &&

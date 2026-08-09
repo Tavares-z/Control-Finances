@@ -166,5 +166,83 @@ export function serializeSeriesKey(key: SeriesKey): string {
 	return `${key.description}|${key.installmentCount ?? "-"}|${key.amountKey ?? "-"}`;
 }
 
+// ---------------------------------------------------------------------------
+// Caminho NOVO por ÂNCORA (purchaseDate) — ver series-anchor.ts.
+// Convive com o caminho antigo (descrição/total/valor) durante a transição:
+// bans antigos têm purchase_anchor NULL e seguem casando pela chave antiga; bans
+// novos (manual pós-âncora + cancelamento automático) gravam a âncora.
+// ---------------------------------------------------------------------------
+
+/**
+ * Carrega as âncoras de série banidas de um cartão como Set de purchaseAnchor
+ * (string crua). O sync consulta em memória para pular a série inteira num lookup
+ * O(1) — imune à fragmentação de descrição/valor da chave antiga.
+ */
+export async function loadIgnoredSeriesAnchors(
+	userId: string,
+	cardId: string,
+): Promise<Set<string>> {
+	const rows = await db
+		.select({ purchaseAnchor: openFinanceIgnoredSeries.purchaseAnchor })
+		.from(openFinanceIgnoredSeries)
+		.where(
+			and(
+				eq(openFinanceIgnoredSeries.userId, userId),
+				eq(openFinanceIgnoredSeries.cardId, cardId),
+			),
+		);
+	return new Set(
+		rows.map((r) => r.purchaseAnchor).filter((a): a is string => a != null),
+	);
+}
+
+/**
+ * Bane uma série pela ÂNCORA (idempotente) E apaga todas as transações de OF do
+ * cartão com aquele `ofPurchaseAnchor` (consolida a série fragmentada de uma vez
+ * — conserta o bug do HUSTLECOM, em que a chave antiga apagava só parte). Só toca
+ * transações com `ofx_fit_id` preenchido (real da Pluggy) OU `projetado=true`
+ * (projeção nossa) — registro manual nunca é apagado. Atômico.
+ *
+ * @returns quantas transações foram apagadas.
+ */
+export async function banSeriesByAnchor(
+	userId: string,
+	cardId: string,
+	purchaseAnchor: string,
+	description: string,
+): Promise<number> {
+	return db.transaction(async (tx: typeof db) => {
+		await tx
+			.insert(openFinanceIgnoredSeries)
+			.values({
+				userId,
+				cardId,
+				description,
+				purchaseAnchor,
+			})
+			.onConflictDoNothing({
+				target: [
+					openFinanceIgnoredSeries.userId,
+					openFinanceIgnoredSeries.cardId,
+					openFinanceIgnoredSeries.purchaseAnchor,
+				],
+			});
+
+		const deleted = await tx
+			.delete(transactions)
+			.where(
+				and(
+					eq(transactions.userId, userId),
+					eq(transactions.cardId, cardId),
+					eq(transactions.ofPurchaseAnchor, purchaseAnchor),
+					// nunca apaga registro manual: só OF real (ofxFitId) ou projeção nossa
+					sql`(${transactions.ofxFitId} is not null or ${transactions.isProjected} = true)`,
+				),
+			)
+			.returning({ id: transactions.id });
+		return deleted.length;
+	});
+}
+
 // Reexporta o matchSeriesWhere só para testes/uso avançado (não usado externamente).
 export { matchSeriesWhere };

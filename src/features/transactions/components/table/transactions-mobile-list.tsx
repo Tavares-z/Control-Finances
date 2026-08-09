@@ -273,6 +273,12 @@ function TransactionMobileCard({
 									{installmentBadge}
 								</Badge>
 							) : null}
+							{item.isProjected ? (
+								<Badge variant="warning" className="gap-1 px-1.5 text-xs">
+									<RiTimeLine className="size-3" aria-hidden />
+									Prevista
+								</Badge>
+							) : null}
 							{item.isDivided ? (
 								<IconBadge label="Dividido entre pessoas" compact>
 									<RiGroupLine className="size-3.5" aria-hidden />

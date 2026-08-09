@@ -10,6 +10,7 @@ import {
 } from "@/db/schema";
 import {
 	banSeriesAndDeleteMatches,
+	banSeriesByAnchor,
 	seriesKeyFromTransaction,
 } from "@/features/openfinance/lib/ignored-series";
 import { ACCOUNT_AUTO_INVOICE_NOTE_PREFIX } from "@/shared/lib/accounts/constants";
@@ -238,6 +239,7 @@ export async function updateTransactionAction(
 				accountId: true,
 				cardId: true,
 				categoryId: true,
+				isProjected: true,
 			},
 			where: and(
 				eq(transactions.id, data.id),
@@ -254,6 +256,7 @@ export async function updateTransactionAction(
 					accountId: string | null;
 					cardId: string | null;
 					categoryId: string | null;
+					isProjected: boolean | null;
 			  }
 			| undefined;
 
@@ -265,6 +268,17 @@ export async function updateTransactionAction(
 			return {
 				success: false,
 				error: "Pagamentos automáticos de fatura não podem ser editados.",
+			};
+		}
+
+		// Parcela PREVISTA (projeção do Open Finance): será confirmada/substituída
+		// automaticamente quando o banco gerar a parcela real. Editar à mão criaria
+		// divergência que o próximo sync sobrescreveria — bloqueamos.
+		if (existing.isProjected) {
+			return {
+				success: false,
+				error:
+					'Parcela prevista pelo Open Finance — será confirmada quando a fatura fechar. Para removê-la, use "ignorar compra".',
 			};
 		}
 
@@ -397,6 +411,8 @@ export async function deleteTransactionAction(
 				cardId: true,
 				ofxFitId: true,
 				installmentCount: true,
+				isProjected: true,
+				ofPurchaseAnchor: true,
 			},
 			where: and(
 				eq(transactions.id, data.id),
@@ -418,6 +434,8 @@ export async function deleteTransactionAction(
 					cardId: string | null;
 					ofxFitId: string | null;
 					installmentCount: number | null;
+					isProjected: boolean | null;
+					ofPurchaseAnchor: string | null;
 			  }
 			| undefined;
 
@@ -432,10 +450,30 @@ export async function deleteTransactionAction(
 			};
 		}
 
-		// Banir série do Open Finance: só quando o usuário pediu (banSeries) E a
-		// transação é do OF (ofxFitId) num cartão. Bane a série (compra fantasma
-		// cancelada no lojista, que a Pluggy traz como válida) e apaga as parcelas
-		// irmãs de uma vez; o sync nunca mais reinsere. Curto-circuita o fluxo normal.
+		// Banir série do Open Finance por ÂNCORA: cobre tanto parcela REAL (ofxFitId)
+		// quanto PROJETADA (sem ofxFitId, mas com ofPurchaseAnchor). Bane a série pela
+		// âncora (imune à descrição truncada/valor oscilante) e apaga TODAS as irmãs —
+		// reais e projeções — de uma vez; o sync nunca mais reinsere. É a via correta
+		// de remover uma parcela prevista. Curto-circuita o fluxo normal.
+		if (data.banSeries && existing.ofPurchaseAnchor && existing.cardId) {
+			const removed = await banSeriesByAnchor(
+				user.id,
+				existing.cardId,
+				existing.ofPurchaseAnchor,
+				existing.name ?? "",
+			);
+			revalidate(user.id);
+			return {
+				success: true,
+				message:
+					removed > 1
+						? `Compra ignorada: ${removed} lançamentos removidos e não voltarão no sync.`
+						: "Compra ignorada e removida; não voltará no sync.",
+			};
+		}
+
+		// Fallback de ban pela chave ANTIGA (transações OF pré-âncora, sem
+		// ofPurchaseAnchor mas com ofxFitId). Some quando todo o histórico tiver âncora.
 		if (data.banSeries && existing.ofxFitId && existing.cardId) {
 			const key = seriesKeyFromTransaction({
 				cardId: existing.cardId,
@@ -460,6 +498,17 @@ export async function deleteTransactionAction(
 			return {
 				success: false,
 				error: "Lançamentos de saldo inicial não podem ser removidos.",
+			};
+		}
+
+		// Parcela PREVISTA (projeção) sem banSeries: bloqueia o delete avulso — a
+		// remoção correta é "ignorar compra" (banSeries), tratada acima. Um delete
+		// solto seria reinserido pelo próximo sync como projeção de novo.
+		if (existing.isProjected) {
+			return {
+				success: false,
+				error:
+					'Parcela prevista pelo Open Finance. Para removê-la de vez, use "ignorar compra".',
 			};
 		}
 

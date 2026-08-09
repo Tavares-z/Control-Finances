@@ -87,6 +87,35 @@ export interface PluggyCreditCardMetadata {
   payeeMCC: number | null;
   billId: string | null;
   billForecastDate: string | null;
+  /**
+   * Data/hora EXATA da compra (ISO 8601), IDÊNTICA entre todas as parcelas da
+   * mesma compra e distinta entre compras diferentes (confirmado com dado real:
+   * a HUSTLECOM 8x traz `2026-04-23T19:29:02.000Z` em TODAS as 8 parcelas). É a
+   * ÂNCORA de série do Open Finance — imune à descrição truncada (a Pluggy trunca
+   * `HUSTLECOM`→`HUST` entre parcelas da mesma compra) e ao valor da parcela
+   * oscilante (1ª parcela 25,04 vs 24,98 nas demais). Presente em 100% das
+   * parcelas dos 3 cartões testados. Usado por `seriesAnchorKey` para agrupar
+   * série sem fragmentar. Difere do `date`/`purchaseDate` da transação de topo,
+   * que a Pluggy carimba com a data CONTÁBIL da parcela (varia por parcela).
+   */
+  purchaseDate: string | null;
+  /** Últimos 4 dígitos do cartão; entra na âncora para desambiguar cartões. */
+  cardNumber: string | null;
+  /**
+   * Descrição do crédito. ⚠️ SINALIZA CANCELAMENTO: compra normal traz
+   * `"Purchase:MultInstConsMerc"`; parcela CANCELADA no lojista traz o crédito
+   * de estorno `"Refund:MultInstConsMercCanc"` (sufixo `Canc`). Contradiz a nota
+   * antiga do AGENTS.md ("a Pluggy não sinaliza cancelamento") — ela sinaliza
+   * AQUI (confirmado com dado real). Usado por `isCanceledInstallment` para banir
+   * série fantasma automaticamente, sem depender de clique do usuário.
+   */
+  otherCreditsAdditionalInfo: string | null;
+  /**
+   * Detalhe do tipo de tarifa. Também sinaliza cancelamento: a parcela cancelada
+   * traz `"...merchant_canceled - refund"`. Segundo sinal (redundante com
+   * `otherCreditsAdditionalInfo`) usado por `isCanceledInstallment`.
+   */
+  feeTypeAdditionalInfo: string | null;
 }
 
 export interface PluggyTransaction {

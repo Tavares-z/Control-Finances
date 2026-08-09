@@ -38,6 +38,8 @@ export type TransactionItem = {
 	readonly?: boolean;
 	/** Id externo do Open Finance/OFX. Presente = veio do sync/import. */
 	ofxFitId: string | null;
+	/** Parcela PREVISTA (projeção do Open Finance ainda não confirmada pelo banco). */
+	isProjected: boolean | null;
 };
 
 export type SelectOption = {

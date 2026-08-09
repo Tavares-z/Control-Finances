@@ -9,6 +9,8 @@ import {
 	transactions,
 } from "@/db/schema";
 import {
+	banSeriesByAnchor,
+	loadIgnoredSeriesAnchors,
 	loadIgnoredSeriesKeys,
 	serializeSeriesKey,
 } from "@/features/openfinance/lib/ignored-series";
@@ -20,12 +22,22 @@ import {
 	PluggyApiError,
 	type PluggyTransaction,
 } from "@/features/openfinance/lib/pluggy-client";
+import {
+	isCanceledInstallment,
+	serializeAnchor,
+	seriesAnchorFromTransaction,
+} from "@/features/openfinance/lib/series-anchor";
 import { deriveCreditCardPeriod } from "@/features/transactions/lib/form-helpers";
 import { normalizeDescriptionKey } from "@/features/transactions/lib/import-utils";
 import { db } from "@/shared/lib/db";
 import { getAdminPayerId } from "@/shared/lib/payers/get-admin-id";
 import { getBusinessDateString } from "@/shared/utils/date";
-import { derivePeriodFromDate } from "@/shared/utils/period";
+import {
+	addMonthsToPeriod,
+	comparePeriods,
+	derivePeriodFromDate,
+	getCurrentPeriod,
+} from "@/shared/utils/period";
 
 /**
  * Sincronização pura de UMA conexão Open Finance (Pluggy) → Inbox.
@@ -61,6 +73,19 @@ const BACKFILL_DAYS = 90; // primeiro sync
 const INCREMENTAL_WINDOW_DAYS = 45;
 const DUPLICATE_PREFIX = "[possível duplicata] ";
 const MISSING_DESCRIPTION = "(sem descrição)";
+
+// Horizonte de PROJEÇÃO de parcelas futuras ausentes. O emissor (ex.: Mercado
+// Pago) gera as parcelas de uma compra parcela-a-parcela, ao fechar cada fatura —
+// então uma compra de 5x às vezes só tem a 1/5 na Pluggy. Projetamos as parcelas
+// FUTURAS ausentes para a fatura ficar completa sem espera nem lançamento manual;
+// a parcela real substitui a projeção quando chega (casa por âncora + número).
+// ⚠️ Só projetamos parcela de mês FUTURO (> mês atual) e dentro deste horizonte:
+// projetar retroativo reintroduziria parcelas em faturas já pagas (bug real que
+// os dados do Nubank expuseram — ele tem séries antigas/quitadas incompletas que
+// NÃO devem ganhar projeção). E limitar a N meses evita materializar uma compra
+// de 24x inteira (2 anos de apostas) de uma vez — parcelas mais distantes entram
+// naturalmente quando o banco as gerar.
+const PROJECTION_HORIZON_MONTHS = 4;
 
 /**
  * Termos que indicam PAGAMENTO/QUITAÇÃO de fatura na descrição da Pluggy.
@@ -488,13 +513,17 @@ async function syncCardConnection(
 	// Camada 2: prefetch das transações JÁ existentes deste cartão para montar as
 	// chaves de conteúdo. Comparado contra qualquer transação do cartão (não só as
 	// de origem openfinance) — registro manual/OFX prévio também deve ser detectado.
+	// Também lê a ÂNCORA + isProjected + id, para a substituição projeção→real.
 	const existing = await db
 		.select({
+			id: transactions.id,
 			name: transactions.name,
 			amount: transactions.amount,
 			purchaseDate: transactions.purchaseDate,
 			currentInstallment: transactions.currentInstallment,
 			installmentCount: transactions.installmentCount,
+			ofPurchaseAnchor: transactions.ofPurchaseAnchor,
+			isProjected: transactions.isProjected,
 		})
 		.from(transactions)
 		.where(
@@ -503,6 +532,25 @@ async function syncCardConnection(
 				eq(transactions.cardId, cardId),
 			),
 		);
+
+	// Substituição projeção→real: mapa (âncora|parcela) → id da PROJEÇÃO existente.
+	// Quando a parcela REAL chega no lote e casa uma projeção aqui, damos UPDATE na
+	// projeção (vira real) em vez de INSERT — a projeção é NOSSA, é substituída, não
+	// duplicada. Também rastreia âncora|parcela das reais JÁ existentes, para a fase
+	// de projeção não recriar o que já existe.
+	const projectedByAnchorInst = new Map<string, string>(); // anchor|inst -> projection id
+	const realAnchorInst = new Set<string>(); // anchor|inst já existentes como REAL
+	const anchorInstKey = (anchor: string, inst: number | null) =>
+		`${anchor}|${inst ?? "-"}`;
+	for (const row of existing) {
+		if (!row.ofPurchaseAnchor) continue;
+		const key = anchorInstKey(row.ofPurchaseAnchor, row.currentInstallment);
+		if (row.isProjected) {
+			projectedByAnchorInst.set(key, row.id);
+		} else {
+			realAnchorInst.add(key);
+		}
+	}
 
 	// Duas estruturas de dedup, com propósitos e chaves DIFERENTES:
 	//  • seenKeys (installmentKey, COM parcela): duplicata REAL — a mesma parcela
@@ -558,11 +606,99 @@ async function syncCardConnection(
 		}
 	}
 
-	// Séries BANIDAS deste cartão: compras fantasma (canceladas no lojista, que a
-	// Pluggy traz como POSTED válidas — não sinaliza cancelamento em campo nenhum).
-	// O usuário baniu via "ignorar" na lista; aqui o sync as pula para nunca
-	// reinserir. Carregado uma vez em Set para lookup O(1) no loop.
+	// Séries BANIDAS deste cartão: compras fantasma (canceladas no lojista). Dois
+	// caminhos convivem na transição:
+	//  • ignoredSeries (chave ANTIGA descrição/total/valor) — bans pré-âncora.
+	//  • ignoredAnchors (chave NOVA por purchaseDate) — bans manuais pós-âncora +
+	//    ban AUTOMÁTICO de cancelamento (abaixo). Imune à fragmentação.
 	const ignoredSeries = await loadIgnoredSeriesKeys(connection.userId, cardId);
+	const ignoredAnchors = await loadIgnoredSeriesAnchors(
+		connection.userId,
+		cardId,
+	);
+
+	// FASE DE ÂNCORA: agrupa o lote por série (purchaseDate + total) para (1) detectar
+	// cancelamento e banir a série inteira automaticamente, e (2) alimentar a projeção
+	// de parcelas futuras ausentes (mais abaixo). A âncora é imune à descrição truncada
+	// e ao valor oscilante que fragmentavam a série na chave antiga.
+	interface AnchorGroup {
+		anchor: string; // purchaseDate cru (chave de ofPurchaseAnchor)
+		total: number; // total de parcelas (>= 2)
+		description: string; // descrição de amostra (para o registro de ban)
+		canceled: boolean; // alguma parcela sinaliza cancelamento
+		// |centavos| da parcela de MAIOR número vista (mais representativa das
+		// futuras: a 1ª parcela às vezes é arredondada pra cima, ex. 16,02 vs 16,01 /
+		// 93,75 vs 93,59 — confirmado com dado real). Diferença de 1 centavo é
+		// autocorrigida quando a real substitui a projeção, mas usar a última reduz o
+		// ruído. Só de COMPRA (amount>0).
+		perInstallmentCents: number | null;
+		valueFromInstallment: number | null; // nº da parcela de onde veio perInstallmentCents
+		firstForecast: string | null; // billForecastDate da menor parcela vista (base do período)
+		firstInstallment: number | null; // menor installmentNumber visto (base do forecast)
+		categoryId: string | null; // categoria de amostra (p/ projeção)
+	}
+	const anchorGroups = new Map<string, AnchorGroup>();
+	for (const tx of pluggyTransactions) {
+		const anchor = seriesAnchorFromTransaction(cardId, tx);
+		// Só séries parceladas (total >= 2) entram na consolidação/projeção.
+		if (!anchor || anchor.totalInstallments == null) continue;
+		const key = serializeAnchor(anchor);
+		const meta = tx.creditCardMetadata;
+		const inst = meta?.installmentNumber ?? null;
+		const existingGroup = anchorGroups.get(key);
+		if (!existingGroup) {
+			anchorGroups.set(key, {
+				anchor: anchor.purchaseAnchor,
+				total: anchor.totalInstallments,
+				description: tx.description ?? MISSING_DESCRIPTION,
+				canceled: isCanceledInstallment(tx),
+				perInstallmentCents:
+					tx.amount > 0 ? toCents(effectiveAmountBRL(tx)) : null,
+				valueFromInstallment: tx.amount > 0 ? inst : null,
+				firstForecast: meta?.billForecastDate ?? null,
+				firstInstallment: inst,
+				categoryId: null, // preenchido após mappings existir (abaixo)
+			});
+		} else {
+			existingGroup.canceled ||= isCanceledInstallment(tx);
+			// Valor da parcela = a de MAIOR número vista (a 1ª às vezes é arredondada).
+			if (
+				tx.amount > 0 &&
+				inst != null &&
+				(existingGroup.valueFromInstallment == null ||
+					inst > existingGroup.valueFromInstallment)
+			) {
+				existingGroup.perInstallmentCents = toCents(effectiveAmountBRL(tx));
+				existingGroup.valueFromInstallment = inst;
+			}
+			// Mantém o forecast/número da MENOR parcela vista (base para projetar as demais).
+			if (
+				inst != null &&
+				(existingGroup.firstInstallment == null ||
+					inst < existingGroup.firstInstallment)
+			) {
+				existingGroup.firstInstallment = inst;
+				existingGroup.firstForecast = meta?.billForecastDate ?? null;
+			}
+		}
+	}
+
+	// BAN AUTOMÁTICO de cancelamento: para cada série com parcela cancelada, bane pela
+	// âncora e apaga as parcelas irmãs (reais + projeções) de uma vez. Sem clique do
+	// usuário — a Pluggy sinaliza o cancelamento (ver isCanceledInstallment). Idempotente.
+	let autoBannedCanceled = 0;
+	for (const group of anchorGroups.values()) {
+		if (!group.canceled) continue;
+		if (ignoredAnchors.has(group.anchor)) continue; // já banida
+		const removed = await banSeriesByAnchor(
+			connection.userId,
+			cardId,
+			group.anchor,
+			group.description,
+		);
+		ignoredAnchors.add(group.anchor);
+		autoBannedCanceled += removed;
+	}
 
 	// Categorização: histórico exato (descrição → categoria). Sem match → null.
 	// NÃO reusar fetchCategoryMappings (transactions/actions): ela resolve o userId
@@ -573,6 +709,18 @@ async function syncCardConnection(
 		pluggyTransactions.map((tx) => tx.description ?? MISSING_DESCRIPTION),
 	);
 	const payerId = await getAdminPayerId(connection.userId);
+
+	// Preenche a categoria de amostra de cada grupo de âncora (usa a categoria da 1ª
+	// parcela conhecida da série) — a projeção herda a mesma categoria das reais.
+	for (const tx of pluggyTransactions) {
+		const anchor = seriesAnchorFromTransaction(cardId, tx);
+		if (!anchor || anchor.totalInstallments == null) continue;
+		const group = anchorGroups.get(serializeAnchor(anchor));
+		if (group && group.categoryId == null) {
+			const description = tx.description ?? MISSING_DESCRIPTION;
+			group.categoryId = mappings[normalizeDescriptionKey(description)] ?? null;
+		}
+	}
 
 	// Roteamento de período pelo BANCO (fonte de verdade), não pela heurística.
 	// Cada transação traz creditCardMetadata.billId; o bill (GET /bills/{id}) tem
@@ -647,7 +795,8 @@ async function syncCardConnection(
 		//     COMPRA, não o do vencimento, e enganava o roteamento (compra 31/07 pós-
 		//     fechamento caía em ago em vez de set). A heurística acerta esses casos.
 		const billId = tx.creditCardMetadata?.billId;
-		const forecastInstallment = tx.creditCardMetadata?.installmentNumber ?? null;
+		const forecastInstallment =
+			tx.creditCardMetadata?.installmentNumber ?? null;
 		const isFutureInstallment =
 			forecastInstallment !== null && forecastInstallment >= 2;
 		const period =
@@ -716,11 +865,21 @@ async function syncCardConnection(
 		const isInstallment =
 			isExpense && totalInstallments !== null && totalInstallments >= 2;
 
-		// SÉRIE BANIDA: o usuário marcou esta compra como fantasma (cancelada no
-		// lojista). A chave usa os MESMOS critérios de seriesKeyFromTransaction:
+		// Âncora de série desta transação (purchaseDate cru). Null quando falta o
+		// metadado — cai no caminho antigo por transação (sem consolidar/projetar).
+		const txAnchor = seriesAnchorFromTransaction(cardId, tx);
+		const purchaseAnchor = txAnchor?.purchaseAnchor ?? null;
+
+		// SÉRIE BANIDA por ÂNCORA (chave nova): ban manual pós-âncora + ban automático
+		// de cancelamento. Imune à fragmentação. Pula sem inserir.
+		if (purchaseAnchor && ignoredAnchors.has(purchaseAnchor)) {
+			skippedIgnoredSeries += 1;
+			continue;
+		}
+
+		// SÉRIE BANIDA pela chave ANTIGA (transição): bans pré-âncora. A chave usa
 		// descrição + total (null se à vista) + |centavos| SEMPRE (a descrição truncada
 		// pela Pluggy não desambigua séries — ver comentário em ignored-series.ts).
-		// Casa o que foi banido pelo delete. Pula sem inserir — nunca reaparece no sync.
 		const seriesKey = serializeSeriesKey({
 			cardId,
 			description,
@@ -757,6 +916,49 @@ async function syncCardConnection(
 			continue;
 		}
 
+		// SUBSTITUIÇÃO projeção→real: se esta parcela REAL casa uma PROJEÇÃO existente
+		// (mesma âncora + número de parcela), damos UPDATE na projeção em vez de INSERT.
+		// A projeção é NOSSA aposta — é substituída pela real, não duplicada. Esta é a
+		// única exceção deliberada ao "nunca deleta/altera" do sync, restrita a
+		// isProjected=true. Carimba ofxFitId (vira dedup Camada 1 daqui pra frente),
+		// zera isProjected, e grava valor/período/categoria reais.
+		const substitutionKey = purchaseAnchor
+			? anchorInstKey(purchaseAnchor, isInstallment ? installmentNumber : null)
+			: null;
+		const projectionId = substitutionKey
+			? projectedByAnchorInst.get(substitutionKey)
+			: undefined;
+		if (projectionId) {
+			await db
+				.update(transactions)
+				.set({
+					name: description,
+					condition: isInstallment ? "Parcelado" : "À vista",
+					installmentCount: isInstallment ? totalInstallments : null,
+					currentInstallment: isInstallment ? installmentNumber : null,
+					amount: signedAmount.toFixed(2),
+					purchaseDate,
+					transactionType,
+					period,
+					categoryId,
+					ofxFitId: tx.id,
+					isProjected: false, // deixou de ser aposta — é a parcela real
+				})
+				.where(
+					and(
+						eq(transactions.id, projectionId),
+						eq(transactions.userId, connection.userId),
+						eq(transactions.isProjected, true), // trava: só substitui projeção
+					),
+				);
+			projectedByAnchorInst.delete(substitutionKey as string);
+			if (substitutionKey) realAnchorInst.add(substitutionKey);
+			seenKeys.add(dupKey);
+			if (isExpense) expenseKeys.add(contentKey(localDay, cents, description));
+			inserted += 1; // conta como materializada
+			continue;
+		}
+
 		const [row] = await db
 			.insert(transactions)
 			.values({
@@ -775,6 +977,7 @@ async function syncCardConnection(
 				categoryId,
 				payerId,
 				ofxFitId: tx.id, // Camada 1: dedup por id externo
+				ofPurchaseAnchor: purchaseAnchor, // âncora de série (consolidação/projeção)
 				importBatchId,
 			})
 			.onConflictDoNothing({
@@ -792,9 +995,104 @@ async function syncCardConnection(
 		// mesmo lote também seja suprimida. Marca também a compra em expenseKeys para
 		// um crédito-contrapartida que venha depois no lote ser pulado.
 		seenKeys.add(dupKey);
+		if (substitutionKey) realAnchorInst.add(substitutionKey);
 		if (isExpense) {
 			expenseKeys.add(contentKey(localDay, cents, description));
 		}
+	}
+
+	// FASE DE PROJEÇÃO: para cada série parcelada NÃO cancelada, projeta as parcelas
+	// FUTURAS ausentes (o emissor gera parcela-a-parcela; a fatura ficaria incompleta
+	// até ele gerar cada uma). A projeção deixa a fatura completa já; a parcela real
+	// substitui a projeção quando chega (bloco de substituição acima).
+	//
+	// ⚠️ Travas (ver PROJECTION_HORIZON_MONTHS): só projeta parcela cujo período seja
+	// (a) > mês atual (nunca retroativo — projetar passado reintroduziria parcela em
+	// fatura já paga, bug que os dados do Nubank expuseram) e (b) dentro do horizonte.
+	// Base do período de cada parcela k: o forecast da 1ª parcela vista + (k - inst0)
+	// meses. Se a série não tem forecast confiável, não projeta (degrada suave).
+	const currentPeriod = getCurrentPeriod();
+	const horizonPeriod = addMonthsToPeriod(
+		currentPeriod,
+		PROJECTION_HORIZON_MONTHS,
+	);
+	let projectedCount = 0;
+	for (const group of anchorGroups.values()) {
+		if (group.canceled) continue; // série cancelada nunca projeta
+		if (ignoredAnchors.has(group.anchor)) continue; // banida (manual/auto)
+		if (group.perInstallmentCents == null) continue; // sem valor de parcela conhecido
+		if (group.firstForecast == null || group.firstInstallment == null) continue;
+		const baseForecast = periodFromForecast(group.firstForecast);
+		if (!baseForecast) continue;
+
+		for (let k = 1; k <= group.total; k += 1) {
+			const instKey = anchorInstKey(group.anchor, k);
+			// Já existe (real materializada OU projeção viva) → não recria.
+			if (realAnchorInst.has(instKey)) continue;
+			if (projectedByAnchorInst.has(instKey)) continue;
+			// Período desta parcela = forecast da 1ª parcela vista + deslocamento.
+			const parcelaPeriod = addMonthsToPeriod(
+				baseForecast,
+				k - group.firstInstallment,
+			);
+			// Trava (a): só futuro (> mês atual). (b): dentro do horizonte.
+			if (comparePeriods(parcelaPeriod, currentPeriod) <= 0) continue;
+			if (comparePeriods(parcelaPeriod, horizonPeriod) > 0) continue;
+
+			// purchaseDate exibido = dia da compra (âncora) ao meio-dia UTC.
+			const anchorDay = group.anchor.slice(0, 10);
+			const projectedPurchaseDate = new Date(`${anchorDay}T12:00:00.000Z`);
+			const projectedAmount = -(group.perInstallmentCents / 100); // despesa (negativo)
+
+			await db.insert(transactions).values({
+				name: group.description,
+				condition: "Parcelado",
+				installmentCount: group.total,
+				currentInstallment: k,
+				paymentMethod: CARD_PAYMENT_METHOD,
+				amount: projectedAmount.toFixed(2),
+				purchaseDate: projectedPurchaseDate,
+				transactionType: "Despesa",
+				period: parcelaPeriod,
+				isSettled: false,
+				userId: connection.userId,
+				cardId,
+				categoryId: group.categoryId,
+				payerId,
+				ofxFitId: null, // projeção NÃO veio da Pluggy
+				ofPurchaseAnchor: group.anchor,
+				isProjected: true, // aposta — substituída pela real quando chegar
+				importBatchId,
+			});
+			projectedByAnchorInst.set(instKey, "pending"); // evita recriar no mesmo lote
+			projectedCount += 1;
+		}
+	}
+
+	// LIMPEZA de projeção órfã: projeções cuja parcela real JÁ existe (materializada
+	// fora do fluxo de substituição, ex.: import manual) ou cuja série foi banida
+	// devem sair — nunca deixar projeção duplicando uma real. A substituição no loop
+	// já cobre o caso comum; esta varredura cobre o resíduo. Só toca isProjected=true.
+	const orphanProjectionIds: string[] = [];
+	for (const [key, id] of projectedByAnchorInst.entries()) {
+		if (id === "pending") continue; // recém-criada neste lote
+		if (realAnchorInst.has(key)) orphanProjectionIds.push(id);
+		else {
+			const anchorPart = key.slice(0, key.lastIndexOf("|"));
+			if (ignoredAnchors.has(anchorPart)) orphanProjectionIds.push(id);
+		}
+	}
+	if (orphanProjectionIds.length > 0) {
+		await db
+			.delete(transactions)
+			.where(
+				and(
+					eq(transactions.userId, connection.userId),
+					eq(transactions.cardId, cardId),
+					eq(transactions.isProjected, true),
+					inArray(transactions.id, orphanProjectionIds),
+				),
+			);
 	}
 
 	// Limite do banco (creditData da account CREDIT) — fonte de verdade do
@@ -822,14 +1120,18 @@ async function syncCardConnection(
 		skippedPayments > 0 ||
 		skippedCreditDuplicates > 0 ||
 		duplicateFlagged > 0 ||
-		skippedIgnoredSeries > 0
+		skippedIgnoredSeries > 0 ||
+		autoBannedCanceled > 0 ||
+		projectedCount > 0
 	) {
-		console.info("[syncCardConnection] lançamentos ignorados", {
+		console.info("[syncCardConnection] lançamentos ignorados/projetados", {
 			connectionId: connection.id,
 			skippedPayments, // pagamentos de fatura (nome casa INVOICE_PAYMENT_TERMS)
 			skippedCreditDuplicates, // crédito-contrapartida de compra (não abate)
 			duplicateSuppressed: duplicateFlagged, // duplicata real (mesma parcela)
-			skippedIgnoredSeries, // série banida pelo usuário (compra fantasma)
+			skippedIgnoredSeries, // série banida (compra fantasma)
+			autoBannedCanceled, // parcelas apagadas por ban automático de cancelamento
+			projected: projectedCount, // parcelas futuras projetadas neste sync
 		});
 	}
 
