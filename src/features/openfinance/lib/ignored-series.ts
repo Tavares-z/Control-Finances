@@ -226,6 +226,11 @@ export async function banSeriesByAnchor(
 					openFinanceIgnoredSeries.cardId,
 					openFinanceIgnoredSeries.purchaseAnchor,
 				],
+				// O índice único de âncora é PARCIAL (WHERE purchase_anchor IS NOT NULL).
+				// Sem repetir o predicado aqui, o Postgres não infere o árbitro → 42P10
+				// (mesmo caso do índice de externalSourceId no sync). purchaseAnchor é
+				// sempre não-nulo neste insert, então o predicado casa.
+				where: sql`${openFinanceIgnoredSeries.purchaseAnchor} is not null`,
 			});
 
 		const deleted = await tx
