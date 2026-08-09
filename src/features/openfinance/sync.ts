@@ -79,12 +79,13 @@ const MISSING_DESCRIPTION = "(sem descrição)";
 // então uma compra de 5x às vezes só tem a 1/5 na Pluggy. Projetamos as parcelas
 // FUTURAS ausentes para a fatura ficar completa sem espera nem lançamento manual;
 // a parcela real substitui a projeção quando chega (casa por âncora + número).
-// ⚠️ Só projetamos parcela de mês FUTURO (> mês atual) e dentro deste horizonte:
-// projetar retroativo reintroduziria parcelas em faturas já pagas (bug real que
-// os dados do Nubank expuseram — ele tem séries antigas/quitadas incompletas que
-// NÃO devem ganhar projeção). E limitar a N meses evita materializar uma compra
-// de 24x inteira (2 anos de apostas) de uma vez — parcelas mais distantes entram
-// naturalmente quando o banco as gerar.
+// ⚠️ Só projetamos parcela do mês ATUAL ou FUTURO (>= mês atual) e dentro deste
+// horizonte: projetar RETROATIVO reintroduziria parcelas em faturas já pagas (bug
+// real que os dados do Nubank expuseram — ele tem séries antigas/quitadas incompletas
+// que NÃO devem ganhar projeção; todas de meses passados, cobertas pela trava). O mês
+// corrente entra para completar a fatura em aberto do próprio mês. E limitar a N meses
+// evita materializar uma compra de 24x inteira (2 anos de apostas) de uma vez —
+// parcelas mais distantes entram naturalmente quando o banco as gerar.
 const PROJECTION_HORIZON_MONTHS = 4;
 
 /**
@@ -1007,10 +1008,13 @@ async function syncCardConnection(
 	// substitui a projeção quando chega (bloco de substituição acima).
 	//
 	// ⚠️ Travas (ver PROJECTION_HORIZON_MONTHS): só projeta parcela cujo período seja
-	// (a) > mês atual (nunca retroativo — projetar passado reintroduziria parcela em
-	// fatura já paga, bug que os dados do Nubank expuseram) e (b) dentro do horizonte.
-	// Base do período de cada parcela k: o forecast da 1ª parcela vista + (k - inst0)
-	// meses. Se a série não tem forecast confiável, não projeta (degrada suave).
+	// (a) >= mês atual (nunca RETROATIVO — projetar passado reintroduziria parcela em
+	// fatura já paga, bug que os dados do Nubank expuseram; o mês CORRENTE entra para
+	// completar a fatura em aberto do próprio mês, ex.: a 3/3 de agosto que o emissor
+	// ainda não gerou) e (b) dentro do horizonte. As séries incompletas do Nubank que
+	// motivaram a trava são todas de meses PASSADOS (2024/2025), então `< atual` segue
+	// bloqueado e elas não são reprojetadas. Base do período de cada parcela k: o
+	// forecast da 1ª parcela vista + (k - inst0) meses. Sem forecast → não projeta.
 	const currentPeriod = getCurrentPeriod();
 	const horizonPeriod = addMonthsToPeriod(
 		currentPeriod,
@@ -1035,8 +1039,8 @@ async function syncCardConnection(
 				baseForecast,
 				k - group.firstInstallment,
 			);
-			// Trava (a): só futuro (> mês atual). (b): dentro do horizonte.
-			if (comparePeriods(parcelaPeriod, currentPeriod) <= 0) continue;
+			// Trava (a): mês atual ou futuro (nunca retroativo). (b): dentro do horizonte.
+			if (comparePeriods(parcelaPeriod, currentPeriod) < 0) continue;
 			if (comparePeriods(parcelaPeriod, horizonPeriod) > 0) continue;
 
 			// purchaseDate exibido = dia da compra (âncora) ao meio-dia UTC.
