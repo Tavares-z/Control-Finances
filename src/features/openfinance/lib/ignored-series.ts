@@ -12,9 +12,17 @@ import { db } from "@/shared/lib/db";
  * nunca mais a reinsere.
  *
  * Chave da série (estável entre parcelas e no pending→posted, que troca o ofxFitId):
- *   - PARCELADA: (userId, cardId, descrição, totalParcelas). amountKey = null.
- *     Não casa por valor porque parcelas de uma mesma série podem ter valores
- *     diferentes (visto real: 1ª parcela 25,04, demais 24,98).
+ *   - PARCELADA: (userId, cardId, descrição, totalParcelas, |centavos da parcela|).
+ *     ⚠️ O valor da parcela ENTRA na chave (mudança ago/2026). Antes era só
+ *     (descrição, total) — mas a Pluggy TRUNCA a descrição de formas diferentes entre
+ *     parcelas da MESMA compra (visto real: `MERCADOLIVRE*HUSTLECOM` nas parcelas 1-4
+ *     e `MERCADOLIVRE*HUST` nas 5-8 da MESMA compra). Isso fazia DUAS compras distintas
+ *     de mesmo total colapsarem na mesma chave — e banir uma (cancelada, 24,98) apagava
+ *     as parcelas da outra (legítima, 20,49), que truncava para a mesma string `HUST`.
+ *     Incluir o valor separa 24,98 de 20,49. Custo aceito: a 1ª parcela às vezes tem
+ *     valor diferente das demais (visto: 25,04 vs 24,98) — então banir uma parcela de
+ *     24,98 não pega a de 25,04; o usuário bane essa com 1 clique extra (degradação
+ *     suave e VISÍVEL, muito melhor que apagar compra legítima em silêncio).
  *   - À VISTA (sem parcela): (userId, cardId, descrição, |centavos|). O total é null,
  *     então o valor entra na chave para não banir toda compra de mesma descrição.
  */
@@ -34,9 +42,11 @@ export interface SeriesKey {
 }
 
 /**
- * Deriva a chave de série a partir de uma transação. Parcelada → chave por total
- * (amountKey null). À vista → chave por valor (amountKey preenchido). `cardId` é
- * obrigatório (só cartão tem série de OF); retorna null se ausente.
+ * Deriva a chave de série a partir de uma transação. `amountKey` (|centavos|) SEMPRE
+ * entra na chave — para parcelada é o valor da parcela, para à vista é o valor da
+ * compra (ver comentário do módulo: a descrição truncada pela Pluggy não é confiável
+ * para desambiguar séries, então o valor é necessário mesmo na parcelada). `cardId`
+ * é obrigatório (só cartão tem série de OF); retorna null se ausente.
  */
 export function seriesKeyFromTransaction(tx: {
 	cardId: string | null;
@@ -50,7 +60,7 @@ export function seriesKeyFromTransaction(tx: {
 		cardId: tx.cardId,
 		description: tx.name,
 		installmentCount: parcelada ? tx.installmentCount : null,
-		amountKey: parcelada ? null : toCents(tx.amount),
+		amountKey: toCents(tx.amount),
 	};
 }
 
@@ -93,20 +103,19 @@ export async function banSeriesAndDeleteMatches(
 			})
 			.onConflictDoNothing();
 
-		// Apaga as transações de OF que casam a série. Parcelada → todas as parcelas
-		// de mesma descrição/total (qualquer valor). À vista → mesma descrição/valor.
+		// Apaga as transações de OF que casam a série. Em AMBOS os casos casa pelo valor
+		// absoluto (centavos) — ver comentário do módulo: a descrição truncada pela
+		// Pluggy não desambigua séries, então o valor é obrigatório também na parcelada
+		// para não apagar uma compra legítima de mesma descrição/total e valor diferente.
 		const conds = [
 			eq(transactions.userId, userId),
 			eq(transactions.cardId, key.cardId),
 			eq(transactions.name, key.description),
 			sql`${transactions.ofxFitId} is not null`,
+			sql`round(abs(${transactions.amount}) * 100) = ${key.amountKey}`,
 		];
 		if (key.installmentCount == null) {
-			// À vista: casa pelo valor absoluto (centavos) e sem parcela.
 			conds.push(isNull(transactions.installmentCount));
-			conds.push(
-				sql`round(abs(${transactions.amount}) * 100) = ${key.amountKey}`,
-			);
 		} else {
 			conds.push(eq(transactions.installmentCount, key.installmentCount));
 		}

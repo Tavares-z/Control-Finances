@@ -717,14 +717,15 @@ async function syncCardConnection(
 			isExpense && totalInstallments !== null && totalInstallments >= 2;
 
 		// SÉRIE BANIDA: o usuário marcou esta compra como fantasma (cancelada no
-		// lojista). A chave usa os MESMOS critérios de seriesKeyFromTransaction
-		// (parcelada → por total; à vista → por valor), então casa o que foi banido
-		// pelo delete. Pula sem inserir — nunca reaparece no sync.
+		// lojista). A chave usa os MESMOS critérios de seriesKeyFromTransaction:
+		// descrição + total (null se à vista) + |centavos| SEMPRE (a descrição truncada
+		// pela Pluggy não desambigua séries — ver comentário em ignored-series.ts).
+		// Casa o que foi banido pelo delete. Pula sem inserir — nunca reaparece no sync.
 		const seriesKey = serializeSeriesKey({
 			cardId,
 			description,
 			installmentCount: isInstallment ? totalInstallments : null,
-			amountKey: isInstallment ? null : cents,
+			amountKey: cents,
 		});
 		if (ignoredSeries.has(seriesKey)) {
 			skippedIgnoredSeries += 1;
